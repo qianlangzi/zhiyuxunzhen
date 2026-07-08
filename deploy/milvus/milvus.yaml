@@ -1,0 +1,49 @@
+# =====================================================
+# Milvus Standalone 配置
+# 对应 PRD 3.5: 向量存储,初期容量预估 500MB
+# =====================================================
+
+common:
+  security:
+    authorizationEnabled: false   # MVP 阶段关闭认证
+
+rootCoord:
+  address: localhost
+  port: 53100
+
+queryCoord:
+  address: localhost
+  port: 19531
+
+dataCoord:
+  address: localhost
+  port: 13333
+
+indexCoord:
+  address: localhost
+  port: 31000
+
+queryNode:
+  port: 21123
+
+dataNode:
+  port: 21124
+
+indexNode:
+  port: 21121
+
+# 日志级别
+log:
+  level: info
+
+# 存储配置
+localStorage:
+  path: /var/lib/milvus/rdb_data
+
+# 内存限制(适配 MVP 50 人并发)
+quotaAndLimits:
+  dml:
+    insertRate:
+      max: 10       # MB/s
+    deleteRate:
+      max: 10

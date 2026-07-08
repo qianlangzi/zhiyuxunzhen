@@ -1,0 +1,2 @@
+{"type":"click","text":"Flutter\n          新建 lib/ features/ shared/ routes/\n        \n      \n    \n    \n      B. 直接新建 Flutter 移动端\n      最贴合 PRD 终态，但当前仓库没有 Flutter 工程，需要从零搭壳、依赖和构建链路。这不是“替换前端代码”，而是新增完整客户端。","choice":"b","id":null,"timestamp":1782479284371}
+{"type":"click","text":"Flutter\n          新建 lib/ features/ shared/ routes/\n        \n      \n    \n    \n      B. 直接新建 Flutter 移动端\n      最贴合 PRD 终态，但当前仓库没有 Flutter 工程，需要从零搭壳、依赖和构建链路。这不是“替换前端代码”，而是新增完整客户端。","choice":"b","id":null,"timestamp":1782479285021}

@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>智愈寻真视觉方向选择</title>
+  <style>
+    :root {
+      --bg: #eef4f2;
+      --ink: #0f211e;
+      --muted: #5a6d68;
+      --line: rgba(27, 72, 64, 0.14);
+      --brand: #0f766e;
+      --mint: #a8ede1;
+      --amber: #c98a2f;
+      --danger: #d95656;
+      --panel: rgba(255, 255, 255, 0.78);
+      --shadow: 0 24px 80px rgba(21, 78, 68, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 8%, rgba(15, 118, 110, 0.16), transparent 28rem),
+        radial-gradient(circle at 84% 0%, rgba(201, 138, 47, 0.12), transparent 26rem),
+        linear-gradient(180deg, #f8fbfa 0%, var(--bg) 100%);
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+    }
+
+    main {
+      width: min(1380px, calc(100% - 48px));
+      margin: 0 auto;
+      padding: 44px 0 56px;
+    }
+
+    header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(34px, 5vw, 68px);
+      line-height: 1.03;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 620px;
+      margin: 16px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.75;
+    }
+
+    .source {
+      flex: 0 0 auto;
+      max-width: 360px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.62);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+      box-shadow: 0 16px 42px rgba(21, 78, 68, 0.08);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .option {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.72);
+      box-shadow: 0 18px 54px rgba(21, 78, 68, 0.1);
+    }
+
+    .preview {
+      min-height: 500px;
+      padding: 18px;
+      background: #f8fbfa;
+    }
+
+    .option-body {
+      padding: 18px 20px 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .choice {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      margin-bottom: 12px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    h2 {
+      margin: 0 0 8px;
+      font-size: 21px;
+      letter-spacing: 0;
+    }
+
+    .option-body p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+
+    .mini-shell {
+      overflow: hidden;
+      min-height: 464px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 20% 0%, rgba(168, 237, 225, 0.32), transparent 14rem),
+        linear-gradient(145deg, #fcfffe, #e9f3ef);
+      border: 1px solid rgba(15, 118, 110, 0.12);
+    }
+
+    .mini-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .mark {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .pill {
+      height: 24px;
+      padding: 0 10px;
+      border: 1px solid rgba(15, 118, 110, 0.14);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.74);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 22px;
+    }
+
+    .mini-hero {
+      padding: 10px 18px 16px;
+    }
+
+    .mini-hero h3 {
+      max-width: 360px;
+      margin: 0;
+      font-size: 31px;
+      line-height: 1.02;
+      letter-spacing: 0;
+    }
+
+    .mini-hero p {
+      max-width: 330px;
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .mock-grid {
+      display: grid;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .dense {
+      grid-template-columns: 1.1fr 0.9fr;
+    }
+
+    .tile {
+      position: relative;
+      overflow: hidden;
+      min-height: 92px;
+      padding: 12px;
+      border: 1px solid rgba(15, 118, 110, 0.12);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 12px 30px rgba(21, 78, 68, 0.08);
+    }
+
+    .tile.large {
+      min-height: 190px;
+      grid-row: span 2;
+      background:
+        radial-gradient(circle at 72% 16%, rgba(168, 237, 225, 0.42), transparent 6rem),
+        #0d2622;
+      color: #f4fffc;
+    }
+
+    .tile strong,
+    .tile span {
+      display: block;
+    }
+
+    .tile strong {
+      font-size: 15px;
+    }
+
+    .tile span {
+      margin-top: 6px;
+      color: inherit;
+      opacity: 0.68;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .chat {
+      display: grid;
+      grid-template-columns: 1fr 0.72fr;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .chat-main {
+      min-height: 258px;
+      padding: 14px;
+      border-radius: 18px;
+      background: #0d2622;
+      color: #effffb;
+    }
+
+    .bubble {
+      width: 78%;
+      margin-bottom: 9px;
+      padding: 9px 10px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .bubble.student {
+      margin-left: auto;
+      background: var(--brand);
+    }
+
+    .map {
+      display: grid;
+      gap: 9px;
+    }
+
+    .node {
+      padding: 10px;
+      border-radius: 15px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(15, 118, 110, 0.14);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .node.active {
+      background: #dff6f2;
+      color: var(--brand);
+    }
+
+    .node.danger {
+      background: rgba(217, 86, 86, 0.11);
+      color: var(--danger);
+    }
+
+    .dark-shell {
+      min-height: 464px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 72% 16%, rgba(168, 237, 225, 0.18), transparent 12rem),
+        linear-gradient(145deg, #061a18, #102522);
+      color: #f3fffb;
+      overflow: hidden;
+    }
+
+    .dark-shell .mini-nav {
+      color: #effffb;
+    }
+
+    .dark-shell .pill {
+      border-color: rgba(255, 255, 255, 0.14);
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(243, 255, 251, 0.72);
+    }
+
+    .dark-shell .mini-hero p {
+      color: rgba(243, 255, 251, 0.65);
+    }
+
+    .scan-row {
+      display: grid;
+      grid-template-columns: 1fr 0.82fr;
+      gap: 10px;
+      padding: 0 18px 18px;
+    }
+
+    .scan {
+      min-height: 250px;
+      border-radius: 20px;
+      background:
+        radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.34), transparent 4rem),
+        radial-gradient(circle at 64% 58%, rgba(255, 255, 255, 0.16), transparent 5rem),
+        linear-gradient(135deg, #263c43, #82979b);
+      position: relative;
+    }
+
+    .scan::after {
+      content: "";
+      position: absolute;
+      right: 38px;
+      bottom: 48px;
+      width: 72px;
+      height: 58px;
+      border: 2px solid var(--mint);
+      border-radius: 15px;
+      box-shadow: 0 0 0 999px rgba(6, 26, 24, 0.16);
+    }
+
+    .metrics {
+      display: grid;
+      gap: 10px;
+    }
+
+    .metric {
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 20px;
+    }
+
+    .metric span {
+      color: rgba(243, 255, 251, 0.64);
+      font-size: 11px;
+    }
+
+    .note {
+      margin-top: 24px;
+      padding: 18px 20px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.68);
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    @media (max-width: 1100px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      header {
+        display: block;
+      }
+
+      .source {
+        margin-top: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>智愈寻真工作台重构方向</h1>
+        <p class="lead">目标是去掉现在折叠长条式模块，把 PRD 里的 SP 配置、问诊室、影像圈选、思维树、批阅复核和班级薄弱点做成更有高级感、主题明确、可扫描的产品工作台。</p>
+      </div>
+      <aside class="source">参考 React Bits / Vue Bits 的交互模式：PillNav、MagicBento、SpotlightCard、GlassSurface、SplitText、ScrollReveal。因为项目是 Vue 3，会迁移交互思想，不硬塞 React 依赖。</aside>
+    </header>
+
+    <section class="grid" aria-label="三种视觉方向">
+      <article class="option">
+        <div class="preview">
+          <div class="mini-shell">
+            <div class="mini-nav">
+              <div class="brand"><span class="mark">智</span> 智愈寻真</div>
+              <span class="pill">教师端 / 学生端切换</span>
+            </div>
+            <div class="mini-hero">
+              <h3>把临床训练收进一张清晰工作台</h3>
+              <p>首屏直接给核心任务、服务状态、待处理事项，不再把所有模块塞进折叠条。</p>
+            </div>
+            <div class="mock-grid dense">
+              <div class="tile large"><strong>今日核心场景</strong><span>问诊室 + 思维树联动，适合作为学生端首屏主任务。</span></div>
+              <div class="tile"><strong>SP 病例</strong><span>3 个可训练病例</span></div>
+              <div class="tile"><strong>AI 批阅</strong><span>15 秒内异步反馈</span></div>
+              <div class="tile"><strong>薄弱点</strong><span>聚合班级画像</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="option-body">
+          <span class="choice">A</span>
+          <h2>模块化高级工作台</h2>
+          <p>最稳妥。用 Magic Bento / Spotlight Card 思路替代折叠长条，信息密度高、学习成本低，适合教研平台的专业气质。</p>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="preview">
+          <div class="mini-shell">
+            <div class="mini-nav">
+              <div class="brand"><span class="mark">智</span> 智愈寻真</div>
+              <span class="pill">SSE event: tree</span>
+            </div>
+            <div class="mini-hero">
+              <h3>一次问诊，就是一条可复盘的思维路径</h3>
+              <p>学生端强调沉浸式训练，教师端保留复核和统计入口。</p>
+            </div>
+            <div class="chat">
+              <div class="chat-main">
+                <div class="bubble student">气促是活动后明显，还是静息也存在？</div>
+                <div class="bubble">上楼会明显喘，昨晚平躺也憋。</div>
+                <div class="bubble">Mentor：建议追问夜间阵发性呼吸困难。</div>
+              </div>
+              <div class="map">
+                <div class="node active">端坐呼吸</div>
+                <div class="node">血常规</div>
+                <div class="node danger">肺炎已排除</div>
+                <div class="node active">心衰待验证</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="option-body">
+          <span class="choice">B</span>
+          <h2>问诊室优先的沉浸布局</h2>
+          <p>最贴近学生核心体验。把对话、影像、思维树做成首屏主视觉，交互很强，但教师端需要另做清晰的信息组织。</p>
+        </div>
+      </article>
+
+      <article class="option">
+        <div class="preview">
+          <div class="dark-shell">
+            <div class="mini-nav">
+              <div class="brand"><span class="mark">智</span> 智愈寻真</div>
+              <span class="pill">医学影像工作流</span>
+            </div>
+            <div class="mini-hero">
+              <h3>从影像线索到诊断逻辑</h3>
+              <p>更强的医疗科技感，适合凸显多模态判读、OSCE 评估和临床决策树。</p>
+            </div>
+            <div class="scan-row">
+              <div class="scan"></div>
+              <div class="metrics">
+                <div class="metric"><strong>0.42</strong><span>圈选坐标 x</span></div>
+                <div class="metric"><strong>82</strong><span>OSCE 综合分</span></div>
+                <div class="metric"><strong>5/50</strong><span>思维树节点</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="option-body">
+          <span class="choice">C</span>
+          <h2>暗色医学影像感</h2>
+          <p>视觉冲击最强。适合做重点页面或问诊室深色模式；若全站使用，教师端长时间批阅可能略累。</p>
+        </div>
+      </article>
+    </section>
+
+    <p class="note">我的初步推荐是 A 作为全站骨架，B 作为学生问诊室重点区域，C 作为影像圈选/思维树局部深色模块。你可以直接回复：选 A、偏 B、A+B 混合、或你想加强哪种气质。</p>
+  </main>
+</body>
+</html>

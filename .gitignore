@@ -1,0 +1,44 @@
+# ===== Java / Maven =====
+target/
+*.class
+*.jar
+*.war
+.mvn/wrapper/maven-wrapper.jar
+
+# ===== Node =====
+node_modules/
+dist/
+dist-admin/
+dist-*/
+.vite/
+*.log
+
+# ===== Python =====
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# ===== Docker / 环境 =====
+.env
+*.env.local
+
+# ===== 本地数据卷(开发环境挂载,勿提交) =====
+data/mysql/
+data/milvus/
+data/etcd/
+data/minio/
+
+# ===== 日志(勿提交) =====
+logs/backend/
+logs/ai/
+
+# ===== 上传文件 =====
+uploads/

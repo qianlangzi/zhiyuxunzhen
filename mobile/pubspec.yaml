@@ -1,0 +1,49 @@
+name: zhiyu
+description: 智愈寻真 - 内科学训练移动客户端（学生 / 教师共用）
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+  flutter: ">=3.19.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # 路由
+  go_router: ^14.2.0
+
+  # 状态管理
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # 网络
+  dio: ^5.5.0+1
+
+  # 本地存储
+  shared_preferences: ^2.2.3
+
+  # 图表（后续 OSCE 雷达图、学情曲线）
+  fl_chart: ^0.68.0
+
+  # 图像选取（后续影像上传）
+  image_picker: ^1.1.2
+
+  # 图标
+  flutter_svg: ^2.0.10+1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  riverpod_generator: ^2.4.0
+  build_runner: ^2.4.11
+  json_serializable: ^6.8.0
+  json_annotation: ^4.9.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

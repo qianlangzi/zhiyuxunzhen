@@ -1,0 +1,42 @@
+<h2>落地方式选择</h2>
+<p class="subtitle">视觉方向已确认。这里是本次前端设计可以采用的 3 种落地方式，我推荐 A。</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>角色化演示 MVP（推荐）</h3>
+      <p>只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>多路由产品骨架</h3>
+      <p>新增 /student/chat、/teacher/case、/teacher/review 等路由。结构更完整，但当前接口和组件较少，容易分散时间。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>只做登录与首页视觉升级</h3>
+      <p>风险最低，但无法体现 PRD 里的问诊、影像圈选、思维树、批阅复核等关键功能，展示价值不足。</p>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">推荐 A 的信息架构</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+      <div style="border:1px solid #d9e7e3;border-radius:18px;padding:18px;background:#f7fbfa">
+        <h3 style="margin-top:0">学生端</h3>
+        <p>今日病例、沉浸问诊室、影像上传圈选、实时思维树、OSCE 雷达、薄弱点学习路径、大病历提交。</p>
+      </div>
+      <div style="border:1px solid #d9e7e3;border-radius:18px;padding:18px;background:#f7fbfa">
+        <h3 style="margin-top:0">教师端</h3>
+        <p>SP 病例配置、作业分发、AI 批阅队列、人工复核、班级薄弱点、模型/服务健康与风险提示。</p>
+      </div>
+    </div>
+  </div>
+</div>

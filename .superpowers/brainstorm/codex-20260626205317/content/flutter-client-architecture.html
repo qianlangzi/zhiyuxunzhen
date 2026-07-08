@@ -1,0 +1,69 @@
+<h2>Flutter 客户端从 0 重构边界</h2>
+<p class="subtitle">学生和教师共用一个移动 App。管理端继续留在 Vue 3 Web，不进入 App。</p>
+
+<div class="mockup">
+  <div class="mockup-header">Repository Boundary</div>
+  <div class="mockup-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+      <div style="border:1px solid rgba(27,86,76,.16);border-radius:14px;padding:16px;background:#f7fbfa;">
+        <h3 style="margin-top:0;color:#0f766e;">mobile/</h3>
+        <p style="margin:0;color:#536862;">新建 Flutter 客户端：登录、角色分流、学生端、教师端、共享主题、API、mock 数据。</p>
+      </div>
+      <div style="border:1px solid rgba(27,86,76,.16);border-radius:14px;padding:16px;background:#fff;">
+        <h3 style="margin-top:0;color:#10231f;">front/</h3>
+        <p style="margin:0;color:#536862;">保留 Vue 管理端：front/admin、front/src/admin、vite.admin.config.ts 不改。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Role Routing</div>
+  <div class="mockup-body">
+    <div style="display:grid;gap:14px;">
+      <div style="display:grid;grid-template-columns:160px 1fr;gap:12px;align-items:center;">
+        <div style="padding:14px;border-radius:14px;background:#10231f;color:#fff;font-weight:800;text-align:center;">Login</div>
+        <div style="padding:14px;border-radius:14px;background:#eef6f4;color:#536862;">JWT role 决定入口。role=0 进入学生端，role=1 进入教师端，role=2+ 提示使用 Web 管理端。</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="padding:14px;border-radius:14px;background:#dff4f1;">
+          <strong style="color:#0b5f59;">Student Shell</strong>
+          <p style="margin:8px 0 0;color:#536862;">首页、病例、问诊、反馈、我的</p>
+        </div>
+        <div style="padding:14px;border-radius:14px;background:#fff2d8;">
+          <strong style="color:#8a4d0f;">Teacher Shell</strong>
+          <p style="margin:8px 0 0;color:#536862;">概览、病例、作业、批阅、我的</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup">
+  <div class="mockup-header">Mobile UX Contract</div>
+  <div class="mockup-body">
+    <div class="options" data-multiselect>
+      <div class="option" data-choice="touch" onclick="toggleSelect(this)">
+        <div class="letter">1</div>
+        <div class="content">
+          <h3>真实手机操作</h3>
+          <p>底部 Tab、顶部状态、内容卡片流、Safe Area、44px 以上触控目标。</p>
+        </div>
+      </div>
+      <div class="option" data-choice="brand" onclick="toggleSelect(this)">
+        <div class="letter">2</div>
+        <div class="content">
+          <h3>风格和 Logo 保留</h3>
+          <p>沿用冷白、深墨绿、玉青、医疗青。Logo 直接复用 front/src/assets/brand-logo.png。</p>
+        </div>
+      </div>
+      <div class="option" data-choice="large-refactor" onclick="toggleSelect(this)">
+        <div class="letter">3</div>
+        <div class="content">
+          <h3>大规模重构</h3>
+          <p>学生/教师 Vue 页面只做备份，不再作为主客户端开发路线。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

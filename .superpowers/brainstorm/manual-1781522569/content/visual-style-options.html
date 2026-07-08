@@ -1,0 +1,76 @@
+<h2>选择整体视觉气质</h2>
+<p class="subtitle">基于「智愈寻真」PRD：教师侧重效率与复核，学生侧重问诊沉浸感、影像圈选、思维树反馈。下面是三种可落地的高级 UI 方向。</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#eef6f4; padding:18px;">
+      <div style="height:190px; border-radius:22px; background:linear-gradient(135deg, rgba(255,255,255,.86), rgba(241,248,246,.68)); border:1px solid rgba(255,255,255,.8); box-shadow:0 24px 70px rgba(28,77,68,.18); position:relative; overflow:hidden;">
+        <div style="position:absolute; inset:18px; display:grid; grid-template-columns:1.05fr .95fr; gap:14px;">
+          <div style="border-radius:18px; background:rgba(255,255,255,.72); border:1px solid rgba(255,255,255,.9); padding:14px;">
+            <div style="width:72px;height:10px;border-radius:99px;background:#1b6f62;margin-bottom:18px;"></div>
+            <div style="height:18px;width:82%;border-radius:8px;background:#17211f;margin-bottom:8px;"></div>
+            <div style="height:10px;width:64%;border-radius:8px;background:#8aa39d;margin-bottom:22px;"></div>
+            <div style="height:64px;border-radius:16px;background:#d6e8e4;"></div>
+          </div>
+          <div style="display:grid; gap:12px;">
+            <div style="border-radius:18px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.9);"></div>
+            <div style="border-radius:18px;background:#102f2a;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 临床玻璃舱</h3>
+      <p>清透、安静、可信。用冷白、玉青、墨绿色建立医疗可信感，局部毛玻璃用于顶栏、折叠面板和问诊浮层。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#f4f7fb; padding:18px;">
+      <div style="height:190px; border-radius:18px; background:#fbfcff; border:1px solid #dce5ee; box-shadow:0 18px 48px rgba(34,58,86,.13); display:grid; grid-template-columns:72px 1fr; overflow:hidden;">
+        <div style="background:#10243b; padding:14px 10px;">
+          <div style="height:22px;border-radius:9px;background:#d7eef3;margin-bottom:18px;"></div>
+          <div style="height:10px;border-radius:9px;background:#7ba2b0;margin-bottom:10px;"></div>
+          <div style="height:10px;border-radius:9px;background:#7ba2b0;margin-bottom:10px;"></div>
+        </div>
+        <div style="padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div style="grid-column:1 / 3;height:52px;border-radius:14px;background:#e8f0f6;"></div>
+          <div style="border-radius:14px;background:#0f766e;"></div>
+          <div style="border-radius:14px;background:#dbe6ef;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 教研指挥台</h3>
+      <p>更像成熟 SaaS 工作台，信息密度高、操作路径短。适合突出教师端批阅、作业分发、班级薄弱点统计。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#edf4f8; padding:18px;">
+      <div style="height:190px; border-radius:24px; background:#071b22; box-shadow:0 28px 78px rgba(7,27,34,.26); padding:16px; display:grid; grid-template-columns:1fr 108px; gap:14px; overflow:hidden;">
+        <div style="border-radius:18px;background:#f7fbfb;padding:14px;">
+          <div style="height:20px;width:70%;border-radius:10px;background:#102f2a;margin-bottom:14px;"></div>
+          <div style="height:78px;border-radius:16px;background:#dbe9ed;margin-bottom:12px;"></div>
+          <div style="height:34px;border-radius:17px;background:#0f766e;"></div>
+        </div>
+        <div style="border-radius:18px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.24);position:relative;">
+          <div style="position:absolute;left:20px;top:24px;width:14px;height:14px;border-radius:50%;background:#8fe1d3;"></div>
+          <div style="position:absolute;left:58px;top:58px;width:14px;height:14px;border-radius:50%;background:#f87171;"></div>
+          <div style="position:absolute;left:28px;top:114px;width:14px;height:14px;border-radius:50%;background:#c7d2fe;"></div>
+          <div style="position:absolute;left:35px;top:36px;width:48px;height:1px;background:rgba(255,255,255,.38);transform:rotate(35deg);"></div>
+          <div style="position:absolute;left:34px;top:87px;width:54px;height:1px;background:rgba(255,255,255,.38);transform:rotate(-48deg);"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. 沉浸问诊室</h3>
+      <p>强调学生端临床沉浸和 AI 对话。右侧思维树像实时生命体，适合把问诊、影像圈选、反思拦截做得很有交互感。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>我的推荐</h3>
+  <p>推荐 A 作为主视觉，再吸收 C 的问诊室交互。这样教师端不会太炫，学生端又足够沉浸，整体更像大厂级医疗 AI 产品，而不是普通后台系统。</p>
+</div>
