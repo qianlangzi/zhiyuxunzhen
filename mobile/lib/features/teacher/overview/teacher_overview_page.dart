@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 教师概览：提交进度 + 待复核 + 班级薄弱点 + 待办
 class TeacherOverviewPage extends ConsumerWidget {
@@ -61,7 +62,7 @@ class TeacherOverviewPage extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
                   AppDimens.pagePadding, AppDimens.grid4, AppDimens.pagePadding, 0),
-              child: _buildCasesCard(cases),
+              child: _buildCasesCard(context, cases),
             ),
           ),
           const SliverToBoxAdapter(
@@ -155,7 +156,7 @@ class TeacherOverviewPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildCasesCard(List<CaseModel> cases) {
+  Widget _buildCasesCard(BuildContext context, List<CaseModel> cases) {
     return ZyCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

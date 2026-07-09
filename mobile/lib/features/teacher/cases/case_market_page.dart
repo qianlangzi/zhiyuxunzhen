@@ -6,6 +6,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 病例广场
 class CaseMarketPage extends ConsumerWidget {
@@ -17,7 +18,7 @@ class CaseMarketPage extends ConsumerWidget {
     final List<MarketCaseModel> cases = repo.market();
 
     return Scaffold(
-      appBar: const ZyAppBar(title: '病例广场', transparent: true),
+      appBar: const ZyAppBar(title: Text('病例广场'), transparent: true),
       body: CustomScrollView(
         slivers: <Widget>[
           SliverToBoxAdapter(

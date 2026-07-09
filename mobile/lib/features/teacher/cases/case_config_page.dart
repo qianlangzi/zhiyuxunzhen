@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 教师病例配置页
 class CaseConfigPage extends ConsumerStatefulWidget {

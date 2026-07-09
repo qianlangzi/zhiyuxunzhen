@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 病例详情：进入问诊室前的概览
 class CaseDetailPage extends ConsumerWidget {
@@ -20,8 +21,8 @@ class CaseDetailPage extends ConsumerWidget {
         repo.byId(caseId) ?? repo.daily();
 
     return Scaffold(
-      appBar: const ZyAppBar(
-        title: '病例概览',
+      appBar: ZyAppBar(
+        title: const Text('病例概览'),
         transparent: true,
       ),
       body: caseItem == null

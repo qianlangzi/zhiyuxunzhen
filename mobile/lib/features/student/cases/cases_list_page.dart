@@ -7,6 +7,7 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 病例列表
 class CasesListPage extends ConsumerStatefulWidget {

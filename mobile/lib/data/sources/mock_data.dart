@@ -3,6 +3,7 @@ import '../models/case_model.dart';
 import '../models/chat_model.dart';
 import '../models/learning_model.dart';
 import '../models/user_model.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// Mock 数据源
 /// 对齐 front/legacy-student-teacher/src/views/mockData.ts

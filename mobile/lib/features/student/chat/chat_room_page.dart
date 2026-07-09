@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 问诊室：手机端优化为单列竖向聊天 + 可展开的辅助面板
 class ChatRoomPage extends ConsumerStatefulWidget {
@@ -52,7 +53,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
     Future<void>.delayed(const Duration(milliseconds: 600), () {
       if (!mounted) return;
       setState(() {
-        _messages.add(const _UiMessage(
+        _messages.add(_UiMessage(
           by: 'sp',
           text: '好的，我尽量回答。具体是哪方面的问题？',
         ));
@@ -87,7 +88,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
     return Scaffold(
       backgroundColor: AppColors.deep,
       appBar: ZyAppBar(
-        title: caseItem?.title ?? '问诊室',
+        title: Text(caseItem?.title ?? '问诊室'),
         subtitle: '模拟病人对话中',
         transparent: true,
         actions: <Widget>[

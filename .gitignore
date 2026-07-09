@@ -26,9 +26,13 @@ venv/
 *.iml
 .DS_Store
 
-# ===== Docker / 环境 =====
+# ===== 环境变量 / 密钥（勿提交） =====
 .env
+.env.*
+*.env
 *.env.local
+*.env.*.local
+!.env.example
 
 # ===== 本地数据卷(开发环境挂载,勿提交) =====
 data/mysql/
@@ -42,3 +46,7 @@ logs/ai/
 
 # ===== 上传文件 =====
 uploads/
+
+# ===== 本地/工具目录（勿提交） =====
+.workbuddy/
+.scratch/

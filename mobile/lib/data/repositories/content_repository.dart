@@ -5,6 +5,7 @@ import '../models/case_model.dart';
 import '../models/chat_model.dart';
 import '../models/learning_model.dart';
 import '../sources/mock_data.dart';
+import 'package:zhiyu/data/models.dart';
 
 /// 病例仓库
 class CaseRepository {
