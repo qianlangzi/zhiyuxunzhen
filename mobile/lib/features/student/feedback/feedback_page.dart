@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
 import 'package:zhiyu/data/models.dart';
 
-/// 反馈页：OSCE 四维 + 学习路径
+/// 能力反馈：结论、维度与下一步建议
 class FeedbackPage extends ConsumerWidget {
   const FeedbackPage({super.key});
 
@@ -17,7 +18,6 @@ class FeedbackPage extends ConsumerWidget {
     final LearningRepository repo = ref.watch(learningRepositoryProvider);
     final List<AbilityScore> abilities = repo.abilities();
     final List<LearningPathItem> path = repo.learningPath();
-    // 综合评分 = OSCE 四维平均分
     final int avg = abilities.isEmpty
         ? 0
         : (abilities.fold<int>(0, (int p, AbilityScore a) => p + a.value) /
@@ -25,21 +25,24 @@ class FeedbackPage extends ConsumerWidget {
             .round();
 
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: CustomScrollView(
         slivers: <Widget>[
-          SliverToBoxAdapter(child: _buildHeader()),
+          const SliverToBoxAdapter(
+            child: ZyPageHead(kicker: '反馈', title: '能力反馈'),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: AppDimens.pagePadding, vertical: AppDimens.grid3),
-              child: _buildScoreSummary(avg),
+              child: _ConclusionCard(avg: avg),
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: _buildAbilitiesCard(abilities),
+              child: _AbilitiesCard(abilities: abilities),
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
@@ -47,7 +50,7 @@ class FeedbackPage extends ConsumerWidget {
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: _LearningPathCard(path: path),
+              child: _SuggestionsCard(path: path),
             ),
           ),
           const SliverToBoxAdapter(
@@ -56,101 +59,54 @@ class FeedbackPage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildHeader() {
-    return const ZyPageHead(
-      kicker: '反馈',
-      title: '最近一次训练反馈',
-    );
-  }
+class _ConclusionCard extends StatelessWidget {
+  const _ConclusionCard({required this.avg});
 
-  Widget _buildScoreSummary(int avg) {
-    return Container(
-      padding: const EdgeInsets.all(AppDimens.grid5),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: <Color>[AppColors.brand, AppColors.brandStrong],
-        ),
-        borderRadius: BorderRadius.circular(AppDimens.radiusXl),
-        boxShadow: AppColors.shadow,
-      ),
-      child: Row(
+  final int avg;
+
+  @override
+  Widget build(BuildContext context) {
+    return ZyCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Text(
-                  '综合评分',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xB3FFFFFF),
-                    letterSpacing: 0.4,
-                  ),
-                ),
-                const SizedBox(height: AppDimens.grid2),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: <Widget>[
-                    Text(
-                      '$avg',
-                      style: const TextStyle(
-                        fontSize: 48,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        height: 1,
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 6),
-                      child: Text(
-                        '/100',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xB3FFFFFF),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppDimens.grid2),
-                const Text(
-                  '诊断逻辑还有提升空间',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xCCFFFFFF),
-                  ),
-                ),
-              ],
-            ),
+          Row(
+            children: <Widget>[
+              const Text('本次表现', style: AppTextStyles.title),
+              const Spacer(),
+              Text('$avg/100',
+                  style: AppTextStyles.h3.copyWith(color: AppColors.brand)),
+            ],
           ),
-          Container(
-            width: 88,
-            height: 88,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: const Color(0x55FFFFFF), width: 6),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.trending_up_rounded,
-                size: 36, color: Colors.white),
-          ),
+          const SizedBox(height: AppDimens.grid2),
+          Text(_conclusionFor(avg), style: AppTextStyles.body),
         ],
       ),
     );
   }
 
-  Widget _buildAbilitiesCard(List<AbilityScore> abilities) {
+  String _conclusionFor(int v) {
+    if (v >= 85) return '整体表现优秀，继续保持当前训练节奏。';
+    if (v >= 75) return '表现稳定，诊断逻辑仍有提升空间。';
+    if (v >= 60) return '基础尚可，建议加强诊断逻辑与检查选择训练。';
+    return '需要系统复习并重点突破薄弱环节。';
+  }
+}
+
+class _AbilitiesCard extends StatelessWidget {
+  const _AbilitiesCard({required this.abilities});
+
+  final List<AbilityScore> abilities;
+
+  @override
+  Widget build(BuildContext context) {
     return ZyCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          const ZySectionHeader(title: 'OSCE 四维'),
+          const ZySectionHeader(title: '能力维度'),
           const SizedBox(height: AppDimens.grid4),
           ...abilities.map((AbilityScore a) => _AbilityRow(item: a)),
         ],
@@ -168,55 +124,32 @@ class _AbilityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final Color color = _colorFor(item.value);
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.grid4),
+      padding: const EdgeInsets.only(bottom: AppDimens.grid3),
       child: Row(
         children: <Widget>[
           SizedBox(
-            width: 80,
-            child: Text(
-              item.label,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: AppColors.ink,
-              ),
-            ),
+            width: 72,
+            child: Text(item.label, style: AppTextStyles.bodyStrong),
           ),
           const SizedBox(width: AppDimens.grid3),
           Expanded(
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  height: 8,
-                  decoration: BoxDecoration(
-                    color: const Color(0x140F766E),
-                    borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                  ),
-                ),
-                FractionallySizedBox(
-                  widthFactor: item.value / 100,
-                  child: Container(
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                    ),
-                  ),
-                ),
-              ],
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: LinearProgressIndicator(
+                value: item.value / 100,
+                minHeight: 6,
+                backgroundColor: AppColors.brandSoft,
+                color: color,
+              ),
             ),
           ),
           const SizedBox(width: AppDimens.grid3),
           SizedBox(
-            width: 32,
+            width: 36,
             child: Text(
               '${item.value}',
               textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: color,
-              ),
+              style: AppTextStyles.bodyStrong.copyWith(color: color),
             ),
           ),
         ],
@@ -225,15 +158,15 @@ class _AbilityRow extends StatelessWidget {
   }
 
   Color _colorFor(int v) {
-    if (v >= 85) return AppColors.brand;
-    if (v >= 70) return AppColors.aqua;
+    if (v >= 85) return AppColors.success;
+    if (v >= 70) return AppColors.brand;
     if (v >= 60) return AppColors.warning;
     return AppColors.danger;
   }
 }
 
-class _LearningPathCard extends StatelessWidget {
-  const _LearningPathCard({required this.path});
+class _SuggestionsCard extends StatelessWidget {
+  const _SuggestionsCard({required this.path});
 
   final List<LearningPathItem> path;
 
@@ -243,75 +176,57 @@ class _LearningPathCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ZySectionHeader(
-            title: '学习路径',
-            actionLabel: '查看错题',
-            onAction: () => context.go('/student/mistakes'),
-          ),
-          const SizedBox(height: AppDimens.grid4),
-          ...path.map((LearningPathItem p) => _LearningPathRow(item: p)),
+          const ZySectionHeader(title: '下一步建议'),
+          const SizedBox(height: AppDimens.grid3),
+          ...path.asMap().entries.map((MapEntry<int, LearningPathItem> e) {
+            // 仅第一项可路由到病例列表；其余作为信息呈现，避免死按钮
+            final bool routed = e.key == 0;
+            return _SuggestionRow(item: e.value, routed: routed);
+          }),
         ],
       ),
     );
   }
 }
 
-class _LearningPathRow extends StatelessWidget {
-  const _LearningPathRow({required this.item});
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({required this.item, required this.routed});
 
   final LearningPathItem item;
+  final bool routed;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppDimens.grid3),
-      padding: const EdgeInsets.all(AppDimens.grid3),
-      decoration: BoxDecoration(
-        color: const Color(0x080F766E),
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(color: AppColors.line, width: 1),
-      ),
-      child: Row(
-        children: <Widget>[
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: AppColors.brandSoft,
-              borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.school_rounded,
-                size: 18, color: AppColors.brand),
-          ),
-          const SizedBox(width: AppDimens.grid3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  item.title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: routed ? () => context.push('/student/cases') : null,
+        borderRadius: BorderRadius.circular(AppDimens.radiusCard),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+              vertical: AppDimens.grid3, horizontal: AppDimens.grid2),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(item.title, style: AppTextStyles.bodyStrong),
+                    const SizedBox(height: 4),
+                    Text(item.meta, style: AppTextStyles.caption),
+                    const SizedBox(height: AppDimens.grid2),
+                    ZyProgress(value: item.progress / 100, height: 6),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  item.meta,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
-                  ),
-                ),
-                const SizedBox(height: AppDimens.grid2),
-                ZyProgress(value: item.progress / 100, height: 6),
+              ),
+              if (routed) ...<Widget>[
+                const SizedBox(width: AppDimens.grid2),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 22, color: AppColors.soft),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

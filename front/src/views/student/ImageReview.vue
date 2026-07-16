@@ -109,12 +109,7 @@ onBeforeUnmount(() => {
           <span class="scan-label">{{ selectionText }}</span>
         </div>
 
-        <el-upload
-          accept="image/*"
-          :auto-upload="false"
-          :show-file-list="false"
-          :on-change="handleUpload"
-        >
+        <el-upload accept="image/*" :auto-upload="false" :show-file-list="false" :on-change="handleUpload">
           <el-button plain>
             <el-icon><Upload /></el-icon>
             上传影像
@@ -173,13 +168,13 @@ onBeforeUnmount(() => {
   min-height: 420px;
   overflow: hidden;
   border-radius: 22px;
-  border: 1px dashed rgba(15, 118, 110, 0.28);
+  border: 1px dashed rgba(15, 76, 92, 0.28);
   background: #f7fbfa;
   cursor: crosshair;
 }
 
 .scan-preview:focus-visible {
-  outline: 3px solid rgba(20, 184, 166, 0.32);
+  outline: 3px solid rgba(15, 76, 92, 0.18);
   outline-offset: 3px;
 }
 
@@ -270,9 +265,9 @@ p {
   gap: 6px;
   margin-top: 18px;
   padding: 14px;
-  border: 1px solid rgba(15, 118, 110, 0.16);
+  border: 1px solid rgba(15, 76, 92, 0.16);
   border-radius: 16px;
-  background: rgba(223, 244, 241, 0.72);
+  background: rgba(223, 241, 243, 0.72);
 }
 
 .note.saved {

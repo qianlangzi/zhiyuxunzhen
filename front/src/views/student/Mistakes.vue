@@ -1,5 +1,14 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { mistakes } from '../mockData'
+
+const activeType = ref('全部')
+const options = ['全部', '诊断错误', '漏问病史', '检查错误']
+
+const filteredMistakes = computed(() => {
+  if (activeType.value === '全部') return mistakes
+  return mistakes.filter((item) => item.type === activeType.value)
+})
 </script>
 
 <template>
@@ -15,7 +24,7 @@ import { mistakes } from '../mockData'
     <section class="summary-grid">
       <article class="surface-card summary-card">
         <span>未复习错题</span>
-        <strong>2</strong>
+        <strong>{{ mistakes.filter((item) => item.status === '未复习').length }}</strong>
         <p>建议优先处理胸痛鉴别与检查成本意识。</p>
       </article>
       <article class="surface-card summary-card">
@@ -33,10 +42,10 @@ import { mistakes } from '../mockData'
     <section class="surface-card list-panel">
       <div class="list-head">
         <h2>错题列表</h2>
-        <el-segmented :options="['全部', '诊断错误', '漏问病史', '检查错误']" value="全部" />
+        <el-segmented v-model="activeType" :options="options" />
       </div>
 
-      <article v-for="item in mistakes" :key="item.title" class="mistake-row">
+      <article v-for="item in filteredMistakes" :key="item.title" class="mistake-row">
         <div>
           <el-tag effect="plain">{{ item.type }}</el-tag>
           <strong>{{ item.title }}</strong>
@@ -57,29 +66,6 @@ import { mistakes } from '../mockData'
   gap: 20px;
 }
 
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page-head span,
-.summary-card span,
-.row-side span {
-  display: block;
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1 {
-  margin: 6px 0 0;
-  color: var(--zy-ink);
-  font-size: clamp(26px, 3vw, 34px);
-  line-height: 1.12;
-}
-
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -89,6 +75,14 @@ import { mistakes } from '../mockData'
 .summary-card,
 .list-panel {
   padding: 20px;
+}
+
+.summary-card span,
+.row-side span {
+  display: block;
+  color: var(--zy-muted);
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .summary-card strong {
@@ -146,7 +140,6 @@ import { mistakes } from '../mockData'
     grid-template-columns: 1fr;
   }
 
-  .page-head,
   .list-head {
     align-items: flex-start;
     flex-direction: column;

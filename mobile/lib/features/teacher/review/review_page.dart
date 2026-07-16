@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
 import 'package:zhiyu/data/models.dart';
+import 'review_detail_sheet.dart';
 
-/// 教师批阅页
+/// 教师批阅队列：紧凑行 + 可拖动详情层
 class ReviewPage extends ConsumerStatefulWidget {
   const ReviewPage({super.key});
 
@@ -16,128 +18,176 @@ class ReviewPage extends ConsumerStatefulWidget {
 }
 
 class _ReviewPageState extends ConsumerState<ReviewPage> {
+  static const List<String> _filters = <String>[
+    '全部',
+    '待复核',
+    '已初步批阅',
+    '有争议项',
+  ];
+
+  late List<ReviewItem> _queue;
   String _filter = '全部';
 
   @override
-  Widget build(BuildContext context) {
-    final TeachingRepository repo = ref.watch(teachingRepositoryProvider);
-    final List<ReviewItem> all = repo.reviewQueue();
-    final int pending =
-        all.where((ReviewItem r) => r.status == '待复核').length;
-    final int disputed =
-        all.where((ReviewItem r) => r.status == '有争议项').length;
+  void initState() {
+    super.initState();
+    _queue = ref.read(teachingRepositoryProvider).reviewQueue().toList();
+  }
 
-    List<ReviewItem> queue = all;
-    if (_filter != '全部') {
-      queue = all.where((ReviewItem r) => r.status == _filter).toList();
-    }
+  void _openDetail(ReviewItem item) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext _) => ReviewDetailSheet(
+        item: item,
+        onApprove: () => _handleApprove(item),
+        onReturn: () => _handleReturn(item),
+      ),
+    );
+  }
+
+  void _handleApprove(ReviewItem item) {
+    Navigator.of(context).pop();
+    setState(() {
+      final int index = _queue.indexWhere((ReviewItem q) => q.id == item.id);
+      if (index >= 0) {
+        _queue[index] = ReviewItem(
+          id: item.id,
+          student: item.student,
+          assignment: item.assignment,
+          score: item.score,
+          issue: item.issue,
+          status: '已复核',
+        );
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('复核结果已提交')),
+    );
+  }
+
+  void _handleReturn(ReviewItem item) {
+    Navigator.of(context).pop();
+    setState(() {
+      final int index = _queue.indexWhere((ReviewItem q) => q.id == item.id);
+      if (index >= 0) {
+        _queue[index] = ReviewItem(
+          id: item.id,
+          student: item.student,
+          assignment: item.assignment,
+          score: item.score,
+          issue: item.issue,
+          status: '待修改',
+        );
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已退回修改')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final int pending =
+        _queue.where((ReviewItem q) => q.status == '待复核').length;
+    final int disputed =
+        _queue.where((ReviewItem q) => q.status == '有争议项').length;
+    final String summary =
+        disputed > 0 ? '待复核 $pending 项，其中 $disputed 项有争议' : '待复核 $pending 项';
+    final List<ReviewItem> visible = _filter == '全部'
+        ? _queue
+        : _queue.where((ReviewItem q) => q.status == _filter).toList();
 
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: CustomScrollView(
         slivers: <Widget>[
           SliverToBoxAdapter(
-            child: _buildHeader(pending, disputed),
+            child: ZyPageHead(
+              kicker: '批阅复核',
+              title: 'AI 批阅队列',
+            ),
           ),
           SliverToBoxAdapter(
-            child: _buildFilter(),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(AppDimens.pagePadding, 0,
+                  AppDimens.pagePadding, AppDimens.grid3),
+              child: Text(summary, style: AppTextStyles.body),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: _UnderlineFilter(
+              options: _filters,
+              value: _filter,
+              onChanged: (String value) => setState(() => _filter = value),
+            ),
           ),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(
-                AppDimens.pagePadding, AppDimens.grid3, AppDimens.pagePadding, AppDimens.grid8),
-            sliver: queue.isEmpty
-                ? const SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.only(top: AppDimens.grid10),
-                      child: ZyEmptyState(
-                        icon: Icons.check_circle_outline_rounded,
-                        title: '当前队列已清空',
-                        detail: '稍后会有新的批阅任务',
-                      ),
-                    ),
-                  )
-                : SliverList.separated(
-                    itemCount: queue.length,
-                    separatorBuilder: (BuildContext context, int _) =>
-                        const SizedBox(height: AppDimens.grid3),
-                    itemBuilder: (BuildContext context, int index) =>
-                        _ReviewCard(item: queue[index]),
-                  ),
+                AppDimens.pagePadding, 0, AppDimens.pagePadding, 120),
+            sliver: SliverList.separated(
+              itemCount: visible.length,
+              separatorBuilder: (BuildContext _, int __) =>
+                  const Divider(height: 1, color: AppColors.line),
+              itemBuilder: (BuildContext _, int index) => _ReviewRow(
+                item: visible[index],
+                onTap: () => _openDetail(visible[index]),
+              ),
+            ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildHeader(int pending, int disputed) {
-    return Column(
-      children: <Widget>[
-        const ZyPageHead(kicker: '批阅', title: 'AI 批阅队列与人工复核'),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(
-              AppDimens.pagePadding, AppDimens.grid3, AppDimens.pagePadding, 0),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: ZyStatCard(
-                  label: '待复核',
-                  value: '$pending',
-                  detail: '保留人工最终判断',
-                  tone: pending > 0 ? StatTone.warning : StatTone.neutral,
-                ),
-              ),
-              const SizedBox(width: AppDimens.grid3),
-              Expanded(
-                child: ZyStatCard(
-                  label: '争议项',
-                  value: '$disputed',
-                  detail: '需要人工确认',
-                  tone: disputed > 0 ? StatTone.danger : StatTone.neutral,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+class _UnderlineFilter extends StatelessWidget {
+  const _UnderlineFilter({
+    required this.options,
+    required this.value,
+    required this.onChanged,
+  });
 
-  Widget _buildFilter() {
-    final List<String> filters = <String>['全部', '待复核', '已初步批阅', '有争议项'];
+  final List<String> options;
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
-      height: 44,
+      height: 48,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.pagePadding, vertical: 0),
-        itemCount: filters.length,
-        separatorBuilder: (BuildContext context, int _) =>
-            const SizedBox(width: AppDimens.grid2),
-        itemBuilder: (BuildContext context, int index) {
-          final bool active = filters[index] == _filter;
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => setState(() => _filter = filters[index]),
-              borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimens.grid4, vertical: 0),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: active ? AppColors.brand : Colors.white,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                  border: Border.all(
-                    color: active ? AppColors.brand : AppColors.line,
-                    width: 1,
+        padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
+        itemCount: options.length,
+        separatorBuilder: (BuildContext _, int __) =>
+            const SizedBox(width: AppDimens.grid4),
+        itemBuilder: (BuildContext _, int index) {
+          final String option = options[index];
+          final bool active = option == value;
+          return InkWell(
+            onTap: () => onChanged(option),
+            child: Container(
+              constraints:
+                  const BoxConstraints(minHeight: AppDimens.touchTarget),
+              padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid2),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: active ? AppColors.brand : Colors.transparent,
+                    width: 2,
                   ),
                 ),
-                child: Text(
-                  filters[index],
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: active ? Colors.white : AppColors.muted,
-                  ),
+              ),
+              child: Text(
+                option,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: active ? AppColors.brand : AppColors.muted,
                 ),
               ),
             ),
@@ -148,148 +198,65 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
   }
 }
 
-class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.item});
+class _ReviewRow extends StatelessWidget {
+  const _ReviewRow({required this.item, required this.onTap});
 
   final ReviewItem item;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final Color scoreColor = item.score >= 85
-        ? AppColors.brand
-        : item.score >= 70
-            ? AppColors.aqua
-            : item.score >= 60
-                ? AppColors.warning
-                : AppColors.danger;
-
-    return ZyCard(
-      padding: const EdgeInsets.all(AppDimens.cardPaddingLg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.brandSoft,
-                  borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(Icons.person_rounded,
-                    size: 22, color: AppColors.brand),
-              ),
-              const SizedBox(width: AppDimens.grid3),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      item.student,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.assignment,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.muted,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: <Widget>[
-                  Text(
-                    '${item.score}',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: scoreColor,
-                      height: 1,
-                    ),
-                  ),
-                  const Text(
-                    'AI 评分',
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.soft,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.grid3),
-          Container(
-            padding: const EdgeInsets.all(AppDimens.grid3),
-            decoration: BoxDecoration(
-              color: AppColors.dangerSoft,
-              borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-            ),
-            child: Row(
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                const Icon(Icons.flag_outlined,
-                    size: 16, color: AppColors.danger),
-                const SizedBox(width: AppDimens.grid2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(item.student, style: AppTextStyles.title),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${item.assignment} · AI 评分 ${item.score}',
+                        style: AppTextStyles.caption,
+                      ),
+                    ],
+                  ),
+                ),
+                ZyChip(item.status, tone: _statusTone(item.status)),
+              ],
+            ),
+            const SizedBox(height: AppDimens.grid2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: <Widget>[
                 Expanded(
                   child: Text(
                     item.issue,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.danger,
-                      height: 1.6,
-                    ),
+                    style: AppTextStyles.caption,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: AppDimens.grid2),
+                Text(
+                  '复核',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.brand,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(height: AppDimens.grid3),
-          Row(
-            children: <Widget>[
-              ZyChip(item.status, tone: _statusTone(item.status)),
-              const Spacer(),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(40),
-                    textStyle: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w800),
-                  ),
-                  icon: const Icon(Icons.visibility_outlined, size: 18),
-                  label: const Text('查看'),
-                ),
-              ),
-              const SizedBox(width: AppDimens.grid2),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: () {},
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(40),
-                    textStyle: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w800),
-                  ),
-                  icon: const Icon(Icons.gavel_rounded, size: 18),
-                  label: const Text('复核'),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -304,6 +271,8 @@ class _ReviewCard extends StatelessWidget {
         return ZyChipTone.danger;
       case '已复核':
         return ZyChipTone.success;
+      case '待修改':
+        return ZyChipTone.neutral;
       default:
         return ZyChipTone.neutral;
     }

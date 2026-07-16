@@ -25,16 +25,16 @@ const roleMeta = computed(() => {
       label: '教师端',
       username: 'teacher01',
       role: 1,
-      title: '教师工作区',
-      note: '配置模拟病人，分发作业，查看批阅与班级薄弱点。'
+      title: '教师工作台',
+      note: '配置模拟病人，分发训练作业，复核 AI 批阅结果，查看班级共性薄弱点。'
     }
   }
   return {
     label: '学生端',
     username: 'student01',
     role: 0,
-    title: '学生训练区',
-    note: '选择病例，完成问诊、影像判读和大病历提交。'
+    title: '学生训练台',
+    note: '选择病例，完成问诊、影像判读、大病历提交和错题复盘。'
   }
 })
 
@@ -45,6 +45,15 @@ function selectRole(role: LoginRole) {
 }
 
 async function submit() {
+  if (!form.value.username.trim()) {
+    ElMessage.warning('请输入账号')
+    return
+  }
+  if (!form.value.password.trim()) {
+    ElMessage.warning('请输入密码')
+    return
+  }
+
   loading.value = true
   try {
     const r: any = await http.post('/v1/user/login', form.value)
@@ -52,20 +61,22 @@ async function submit() {
     ElMessage.success('登录成功')
     router.push('/')
   } catch (error) {
-    if (!allowDemoLogin) return
+    if (!allowDemoLogin) {
+      ElMessage.error('登录失败，请检查账号或稍后重试')
+      return
+    }
 
     const isKnownDemoUser =
       form.value.password === '123456' &&
       ((form.value.username === 'teacher01' && selectedRole.value === 'teacher') ||
         (form.value.username === 'student01' && selectedRole.value === 'student'))
 
-    if (!isKnownDemoUser) return
+    if (!isKnownDemoUser) {
+      ElMessage.error('演示账号或密码不正确')
+      return
+    }
 
-    user.setLogin(
-      `demo-${selectedRole.value}-token`,
-      form.value.username,
-      roleMeta.value.role
-    )
+    user.setLogin(`demo-${selectedRole.value}-token`, form.value.username, roleMeta.value.role)
     ElMessage.warning('登录服务暂不可用，已进入开发预览')
     router.push('/')
   } finally {
@@ -80,13 +91,19 @@ async function submit() {
       <div class="login-story">
         <div class="brand-chip">
           <span><img :src="brandLogo" alt="" /></span>
-          智愈寻真
+          知语寻真
         </div>
 
-        <h1>内科学训练</h1>
+        <h1>内科教研 AI 训练平台</h1>
         <p class="hero-copy">
-          选择身份后进入对应页面。
+          面向学生、教师和教研管理者，把模拟病人、作业批阅、病例复盘和平台治理放在一个可信工作台中。
         </p>
+
+        <div class="trust-grid" aria-label="平台能力">
+          <span>模拟问诊</span>
+          <span>智能批阅</span>
+          <span>病例复盘</span>
+        </div>
       </div>
 
       <aside class="login-card glass-panel" aria-label="登录面板">
@@ -120,8 +137,8 @@ async function submit() {
         </div>
 
         <el-form class="login-form" :model="form" label-position="top" @submit.prevent="submit">
-          <el-form-item label="用户名">
-            <el-input v-model="form.username" autocomplete="username" size="large" />
+          <el-form-item label="账号">
+            <el-input v-model="form.username" autocomplete="username" size="large" placeholder="请输入账号" />
           </el-form-item>
           <el-form-item label="密码">
             <el-input
@@ -130,13 +147,18 @@ async function submit() {
               show-password
               size="large"
               type="password"
+              placeholder="请输入密码"
             />
           </el-form-item>
           <el-button class="submit-button" type="primary" size="large" native-type="submit" :loading="loading">
-            登录 {{ roleMeta.label }}
+            {{ loading ? '正在登录' : `登录${roleMeta.label}` }}
           </el-button>
         </el-form>
 
+        <div class="demo-note">
+          <span>演示账号</span>
+          <strong>{{ roleMeta.username }} / 123456</strong>
+        </div>
       </aside>
     </section>
   </main>
@@ -151,7 +173,7 @@ async function submit() {
 
 .login-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
   gap: 44px;
   align-items: center;
   min-height: calc(100dvh - 72px);
@@ -163,8 +185,6 @@ async function submit() {
 }
 
 .brand-chip {
-  position: relative;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -194,34 +214,40 @@ async function submit() {
 }
 
 h1 {
-  position: relative;
-  z-index: 1;
   max-width: 850px;
   margin: 28px 0 20px;
   color: var(--zy-ink);
-  font-size: clamp(46px, 6.2vw, 88px);
-  line-height: 0.98;
+  font-size: clamp(46px, 6vw, 82px);
+  line-height: 1.04;
   letter-spacing: 0;
 }
 
 .hero-copy {
-  position: relative;
-  z-index: 1;
   max-width: 620px;
   margin: 0;
   color: var(--zy-muted);
-  font-size: 19px;
+  font-size: 18px;
   line-height: 1.8;
 }
 
-.login-card {
-  position: relative;
-  padding: 30px;
-  border-radius: var(--zy-radius-xl);
+.trust-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 28px;
 }
 
-.login-card::after {
-  display: none;
+.trust-grid span {
+  padding: 10px 14px;
+  border: 1px solid var(--zy-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--zy-brand-strong);
+  font-weight: 800;
+}
+
+.login-card {
+  padding: 30px;
 }
 
 .login-card-head h2 {
@@ -245,8 +271,8 @@ h1 {
   margin: 24px 0;
   padding: 6px;
   border: 1px solid var(--zy-line);
-  border-radius: 999px;
-  background: rgba(15, 118, 110, 0.06);
+  border-radius: 18px;
+  background: rgba(15, 76, 92, 0.06);
 }
 
 .role-switch button {
@@ -263,12 +289,7 @@ h1 {
 .role-switch button.active {
   color: #fff;
   background: var(--zy-brand);
-  box-shadow: 0 14px 28px rgba(15, 118, 110, 0.2);
-}
-
-.login-form {
-  position: relative;
-  z-index: 1;
+  box-shadow: 0 14px 28px rgba(15, 76, 92, 0.2);
 }
 
 .submit-button {
@@ -276,6 +297,27 @@ h1 {
   min-height: 48px;
   margin-top: 6px;
   font-size: 16px;
+}
+
+.demo-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--zy-bg-soft);
+}
+
+.demo-note span {
+  color: var(--zy-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.demo-note strong {
+  color: var(--zy-ink);
 }
 
 @media (max-width: 1100px) {

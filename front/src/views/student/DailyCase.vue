@@ -100,14 +100,6 @@ function submitDailyCase() {
   gap: 20px;
 }
 
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page-head span,
 .case-title span,
 .decision-box span {
   display: block;
@@ -116,19 +108,11 @@ function submitDailyCase() {
   font-weight: 800;
 }
 
-.page-head h1,
 .case-title h2 {
   margin: 6px 0 0;
   color: var(--zy-ink);
-  line-height: 1.12;
-}
-
-.page-head h1 {
-  font-size: clamp(26px, 3vw, 34px);
-}
-
-.case-title h2 {
   font-size: 22px;
+  line-height: 1.12;
 }
 
 .daily-grid {
@@ -175,7 +159,7 @@ function submitDailyCase() {
 
 .result-box {
   padding: 14px;
-  border: 1px solid rgba(15, 118, 110, 0.24);
+  border: 1px solid rgba(15, 76, 92, 0.24);
   border-radius: var(--zy-radius-md);
   background: var(--zy-brand-soft);
 }
@@ -204,20 +188,20 @@ function submitDailyCase() {
   display: inline-block;
   width: 14px;
   height: 14px;
-  border-radius: 4px;
-  background: rgba(15, 118, 110, 0.08);
+  border-radius: 5px;
+  background: rgba(15, 76, 92, 0.08);
 }
 
 .level-1 {
-  background: rgba(15, 118, 110, 0.22);
+  background: rgba(15, 76, 92, 0.22);
 }
 
 .level-2 {
-  background: rgba(15, 118, 110, 0.38);
+  background: rgba(15, 76, 92, 0.38);
 }
 
 .level-3 {
-  background: rgba(15, 118, 110, 0.62);
+  background: rgba(15, 76, 92, 0.62);
 }
 
 .level-4 {

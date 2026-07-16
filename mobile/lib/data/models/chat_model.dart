@@ -39,8 +39,10 @@ class ReasoningNode {
   });
 
   final String label;
+
   /// 症状 / 检查 / 诊断
   final String type;
+
   /// queried / active / done / next / warning / excluded
   final String state;
   final int? cost;

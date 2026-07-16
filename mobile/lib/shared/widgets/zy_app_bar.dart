@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
+import '../../core/constants/app_text_styles.dart';
 
-/// 玻璃舱风格 AppBar
-/// - 透明背景、与 Scaffold 同色
-/// - 左侧返回按钮遵循触控目标 ≥44px
 class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
   const ZyAppBar({
     super.key,
@@ -19,7 +16,7 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.elevation = 0,
   });
 
-  final Widget? title;
+  final Object? title;
   final String? subtitle;
   final Widget? leading;
   final List<Widget>? actions;
@@ -32,16 +29,9 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget? titleWidget = title;
+    Widget? titleWidget = title is Widget ? title as Widget : null;
     if (title is String) {
-      titleWidget = Text(
-        title as String,
-        style: const TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w800,
-          color: AppColors.ink,
-        ),
-      );
+      titleWidget = Text(title as String, style: AppTextStyles.title);
     }
     if (titleWidget != null && subtitle != null) {
       titleWidget = Column(
@@ -50,14 +40,7 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
         children: <Widget>[
           titleWidget,
           const SizedBox(height: 2),
-          Text(
-            subtitle!,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.muted,
-            ),
-          ),
+          Text(subtitle!, style: AppTextStyles.caption),
         ],
       );
     }
@@ -76,8 +59,8 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
                         icon: const Icon(Icons.arrow_back_ios_new_rounded,
                             size: 20),
                         onPressed: () => _pop(context),
-                        tooltip: MaterialLocalizations.of(context)
-                            .backButtonTooltip,
+                        tooltip:
+                            MaterialLocalizations.of(context).backButtonTooltip,
                       )
                     : null),
             middle: titleWidget,
@@ -92,90 +75,71 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  static bool canPop(BuildContext context) {
-    return GoRouter.of(context).canPop();
-  }
+  static bool canPop(BuildContext context) => Navigator.of(context).canPop();
 
   static void _pop(BuildContext context) {
-    if (GoRouter.of(context).canPop()) {
-      GoRouter.of(context).pop();
-    } else {
-      Navigator.of(context).maybePop();
-    }
+    Navigator.of(context).maybePop();
   }
 }
 
-/// 大标题头部：用于 Tab 首屏顶部，对齐 Web 端 page-head
 class ZyPageHead extends StatelessWidget {
   const ZyPageHead({
     super.key,
     required this.kicker,
     required this.title,
+    this.subtitle,
     this.action,
     this.padding,
+    this.avatar,
   });
 
   final String kicker;
   final String title;
+  final String? subtitle;
   final Widget? action;
   final EdgeInsetsGeometry? padding;
+  final Widget? avatar;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: padding ??
           const EdgeInsets.fromLTRB(
-              AppDimens.pagePadding, AppDimens.grid5, AppDimens.pagePadding, 0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
+            AppDimens.pagePadding,
+            AppDimens.grid5,
+            AppDimens.pagePadding,
+            AppDimens.grid3,
+          ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: AppColors.aqua,
-                        shape: BoxShape.circle,
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: Color(0x2414B8A6),
-                            blurRadius: 8,
-                            spreadRadius: 3,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      kicker,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.brandStrong,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                    height: 1.15,
+          Row(
+            children: <Widget>[
+              if (avatar != null) ...<Widget>[
+                avatar!,
+                const SizedBox(width: AppDimens.grid3),
+              ],
+              Expanded(
+                child: Text(
+                  kicker,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.brand,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
+              ),
+              if (action != null) action!,
+            ],
           ),
-          if (action != null) action!,
+          const SizedBox(height: AppDimens.grid2),
+          Text(title, style: AppTextStyles.h1),
+          if (subtitle != null) ...<Widget>[
+            const SizedBox(height: AppDimens.grid2),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 560),
+              child: Text(subtitle!, style: AppTextStyles.caption),
+            ),
+          ],
         ],
       ),
     );

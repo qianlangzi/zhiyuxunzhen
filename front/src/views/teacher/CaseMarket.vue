@@ -1,8 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { marketCases } from '../mockData'
 
 const activeDepartment = ref('全部')
+const keyword = ref('')
+
+const filteredCases = computed(() => {
+  return marketCases.filter((item) => {
+    const matchesDepartment = activeDepartment.value === '全部' || item.department === activeDepartment.value
+    const matchesKeyword = !keyword.value || item.title.includes(keyword.value) || item.author.includes(keyword.value)
+    return matchesDepartment && matchesKeyword
+  })
+})
 </script>
 
 <template>
@@ -17,7 +26,7 @@ const activeDepartment = ref('全部')
 
     <section class="surface-card filter-bar">
       <el-segmented v-model="activeDepartment" :options="['全部', '心血管', '呼吸系统', '消化系统']" />
-      <el-input placeholder="搜索病例、疾病系统或作者" clearable>
+      <el-input v-model="keyword" placeholder="搜索病例、疾病系统或作者" clearable>
         <template #prefix>
           <el-icon><Search /></el-icon>
         </template>
@@ -25,7 +34,7 @@ const activeDepartment = ref('全部')
     </section>
 
     <section class="market-grid">
-      <article v-for="item in marketCases" :key="item.title" class="surface-card market-card">
+      <article v-for="item in filteredCases" :key="item.title" class="surface-card market-card interactive">
         <div class="card-top">
           <div>
             <strong>{{ item.title }}</strong>
@@ -61,28 +70,6 @@ const activeDepartment = ref('全部')
   gap: 20px;
 }
 
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.page-head span,
-.market-card span {
-  display: block;
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1 {
-  margin: 6px 0 0;
-  color: var(--zy-ink);
-  font-size: clamp(26px, 3vw, 34px);
-  line-height: 1.12;
-}
-
 .filter-bar {
   display: grid;
   grid-template-columns: auto minmax(260px, 420px);
@@ -116,6 +103,13 @@ const activeDepartment = ref('全部')
   font-size: 18px;
 }
 
+.market-card span {
+  display: block;
+  color: var(--zy-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .metric-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -125,7 +119,7 @@ const activeDepartment = ref('全部')
 .metric-row span {
   padding: 12px;
   border-radius: var(--zy-radius-md);
-  background: rgba(15, 118, 110, 0.06);
+  background: rgba(15, 76, 92, 0.06);
 }
 
 .metric-row b {

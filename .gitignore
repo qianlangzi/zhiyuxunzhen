@@ -39,6 +39,7 @@ data/mysql/
 data/milvus/
 data/etcd/
 data/minio/
+/data/
 
 # ===== 日志(勿提交) =====
 logs/backend/

@@ -11,7 +11,7 @@ export const cases = [
   {
     id: 'copd-acute',
     title: '慢阻肺急性加重',
-    chief: '反复咳嗽、咳痰 10 年，加重伴气促 3 天',
+    chief: '反复咳嗽、咳痰 10 年，加重伴气促 3 天。',
     tags: ['呼吸系统', '低氧血症', '肺功能'],
     department: '呼吸系统',
     referenceCount: 28,
@@ -23,7 +23,7 @@ export const cases = [
   {
     id: 'chest-pain',
     title: '胸痛待查',
-    chief: '突发胸骨后压榨样疼痛 2 小时',
+    chief: '突发胸骨后压榨样疼痛 2 小时，伴出汗和濒死感。',
     tags: ['心血管', '心电图', '鉴别诊断'],
     department: '心血管',
     referenceCount: 43,
@@ -35,7 +35,7 @@ export const cases = [
   {
     id: 'gi-bleeding',
     title: '上消化道出血',
-    chief: '黑便 2 天，伴头晕乏力',
+    chief: '黑便 2 天，伴头晕乏力，既往有胃溃疡病史。',
     tags: ['消化系统', '休克评估', '病史采集'],
     department: '消化系统',
     referenceCount: 16,
@@ -49,7 +49,7 @@ export const cases = [
 export const chatMessages = [
   { by: 'student', text: '您好，我想先确认这次气促是活动后明显，还是安静时也存在？' },
   { by: 'sp', text: '上楼会明显喘，昨晚平躺也觉得憋，需要垫高枕头。' },
-  { by: 'mentor', text: '你已经问到端坐呼吸线索，建议继续追问夜间憋醒。' }
+  { by: 'mentor', text: '你已经问到端坐呼吸线索，建议继续追问夜间憋醒和既往心肺疾病。' }
 ]
 
 export const reasoningNodes = [
@@ -70,7 +70,7 @@ export const abilityScores = [
 ]
 
 export const learningPath = [
-  { title: '心衰问诊补救病例', meta: '12 分钟 · 简单病例', progress: 35 },
+  { title: '心衰问诊补救病例', meta: '12 分钟 · 简短病例', progress: 35 },
   { title: '胸痛鉴别诊断切片', meta: '教材第 4 章 · 500 字', progress: 64 },
   { title: '血常规判读关卡', meta: '检验指标 · 8 道题', progress: 20 }
 ]
@@ -84,7 +84,7 @@ export const assignments = [
     due: '今晚 22:00',
     status: '进行中',
     requireRecord: true,
-    variable: '同病不同检验值'
+    variable: '同病不同检查值'
   },
   {
     title: '胸痛鉴别诊断',
@@ -114,7 +114,7 @@ export const reviewQueue: ReviewItem[] = [
     student: '林同学',
     assignment: '胸痛鉴别诊断',
     score: 82,
-    issue: '现病史遗漏放射痛方向，未开心电图',
+    issue: '现病史遗漏放射痛方向，未及时开立心电图。',
     status: '待复核'
   },
   {
@@ -122,7 +122,7 @@ export const reviewQueue: ReviewItem[] = [
     student: '周同学',
     assignment: '慢阻肺急性加重',
     score: 76,
-    issue: '体征记录缺少桶状胸和肺部啰音描述',
+    issue: '体征记录缺少桶状胸和肺部啰音描述。',
     status: '已初步批阅'
   },
   {
@@ -130,7 +130,7 @@ export const reviewQueue: ReviewItem[] = [
     student: '陈同学',
     assignment: '消化系统大病历',
     score: 89,
-    issue: '诊断推理完整，需人工确认用药史',
+    issue: '诊断推理完整，需要人工确认用药史。',
     status: '有争议项'
   }
 ]
@@ -164,29 +164,29 @@ export const mistakes = [
     type: '诊断错误',
     title: '胸痛病例误判为胃炎',
     tag: '胸痛鉴别',
-    evidence: '遗漏胸骨后压榨痛、出汗、心电图检查',
+    evidence: '遗漏胸骨后压榨痛、出汗和心电图检查。',
     status: '未复习'
   },
   {
     type: '漏问病史',
     title: '慢阻肺病例未追问夜间憋醒',
     tag: '心衰',
-    evidence: '端坐呼吸已经出现，但未继续确认 PND',
+    evidence: '端坐呼吸已经出现，但未继续确认 PND。',
     status: '已复习'
   },
   {
     type: '检查错误',
     title: '优先选择高价 CT',
     tag: '卫生经济学',
-    evidence: '未完成低成本必要检查前开立胸部增强 CT',
+    evidence: '未完成低成本必要检查前开立胸部增强 CT。',
     status: '未复习'
   }
 ]
 
 export const formatShieldRules = [
-  { label: '主诉 20 字以内', state: '通过', detail: '包含主要症状和持续时间' },
-  { label: '过敏史不可为空', state: '打回', detail: '未知需填写“否认”或“不详”' },
-  { label: '现病史时间线', state: '提示', detail: '建议补充症状发展和就诊经过' }
+  { label: '主诉 20 字以内', state: '通过', detail: '包含主要症状和持续时间。' },
+  { label: '过敏史不可为空', state: '打回', detail: '未知时需填写“否认”或“不详”。' },
+  { label: '现病史时间线', state: '提示', detail: '建议补充症状发展和就诊经过。' }
 ]
 
 export const marketCases = [
@@ -229,7 +229,7 @@ export const adminStats = [
 export const teacherAudits = [
   { name: '张明', org: '附属一院心内科', credential: '执业医师证已上传', status: '待审核' },
   { name: '李倩', org: '附属二院呼吸科', credential: '教学授权材料已上传', status: '待审核' },
-  { name: '王瑜', org: '校本部内科教研室', credential: '工号认证', status: '已通过' }
+  { name: '王瑾', org: '校本部内科教研室', credential: '工号认证', status: '已通过' }
 ]
 
 export const caseAudits = [

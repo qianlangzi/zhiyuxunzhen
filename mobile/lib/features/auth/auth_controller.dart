@@ -74,11 +74,13 @@ final StateNotifierProvider<AuthController, AuthState> authControllerProvider =
 });
 
 /// 便捷角色判断
-final Provider<bool> isStudentProvider = Provider<bool>((ProviderRef<bool> ref) {
+final Provider<bool> isStudentProvider =
+    Provider<bool>((ProviderRef<bool> ref) {
   return ref.watch(authControllerProvider).isStudent;
 });
 
-final Provider<bool> isTeacherProvider = Provider<bool>((ProviderRef<bool> ref) {
+final Provider<bool> isTeacherProvider =
+    Provider<bool>((ProviderRef<bool> ref) {
   return ref.watch(authControllerProvider).isTeacher;
 });
 

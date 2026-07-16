@@ -57,11 +57,11 @@ function logout() {
   <div v-else class="app-frame" :class="{ collapsed: sidebarCollapsed }">
     <aside class="sidebar" aria-label="主导航">
       <div class="brand-row">
-        <button class="brand-mark zy-button" type="button" aria-label="返回主页" @click="router.push('/')">
+        <button class="brand-mark zy-button" type="button" aria-label="返回首页" @click="router.push('/')">
           <img :src="brandLogo" alt="" />
         </button>
         <div class="brand-copy">
-          <strong>智愈寻真</strong>
+          <strong>知语寻真</strong>
           <span>{{ roleName }}</span>
         </div>
       </div>
@@ -102,7 +102,7 @@ function logout() {
           <strong>{{ displayName }}</strong>
           <span>{{ roleName }}</span>
         </router-link>
-        <el-button plain @click="logout">退出</el-button>
+        <el-button plain @click="logout">退出登录</el-button>
       </header>
 
       <router-view v-slot="{ Component }">
@@ -117,10 +117,8 @@ function logout() {
 <style scoped>
 .app-frame {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(0, 1fr);
   min-height: 100dvh;
-  background:
-    linear-gradient(180deg, #f8fbfa 0%, var(--zy-bg) 100%);
 }
 
 .app-frame.collapsed {
@@ -135,26 +133,26 @@ function logout() {
   height: 100dvh;
   padding: 18px 14px;
   border-right: 1px solid var(--zy-line);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .brand-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 48px;
-  padding: 4px 4px 14px;
+  min-height: 52px;
+  padding: 4px 4px 16px;
 }
 
 .brand-mark {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   overflow: hidden;
   border: 1px solid var(--zy-line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #fff;
 }
 
@@ -169,7 +167,7 @@ function logout() {
 .collapse-button span {
   overflow: hidden;
   white-space: nowrap;
-  transition: opacity 160ms ease, transform 160ms ease;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
 }
 
 .brand-copy strong,
@@ -193,7 +191,7 @@ function logout() {
 
 .nav-list {
   display: grid;
-  gap: 6px;
+  gap: 7px;
   margin-top: 10px;
 }
 
@@ -203,9 +201,9 @@ function logout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   color: var(--zy-muted);
   font-size: 14px;
   font-weight: 800;
@@ -232,7 +230,7 @@ function logout() {
 .collapse-button {
   width: 100%;
   border: 0;
-  background: rgba(15, 118, 110, 0.06);
+  background: rgba(15, 76, 92, 0.07);
   cursor: pointer;
 }
 
@@ -256,9 +254,9 @@ function logout() {
   top: 50%;
   z-index: 2;
   min-width: max-content;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--zy-line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
   color: var(--zy-ink);
   box-shadow: var(--zy-shadow-soft);
@@ -297,7 +295,7 @@ function logout() {
 
 .page-fade-enter-active,
 .page-fade-leave-active {
-  transition: opacity 220ms ease, transform 220ms ease;
+  transition: opacity 180ms ease-out, transform 180ms ease-out;
 }
 
 .page-fade-enter-from {
@@ -363,16 +361,6 @@ function logout() {
 @media (max-width: 520px) {
   .nav-list {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .page-fade-enter-active,
-  .page-fade-leave-active,
-  .brand-copy,
-  .nav-item span,
-  .collapse-button span {
-    transition-duration: 1ms !important;
   }
 }
 </style>

@@ -5,12 +5,15 @@ import { assignments, formatShieldRules } from '../mockData'
 <template>
   <main class="page-shell">
     <section class="page-head">
-      <span>作业分发</span>
-      <h1>查看班级训练任务</h1>
+      <div>
+        <span>作业分发</span>
+        <h1>查看班级训练任务和提交进度</h1>
+      </div>
+      <el-button type="primary">新建作业</el-button>
     </section>
 
     <section class="assignment-list">
-      <article v-for="item in assignments" :key="item.title" class="surface-card assignment-card">
+      <article v-for="item in assignments" :key="item.title" class="surface-card assignment-card interactive">
         <div>
           <strong>{{ item.title }}</strong>
           <span>{{ item.className }} · {{ item.due }}</span>
@@ -49,23 +52,6 @@ import { assignments, formatShieldRules } from '../mockData'
 </template>
 
 <style scoped>
-.page-shell {
-  display: grid;
-  gap: 20px;
-}
-
-.page-head span {
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1 {
-  margin: 6px 0 0;
-  color: var(--zy-ink);
-  font-size: clamp(26px, 3vw, 34px);
-}
-
 .assignment-list {
   display: grid;
   gap: 14px;
@@ -127,7 +113,7 @@ import { assignments, formatShieldRules } from '../mockData'
   padding: 14px;
   border: 1px solid var(--zy-line);
   border-radius: var(--zy-radius-md);
-  background: rgba(15, 118, 110, 0.04);
+  background: rgba(15, 76, 92, 0.04);
 }
 
 .rule-card strong {

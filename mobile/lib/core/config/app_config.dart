@@ -22,5 +22,6 @@ class AppConfig {
   /// 角色枚举值（对齐后端 sys_user.role）
   static const int roleStudent = 0;
   static const int roleTeacher = 1;
+
   /// role >= 2 的角色由 Web 管理端处理，App 端拒绝进入
 }

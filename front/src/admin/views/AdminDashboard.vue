@@ -9,11 +9,13 @@ import { adminStats, auditLogs, caseAudits } from '@/views/mockData'
         <span>全局驾驶舱</span>
         <h1>平台运行与教学运营总览</h1>
       </div>
-      <el-button type="primary">查看待办审核</el-button>
+      <router-link to="/audits">
+        <el-button type="primary">查看待办审核</el-button>
+      </router-link>
     </section>
 
     <section class="stats-grid">
-      <article v-for="item in adminStats" :key="item.label" class="surface-card stat-card">
+      <article v-for="item in adminStats" :key="item.label" class="surface-card stat-card interactive">
         <span>{{ item.label }}</span>
         <strong>{{ item.value }}</strong>
         <p>{{ item.detail }}</p>

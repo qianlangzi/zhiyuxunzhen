@@ -1,8 +1,7 @@
-/// 间距系统：4 的倍数，贴合手机触控密度
+/// Spacing and radius scale for the mobile app.
 class AppDimens {
   AppDimens._();
 
-  // 基础栅格
   static const double grid = 4;
   static const double grid2 = 8;
   static const double grid3 = 12;
@@ -12,30 +11,24 @@ class AppDimens {
   static const double grid8 = 32;
   static const double grid10 = 40;
 
-  // 页面边距（手机端留白）
-  static const double pagePadding = 16;
-  static const double pagePaddingLarge = 20;
+  static const double pagePadding = 20;
+  static const double pagePaddingLarge = 24;
 
-  // 圆角
-  static const double radiusSm = 8;
-  static const double radiusMd = 12;
-  static const double radiusLg = 14;
-  static const double radiusXl = 18;
-  static const double radiusXxl = 22;
+  // 临床极简圆角层级：8 卡片 / 12 控件 / 20 浮层 / 6 状态标签
+  static const double radiusCard = 8;
+  static const double radiusControl = 12;
+  static const double radiusSheet = 20;
+  static const double radiusStatus = 6;
+
   static const double radiusPill = 999;
 
-  // 触控目标
   static const double touchTarget = 44;
-  static const double buttonHeight = 48;
-  static const double buttonHeightLg = 56;
+  static const double buttonHeight = 50;
+  static const double buttonHeightLg = 58;
 
-  // 卡片
-  static const double cardPadding = 16;
-  static const double cardPaddingLg = 20;
+  static const double cardPadding = 18;
+  static const double cardPaddingLg = 24;
 
-  // 底部导航
-  static const double navBarHeight = 64;
-
-  // AppBar
-  static const double appBarHeight = 56;
+  static const double navBarHeight = 82;
+  static const double appBarHeight = 60;
 }

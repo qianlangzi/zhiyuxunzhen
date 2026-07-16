@@ -9,6 +9,7 @@ class AbilityScore {
   });
 
   final String label;
+
   /// 0~100
   final int value;
 }
@@ -24,6 +25,7 @@ class LearningPathItem {
 
   final String title;
   final String meta;
+
   /// 0~100
   final int progress;
 }
@@ -52,9 +54,20 @@ class HeatmapDay {
   const HeatmapDay({
     required this.date,
     required this.value,
+    this.completedCount = 0,
+    this.activities = const <String>[],
   });
 
   final String date;
-  /// 0~4
+
+  /// 0~4 视觉强度
   final int value;
+
+  /// 当日完成训练次数
+  final int completedCount;
+
+  /// 当日活动标签（最多两条简短中文）
+  final List<String> activities;
+
+  DateTime get parsedDate => DateTime.parse(date);
 }

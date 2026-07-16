@@ -1,5 +1,10 @@
 <script setup lang="ts">
+import { ElMessage } from 'element-plus'
 import { caseAudits, teacherAudits } from '@/views/mockData'
+
+function handleAudit(action: string, target: string) {
+  ElMessage.success(`${action}：${target}`)
+}
 </script>
 
 <template>
@@ -21,7 +26,12 @@ import { caseAudits, teacherAudits } from '@/views/mockData'
           </div>
           <div class="action-row">
             <el-tag effect="plain">{{ item.status }}</el-tag>
-            <el-button v-if="item.status === '待审核'" size="small" type="primary">通过</el-button>
+            <el-button v-if="item.status === '待审核'" size="small" type="primary" @click="handleAudit('通过教师审核', item.name)">
+              通过
+            </el-button>
+            <el-button v-if="item.status === '待审核'" size="small" plain @click="handleAudit('退回材料', item.name)">
+              退回
+            </el-button>
           </div>
         </div>
       </article>
@@ -35,7 +45,9 @@ import { caseAudits, teacherAudits } from '@/views/mockData'
           </div>
           <div class="action-row">
             <el-tag :type="item.status === '通过' ? 'success' : 'warning'" effect="plain">{{ item.status }}</el-tag>
-            <el-button v-if="item.status === '待审'" size="small" plain>模拟审阅</el-button>
+            <el-button v-if="item.status === '待审'" size="small" plain @click="handleAudit('模拟审阅', item.title)">
+              模拟审阅
+            </el-button>
           </div>
         </div>
       </article>
@@ -81,7 +93,9 @@ import { caseAudits, teacherAudits } from '@/views/mockData'
 
 .action-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
@@ -89,6 +103,10 @@ import { caseAudits, teacherAudits } from '@/views/mockData'
   .audit-grid,
   .audit-row {
     grid-template-columns: 1fr;
+  }
+
+  .action-row {
+    justify-content: flex-start;
   }
 }
 </style>

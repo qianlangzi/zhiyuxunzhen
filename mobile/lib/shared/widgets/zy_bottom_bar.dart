@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
+import '../../core/theme/app_motion.dart';
 
-/// 底部导航 Tab 定义
 class ZyTabSpec {
   const ZyTabSpec({
     required this.path,
@@ -18,9 +18,6 @@ class ZyTabSpec {
   final IconData activeIcon;
 }
 
-/// 玻璃舱风格底部导航条
-/// - 白底 + 顶部 1px 描边
-/// - 选中态：品牌色 + 图标缩放动画
 class ZyBottomBar extends StatelessWidget {
   const ZyBottomBar({
     super.key,
@@ -37,7 +34,7 @@ class ZyBottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.surface,
         border: Border(top: BorderSide(color: AppColors.line, width: 1)),
       ),
       child: SafeArea(
@@ -56,38 +53,36 @@ class ZyBottomBar extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 200),
-                          transitionBuilder:
-                              (Widget child, Animation<double> anim) {
-                            return ScaleTransition(
-                              scale: anim,
-                              child: FadeTransition(
-                                opacity: anim,
-                                child: child,
-                              ),
-                            );
-                          },
+                        AnimatedContainer(
+                          key:
+                              active ? const Key('bottom-tab-indicator') : null,
+                          duration: AppMotion.fast(context),
+                          curve: AppMotion.standardCurve,
+                          width: 36,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: active
+                                ? AppColors.brandSoft
+                                : Colors.transparent,
+                            borderRadius:
+                                BorderRadius.circular(AppDimens.radiusCard),
+                          ),
                           child: Icon(
                             active ? tab.activeIcon : tab.icon,
-                            key: ValueKey<String>('${tab.path}-$active'),
-                            size: 24,
-                            color: active
-                                ? AppColors.brand
-                                : AppColors.soft,
+                            size: 22,
+                            color: active ? AppColors.brand : AppColors.muted,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        AnimatedDefaultTextStyle(
-                          duration: const Duration(milliseconds: 200),
+                        Text(
+                          tab.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: active
-                                ? AppColors.brandStrong
-                                : AppColors.soft,
+                            fontWeight: FontWeight.w600,
+                            color: active ? AppColors.brand : AppColors.muted,
                           ),
-                          child: Text(tab.label),
                         ),
                       ],
                     ),

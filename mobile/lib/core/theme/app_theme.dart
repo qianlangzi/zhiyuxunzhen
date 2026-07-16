@@ -59,7 +59,7 @@ class AppTheme {
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusLg),
+          borderRadius: BorderRadius.circular(AppDimens.radiusCard),
           side: const BorderSide(color: AppColors.line, width: 1),
         ),
       ),
@@ -75,7 +75,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            borderRadius: BorderRadius.circular(AppDimens.radiusControl),
           ),
           textStyle: const TextStyle(
             fontSize: 15,
@@ -89,7 +89,7 @@ class AppTheme {
           foregroundColor: AppColors.brandStrong,
           minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+            borderRadius: BorderRadius.circular(AppDimens.radiusControl),
           ),
           side: const BorderSide(color: AppColors.lineStrong, width: 1),
           textStyle: const TextStyle(
@@ -123,7 +123,8 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusPill),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid2, vertical: AppDimens.grid),
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppDimens.grid2, vertical: AppDimens.grid),
       ),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: Colors.white,
@@ -150,22 +151,22 @@ class AppTheme {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.deep,
+        backgroundColor: AppColors.ink,
         contentTextStyle: const TextStyle(
-          color: AppColors.deepInk,
+          color: AppColors.surface,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+          borderRadius: BorderRadius.circular(AppDimens.radiusControl),
         ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusXl),
+          borderRadius: BorderRadius.circular(AppDimens.radiusSheet),
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
@@ -173,7 +174,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusXxl),
+            top: Radius.circular(AppDimens.radiusSheet),
           ),
         ),
         showDragHandle: true,
@@ -190,7 +191,7 @@ class AppTheme {
   static InputDecorationTheme _buildInputTheme() {
     OutlineInputBorder buildBorder(Color color, [double width = 1]) {
       return OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
+        borderRadius: BorderRadius.circular(AppDimens.radiusControl),
         borderSide: BorderSide(color: color, width: width),
       );
     }

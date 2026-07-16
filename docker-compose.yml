@@ -8,6 +8,10 @@
 # 生产环境: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # =====================================================
 
+x-no-proxy-env: &no-proxy-env
+  NO_PROXY: localhost,127.0.0.1,::1,mysql,redis,etcd,minio,milvus,backend,ai,front
+  no_proxy: localhost,127.0.0.1,::1,mysql,redis,etcd,minio,milvus,backend,ai,front
+
 services:
 
   # ==================== 基础设施 ====================
@@ -68,6 +72,7 @@ services:
     environment:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
+      <<: *no-proxy-env
     depends_on:
       - etcd
       - minio
@@ -89,6 +94,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      <<: *no-proxy-env
       SPRING_PROFILE: ${SPRING_PROFILE:-dev}
       DB_HOST: mysql
       DB_PORT: 3306
@@ -111,6 +117,7 @@ services:
       - milvus
       - redis
     environment:
+      <<: *no-proxy-env
       SPARK_APP_ID: ${SPARK_APP_ID:-}
       SPARK_API_KEY: ${SPARK_API_KEY:-}
       SPARK_API_SECRET: ${SPARK_API_SECRET:-}
@@ -133,6 +140,20 @@ services:
       - backend
       - ai
 
+  mobile:
+    profiles: ["mobile"]
+    build:
+      context: ./mobile
+      dockerfile: Dockerfile
+    container_name: zhiyu-mobile-tools
+    working_dir: /workspace/mobile
+    volumes:
+      - ./mobile:/workspace/mobile
+      - flutter_pub_cache:/workspace/.pub-cache
+    environment:
+      PUB_CACHE: /workspace/.pub-cache
+    command: sh -lc "flutter pub get && flutter analyze && flutter test"
+
 # ==================== 数据卷 ====================
 volumes:
   mysql_data:
@@ -140,3 +161,4 @@ volumes:
   milvus_data:
   etcd_data:
   minio_data:
+  flutter_pub_cache:

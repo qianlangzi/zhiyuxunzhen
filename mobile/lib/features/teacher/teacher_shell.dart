@@ -3,19 +3,37 @@ import 'package:go_router/go_router.dart';
 
 import '../../shared/widgets/widgets.dart';
 
-/// 教师端 Shell：底部 5 个 Tab
-/// 概览 / 病例 / 作业 / 批阅 / 我的
 class TeacherShell extends StatelessWidget {
   const TeacherShell({super.key, required this.child});
 
   final Widget child;
 
   static const List<ZyTabSpec> _tabs = <ZyTabSpec>[
-    ZyTabSpec(path: '/teacher', label: '概览', icon: Icons.dashboard_outlined, activeIcon: Icons.dashboard_rounded),
-    ZyTabSpec(path: '/teacher/cases', label: '病例', icon: Icons.layers_outlined, activeIcon: Icons.layers_rounded),
-    ZyTabSpec(path: '/teacher/assignments', label: '作业', icon: Icons.assignment_outlined, activeIcon: Icons.assignment_rounded),
-    ZyTabSpec(path: '/teacher/review', label: '批阅', icon: Icons.grading_outlined, activeIcon: Icons.grading_rounded),
-    ZyTabSpec(path: '/teacher/profile', label: '我的', icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded),
+    ZyTabSpec(
+        path: '/teacher',
+        label: '概览',
+        icon: Icons.dashboard_outlined,
+        activeIcon: Icons.dashboard_rounded),
+    ZyTabSpec(
+        path: '/teacher/cases',
+        label: '病例',
+        icon: Icons.layers_outlined,
+        activeIcon: Icons.layers_rounded),
+    ZyTabSpec(
+        path: '/teacher/assignments',
+        label: '作业',
+        icon: Icons.assignment_outlined,
+        activeIcon: Icons.assignment_rounded),
+    ZyTabSpec(
+        path: '/teacher/review',
+        label: '批阅',
+        icon: Icons.grading_outlined,
+        activeIcon: Icons.grading_rounded),
+    ZyTabSpec(
+        path: '/teacher/profile',
+        label: '我的',
+        icon: Icons.person_outline_rounded,
+        activeIcon: Icons.person_rounded),
   ];
 
   int _currentIndex(BuildContext context) {
@@ -30,13 +48,14 @@ class TeacherShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int index = _currentIndex(context);
+    final String location = GoRouterState.of(context).matchedLocation;
     return Scaffold(
       body: child,
       bottomNavigationBar: ZyBottomBar(
         tabs: _tabs,
         currentIndex: index,
         onTap: (ZyTabSpec tab) {
-          if (tab.path == GoRouterState.of(context).matchedLocation) return;
+          if (tab.path == location) return;
           context.go(tab.path);
         },
       ),

@@ -45,12 +45,8 @@ class _ZhiyuAppState extends ConsumerState<ZhiyuApp> {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       routerConfig: _router,
-      builder: (BuildContext context, Widget? child) {
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
+      builder: (BuildContext context, Widget? child) =>
+          child ?? const SizedBox.shrink(),
     );
   }
 }

@@ -1,15 +1,29 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { cases, chatMessages, reasoningNodes } from '../mockData'
 
 const route = useRoute()
+const draft = ref('')
+const localMessages = ref([...chatMessages])
+
 const selectedCase = computed(() => {
   const caseId = String(route.query.caseId || '')
   return cases.find((item) => item.id === caseId) || cases[0]
 })
 
 const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node.cost || 0), 0))
+
+function sendMessage() {
+  if (!draft.value.trim()) {
+    ElMessage.warning('请输入问诊问题')
+    return
+  }
+  localMessages.value.push({ by: 'student', text: draft.value.trim() })
+  localMessages.value.push({ by: 'mentor', text: '已记录你的问题。下一步建议把症状时间线、诱因和缓解因素补全。' })
+  draft.value = ''
+}
 </script>
 
 <template>
@@ -18,11 +32,11 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
       <div class="page-head dark">
         <span>问诊室</span>
         <h1>和模拟病人对话</h1>
-        <small>{{ selectedCase.title }}</small>
+        <small>{{ selectedCase.title }} · {{ selectedCase.department }}</small>
       </div>
 
       <div class="message-list">
-        <div v-for="msg in chatMessages" :key="msg.text" class="message" :class="msg.by">
+        <div v-for="msg in localMessages" :key="msg.text" class="message" :class="msg.by">
           <span>{{ msg.by === 'student' ? '学生' : msg.by === 'sp' ? '模拟病人' : '智能导师' }}</span>
           <p>{{ msg.text }}</p>
         </div>
@@ -30,12 +44,14 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
 
       <div class="room-input" aria-label="问诊输入区">
         <el-input
+          v-model="draft"
           type="textarea"
           autosize
           placeholder="输入问诊问题，或提交你的初步诊断"
           aria-label="问诊问题"
+          @keydown.enter.exact.prevent="sendMessage"
         />
-        <el-button type="primary">发送</el-button>
+        <el-button type="primary" @click="sendMessage">发送</el-button>
       </div>
     </section>
 
@@ -77,22 +93,15 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
   min-height: 620px;
   padding: 22px;
   border-radius: var(--zy-radius-xl);
-  background: #071b22;
+  background: var(--zy-deep);
   color: #effffb;
   box-shadow: var(--zy-shadow);
 }
 
-.page-head span {
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1,
 .page-head h2 {
   margin: 6px 0 0;
   color: var(--zy-ink);
-  font-size: clamp(24px, 2.8vw, 32px);
+  font-size: 28px;
   line-height: 1.12;
 }
 
@@ -128,14 +137,14 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
 }
 
 .message.mentor {
-  border: 1px solid rgba(248, 113, 113, 0.38);
-  background: rgba(224, 87, 87, 0.14);
+  border: 1px solid rgba(255, 244, 223, 0.36);
+  background: rgba(167, 99, 27, 0.2);
 }
 
 .message span {
   display: block;
   margin-bottom: 6px;
-  color: rgba(239, 255, 251, 0.62);
+  color: rgba(239, 255, 251, 0.68);
   font-size: 12px;
   font-weight: 900;
 }
@@ -160,7 +169,7 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
   min-height: 44px !important;
   border: 0;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.94);
   resize: none;
 }
 
@@ -177,7 +186,7 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
   gap: 6px;
   margin-top: 18px;
   padding: 14px;
-  border: 1px solid rgba(196, 122, 32, 0.28);
+  border: 1px solid rgba(167, 99, 27, 0.28);
   border-radius: var(--zy-radius-md);
   background: var(--zy-amber-soft);
 }
@@ -220,28 +229,18 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
   font-size: 12px;
 }
 
-.reason-node strong {
-  min-width: 0;
-  color: var(--zy-ink);
-}
-
-.reason-node span {
-  color: var(--zy-muted);
-  font-size: 13px;
-}
-
 .reason-node.next {
-  border-color: rgba(15, 118, 110, 0.34);
+  border-color: rgba(15, 76, 92, 0.34);
   background: var(--zy-brand-soft);
 }
 
 .reason-node.excluded {
-  border-color: rgba(224, 87, 87, 0.24);
-  background: rgba(224, 87, 87, 0.08);
+  border-color: rgba(194, 65, 58, 0.24);
+  background: rgba(194, 65, 58, 0.08);
 }
 
 .reason-node.warning {
-  border-color: rgba(196, 122, 32, 0.28);
+  border-color: rgba(167, 99, 27, 0.28);
   background: var(--zy-amber-soft);
 }
 
@@ -263,6 +262,17 @@ const examCost = computed(() => reasoningNodes.reduce((sum, node) => sum + (node
 @media (max-width: 1080px) {
   .chat-layout {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .message {
+    max-width: 92%;
+  }
+
+  .room-input {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>

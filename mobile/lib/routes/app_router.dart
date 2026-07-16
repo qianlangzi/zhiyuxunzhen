@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/config/app_config.dart';
+import '../core/theme/app_motion.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_page.dart';
 import '../features/student/student_shell.dart';
@@ -28,7 +29,7 @@ class AppRouter {
   final WidgetRef ref;
 
   late final GoRouter router = GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     refreshListenable: _AuthListenable(ref),
     redirect: (BuildContext context, GoRouterState state) {
       final bool loggedIn = ref.read(authControllerProvider).isLoggedIn;
@@ -104,16 +105,16 @@ class AppRouter {
       // 学生：问诊室（全屏，自带输入栏，不显示底部 Tab）
       GoRoute(
         path: '/student/chat',
-        builder: (BuildContext context, GoRouterState state) {
+        pageBuilder: (BuildContext context, GoRouterState state) {
           final String caseId = state.uri.queryParameters['caseId'] ?? '';
-          return ChatRoomPage(caseId: caseId);
+          return _detailPage(state, ChatRoomPage(caseId: caseId));
         },
       ),
       // 学生：病例详情（全屏，底部带进入问诊室按钮）
       GoRoute(
         path: '/student/case/:id',
-        builder: (BuildContext context, GoRouterState state) =>
-            CaseDetailPage(caseId: state.pathParameters['id']!),
+        pageBuilder: (BuildContext context, GoRouterState state) => _detailPage(
+            state, CaseDetailPage(caseId: state.pathParameters['id']!)),
       ),
       // 教师 Shell
       ShellRoute(
@@ -165,4 +166,32 @@ class _AuthListenable extends ChangeNotifier {
   }
 
   final WidgetRef ref;
+}
+
+/// 详情页推入转场：从右侧滑入，减少动效时直接显示
+CustomTransitionPage<void> _detailPage(
+  GoRouterState state,
+  Widget child,
+) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: AppMotion.routeDuration,
+    reverseTransitionDuration: AppMotion.routeDuration,
+    transitionsBuilder: (
+      BuildContext context,
+      Animation<double> animation,
+      Animation<double> secondaryAnimation,
+      Widget child,
+    ) {
+      if (MediaQuery.disableAnimationsOf(context)) return child;
+      final Animation<Offset> slide = Tween<Offset>(
+        begin: const Offset(1, 0),
+        end: Offset.zero,
+      ).animate(
+        CurvedAnimation(parent: animation, curve: AppMotion.standardCurve),
+      );
+      return SlideTransition(position: slide, child: child);
+    },
+  );
 }

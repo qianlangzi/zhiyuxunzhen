@@ -1,5 +1,15 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
 import { auditLogs } from '@/views/mockData'
+
+const keyword = ref('')
+
+const filteredLogs = computed(() => {
+  if (!keyword.value) return auditLogs
+  return auditLogs.filter((item) =>
+    [item.time, item.operator, item.action, item.target].some((value) => value.includes(keyword.value))
+  )
+})
 </script>
 
 <template>
@@ -13,7 +23,14 @@ import { auditLogs } from '@/views/mockData'
     </section>
 
     <section class="surface-card log-panel">
-      <el-table :data="auditLogs" stripe>
+      <div class="filter-row">
+        <el-input v-model="keyword" placeholder="搜索操作人、动作或对象" clearable>
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+      </div>
+      <el-table :data="filteredLogs" stripe>
         <el-table-column prop="time" label="时间" width="120" />
         <el-table-column prop="operator" label="操作人" width="160" />
         <el-table-column prop="action" label="操作类型" />
@@ -33,5 +50,10 @@ import { auditLogs } from '@/views/mockData'
 <style scoped>
 .log-panel {
   padding: 12px;
+}
+
+.filter-row {
+  max-width: 360px;
+  margin: 4px 4px 14px;
 }
 </style>

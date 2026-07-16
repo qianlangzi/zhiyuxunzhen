@@ -33,24 +33,26 @@ class ZyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final _ChipStyle style = _styleFor(tone);
-    final double h = small ? 22 : 26;
+    final double h = small ? 22 : 24;
     final double fontSize = small ? 11 : 12;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+        borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
         child: Container(
           height: h,
           padding: EdgeInsets.symmetric(
-            horizontal: small ? AppDimens.grid2 : AppDimens.grid3,
+            horizontal: small ? 6 : 8,
             vertical: 0,
           ),
           decoration: BoxDecoration(
             color: style.bg,
-            borderRadius: BorderRadius.circular(AppDimens.radiusPill),
-            border: style.border ? Border.all(color: style.borderColor, width: 1) : null,
+            borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
+            border: style.border
+                ? Border.all(color: style.borderColor, width: 1)
+                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

@@ -4,11 +4,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../../../data/models/user_model.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../shared/widgets/widgets.dart';
 
-/// 教师个人中心
+/// 教师个人中心：身份、教学概况、常用入口与免责
 class TeacherProfilePage extends ConsumerWidget {
   const TeacherProfilePage({super.key});
 
@@ -18,110 +19,68 @@ class TeacherProfilePage extends ConsumerWidget {
     final UserModel? user = state.user;
 
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: CustomScrollView(
         slivers: <Widget>[
-          SliverToBoxAdapter(child: _buildProfileCard(user)),
+          SliverToBoxAdapter(child: _IdentityCard(user: user)),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid5)),
+          const SliverToBoxAdapter(child: _TeachingOverview()),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid6)),
+          const SliverToBoxAdapter(child: _MenuSection()),
           const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
-          SliverToBoxAdapter(
-            child: _buildStatCard(),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
-          SliverToBoxAdapter(
-            child: _buildMenuCard(context),
-          ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
-          SliverToBoxAdapter(
-            child: _buildLogout(context, ref),
-          ),
+          const SliverToBoxAdapter(child: _Disclaimer()),
+          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid6)),
+          SliverToBoxAdapter(child: _LogoutButton(ref: ref)),
           const SliverToBoxAdapter(
-              child: SizedBox(height: AppDimens.grid8 + AppDimens.navBarHeight)),
+              child:
+                  SizedBox(height: AppDimens.grid8 + AppDimens.navBarHeight)),
         ],
       ),
     );
   }
+}
 
-  Widget _buildProfileCard(UserModel? user) {
-    return Container(
+class _IdentityCard extends StatelessWidget {
+  const _IdentityCard({required this.user});
+
+  final UserModel? user;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
       padding: const EdgeInsets.fromLTRB(
-          AppDimens.pagePadding, AppDimens.grid8, AppDimens.pagePadding, AppDimens.grid5),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: <Color>[AppColors.bgGradientTop, AppColors.bg],
-        ),
-      ),
+          AppDimens.pagePadding, AppDimens.grid8, AppDimens.pagePadding, 0),
       child: Row(
         children: <Widget>[
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.brandSoft,
-              border: Border.all(color: AppColors.line, width: 1),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.school_rounded,
-                size: 32, color: AppColors.brand),
+          Image.asset(
+            'assets/images/brand-logo.png',
+            width: 56,
+            height: 56,
+            fit: BoxFit.contain,
+            semanticLabel: '知语寻真 Logo',
           ),
-          const SizedBox(width: AppDimens.grid4),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Text(
-                      user?.displayName ?? '老师',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                    const SizedBox(width: AppDimens.grid2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: AppDimens.grid2, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.brandSoft,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: const Text(
-                        '教师',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.brandStrong,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                Text(user?.displayName ?? '老师', style: AppTextStyles.h3),
                 const SizedBox(height: 4),
-                Text(
-                  user?.orgName ?? '附属一院心内科',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.muted,
-                  ),
-                ),
+                Text(user?.orgName ?? '附属一院心内科', style: AppTextStyles.caption),
                 const SizedBox(height: 4),
                 Row(
                   children: <Widget>[
-                    const Icon(Icons.verified_user_rounded,
-                        size: 12, color: AppColors.aqua),
+                    const Icon(Icons.verified_rounded,
+                        size: 14, color: AppColors.brand),
                     const SizedBox(width: 4),
-                    Text(
-                      user?.credentialStatus ?? '资质已认证',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.aqua,
-                      ),
-                    ),
+                    Text('教师',
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.brandStrong)),
+                    const SizedBox(width: 6),
+                    Text('·', style: AppTextStyles.caption),
+                    const SizedBox(width: 6),
+                    Text(user?.credentialStatus ?? '资质已认证',
+                        style: AppTextStyles.caption),
                   ],
                 ),
               ],
@@ -131,102 +90,142 @@ class TeacherProfilePage extends ConsumerWidget {
       ),
     );
   }
+}
 
-  Widget _buildStatCard() {
+class _TeachingOverview extends StatelessWidget {
+  const _TeachingOverview();
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Expanded(
-            child: ZyStatCard(
-              label: '本月批阅',
-              value: '126',
-              detail: '份',
-              tone: StatTone.brand,
-            ),
-          ),
-          const SizedBox(width: AppDimens.grid3),
-          Expanded(
-            child: ZyStatCard(
-              label: '配置病例',
-              value: '8',
-              detail: '个',
-            ),
-          ),
-          const SizedBox(width: AppDimens.grid3),
-          Expanded(
-            child: ZyStatCard(
-              label: '活跃班级',
-              value: '3',
-              detail: '个',
-            ),
+          const ZySectionHeader(title: '教学概况'),
+          const SizedBox(height: AppDimens.grid3),
+          Row(
+            children: const <Widget>[
+              Expanded(child: _StatCell(label: '本月批阅', value: '126')),
+              _StatDivider(),
+              Expanded(child: _StatCell(label: '配置病例', value: '8')),
+              _StatDivider(),
+              Expanded(child: _StatCell(label: '活跃班级', value: '3')),
+            ],
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildMenuCard(BuildContext context) {
-    final List<_MenuItem> items = <_MenuItem>[
-      _MenuItem(
-        icon: Icons.group_outlined,
-        title: '我的班级',
-        subtitle: '查看学生进度与作业',
-        onTap: () => context.go('/teacher/assignments'),
-      ),
-      _MenuItem(
-        icon: Icons.layers_outlined,
-        title: '我的病例',
-        subtitle: '已配置和草稿病例',
-        onTap: () => context.go('/teacher/cases'),
-      ),
-      _MenuItem(
-        icon: Icons.bar_chart_outlined,
-        title: '教学洞察',
-        subtitle: '班级薄弱点分析',
-        onTap: () => context.go('/teacher'),
-      ),
-      _MenuItem(
-        icon: Icons.health_and_safety_outlined,
-        title: '服务健康',
-        subtitle: 'AI 模型与接口状态',
-        onTap: () {},
-      ),
-      _MenuItem(
-        icon: Icons.settings_outlined,
-        title: '应用设置',
-        subtitle: '账号、隐私与缓存',
-        onTap: () {},
-      ),
-    ];
+class _StatCell extends StatelessWidget {
+  const _StatCell({required this.label, required this.value});
 
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: <Widget>[
+        Text(value, style: AppTextStyles.h3.copyWith(color: AppColors.brand)),
+        const SizedBox(height: 4),
+        Text(label, style: AppTextStyles.caption),
+      ],
+    );
+  }
+}
+
+class _StatDivider extends StatelessWidget {
+  const _StatDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 32,
+      color: AppColors.line,
+    );
+  }
+}
+
+class _MenuSection extends StatelessWidget {
+  const _MenuSection();
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: ZyCard(
-        child: Column(
-          children: items
-              .map((_MenuItem item) => ZyListTile(
-                    title: item.title,
-                    subtitle: item.subtitle,
-                    leading: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.brandSoft,
-                        borderRadius: BorderRadius.circular(AppDimens.radiusSm),
-                      ),
-                      alignment: Alignment.center,
-                      child: Icon(item.icon, size: 18, color: AppColors.brand),
-                    ),
-                    onTap: item.onTap,
-                  ))
-              .toList(),
+      child: Column(
+        children: <Widget>[
+          ZyListTile(
+            leading: const Icon(Icons.group_outlined,
+                size: 20, color: AppColors.brand),
+            title: '我的班级',
+            subtitle: '查看学生进度与作业',
+            onTap: () => context.go('/teacher/assignments'),
+          ),
+          ZyListTile(
+            leading: const Icon(Icons.layers_outlined,
+                size: 20, color: AppColors.brand),
+            title: '我的病例',
+            subtitle: '已配置和草稿病例',
+            onTap: () => context.go('/teacher/cases'),
+          ),
+          ZyListTile(
+            leading: const Icon(Icons.bar_chart_outlined,
+                size: 20, color: AppColors.brand),
+            title: '教学洞察',
+            subtitle: '班级薄弱点分析',
+            onTap: () => context.go('/teacher'),
+            showDivider: false,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Disclaimer extends StatelessWidget {
+  const _Disclaimer();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
+      child: Container(
+        padding: const EdgeInsets.all(AppDimens.grid4),
+        decoration: BoxDecoration(
+          color: AppColors.amberSoft,
+          borderRadius: BorderRadius.circular(AppDimens.radiusCard),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            const Icon(Icons.health_and_safety_outlined,
+                size: 18, color: AppColors.warning),
+            const SizedBox(width: AppDimens.grid2),
+            Expanded(
+              child: Text(
+                '本应用仅供医学教学训练使用，不能替代临床判断和真实医疗决策。',
+                style: AppTextStyles.caption.copyWith(color: AppColors.warning),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  Widget _buildLogout(BuildContext context, WidgetRef ref) {
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.ref});
+
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
       child: OutlinedButton.icon(
@@ -243,18 +242,4 @@ class TeacherProfilePage extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _MenuItem {
-  _MenuItem({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
 }

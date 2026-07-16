@@ -21,8 +21,8 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
       <div class="admin-brand">
         <img :src="brandLogo" alt="" />
         <div>
-          <strong>智愈寻真</strong>
-          <span>Admin Console</span>
+          <strong>知语寻真</strong>
+          <span>管理控制台</span>
         </div>
       </div>
 
@@ -106,16 +106,16 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
 
 .admin-nav {
   display: grid;
-  gap: 6px;
+  gap: 7px;
 }
 
 .admin-nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 44px;
+  min-height: 46px;
   padding: 0 12px;
-  border-radius: 14px;
+  border-radius: 16px;
   color: var(--zy-muted);
   font-size: 14px;
   font-weight: 800;

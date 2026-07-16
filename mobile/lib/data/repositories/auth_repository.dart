@@ -30,7 +30,8 @@ class AuthRepository {
       throw AuthException('账号未识别');
     }
 
-    if (user.role != AppConfig.roleStudent && user.role != AppConfig.roleTeacher) {
+    if (user.role != AppConfig.roleStudent &&
+        user.role != AppConfig.roleTeacher) {
       throw AuthException('当前账号需使用 Web 管理端登录');
     }
 

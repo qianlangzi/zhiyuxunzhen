@@ -1,178 +1,159 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
+import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
 import 'package:zhiyu/data/models.dart';
 
-/// 教师作业分发页
-class AssignmentsPage extends ConsumerWidget {
+/// 教师作业列表与格式规则
+class AssignmentsPage extends ConsumerStatefulWidget {
   const AssignmentsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final TeachingRepository repo = ref.watch(teachingRepositoryProvider);
-    final List<AssignmentModel> assignments = repo.assignments();
-    final List<FormatShieldRule> rules = repo.formatRules();
+  ConsumerState<AssignmentsPage> createState() => _AssignmentsPageState();
+}
+
+class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
+  late List<AssignmentModel> _assignments;
+
+  @override
+  void initState() {
+    super.initState();
+    _assignments = ref.read(teachingRepositoryProvider).assignments().toList();
+  }
+
+  void _showCreateSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => _CreateAssignmentSheet(
+        onCreate: (AssignmentModel assignment) {
+          setState(() => _assignments.add(assignment));
+          Navigator.of(sheetContext).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('作业已创建')),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showRulesSheet() {
+    final List<FormatShieldRule> rules =
+        ref.read(teachingRepositoryProvider).formatRules();
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (BuildContext sheetContext) => _FormatRulesSheet(rules: rules),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<FormatShieldRule> rules =
+        ref.watch(teachingRepositoryProvider).formatRules();
 
     return Scaffold(
+      backgroundColor: AppColors.bg,
       body: CustomScrollView(
         slivers: <Widget>[
           SliverToBoxAdapter(
-            child: const ZyPageHead(kicker: '作业分发', title: '查看班级训练任务'),
+            child: ZyPageHead(
+              kicker: '作业',
+              title: '查看班级训练任务',
+            ),
           ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.pagePadding, vertical: AppDimens.grid3),
-              child: _buildNewButton(),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: const ZySectionHeader(title: '进行中的作业'),
+                  horizontal: AppDimens.pagePadding, vertical: AppDimens.grid2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: _showCreateSheet,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('新建作业'),
+                ),
+              ),
             ),
           ),
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(
-                AppDimens.pagePadding, AppDimens.grid3, AppDimens.pagePadding, AppDimens.grid4),
+            padding:
+                const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
             sliver: SliverList.separated(
-              itemCount: assignments.length,
-              separatorBuilder: (BuildContext context, int _) =>
-                  const SizedBox(height: AppDimens.grid3),
+              itemCount: _assignments.length,
+              separatorBuilder: (BuildContext context, int index) =>
+                  const Divider(height: 1, color: AppColors.line),
               itemBuilder: (BuildContext context, int index) =>
-                  _AssignmentCard(item: assignments[index]),
+                  _AssignmentRow(item: _assignments[index]),
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: _buildShieldCard(rules),
+              padding: const EdgeInsets.fromLTRB(AppDimens.pagePadding,
+                  AppDimens.grid6, AppDimens.pagePadding, 120),
+              child: _FormatRules(
+                rules: rules,
+                onEdit: _showRulesSheet,
+              ),
             ),
           ),
-          const SliverToBoxAdapter(
-              child: SizedBox(height: AppDimens.grid8 + AppDimens.navBarHeight)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildNewButton() {
-    return SizedBox(
-      height: AppDimens.buttonHeight,
-      child: FilledButton.icon(
-        onPressed: () {},
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text('发起新作业'),
-      ),
-    );
-  }
-
-  Widget _buildShieldCard(List<FormatShieldRule> rules) {
-    return ZyCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          ZySectionHeader(
-            title: '格式盾牌',
-            actionLabel: '编辑',
-            onAction: () {},
-          ),
-          const SizedBox(height: AppDimens.grid2),
-          const Text(
-            '提交前的自动校验规则，未通过将被打回。',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.muted,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: AppDimens.grid4),
-          ...rules.map((FormatShieldRule r) => _RuleRow(rule: r)),
         ],
       ),
     );
   }
 }
 
-class _AssignmentCard extends StatelessWidget {
-  const _AssignmentCard({required this.item});
+class _AssignmentRow extends StatelessWidget {
+  const _AssignmentRow({required this.item});
 
   final AssignmentModel item;
 
   @override
   Widget build(BuildContext context) {
-    return ZyCard(
-      padding: const EdgeInsets.all(AppDimens.cardPaddingLg),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
           Row(
             children: <Widget>[
-              Expanded(
-                child: Text(
-                  item.title,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.ink,
-                  ),
-                ),
-              ),
+              Expanded(child: Text(item.title, style: AppTextStyles.title)),
               ZyChip(item.status, tone: _statusTone(item.status)),
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            '${item.className} · 截止 ${item.due}',
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: AppColors.muted,
-            ),
-          ),
-          const SizedBox(height: AppDimens.grid4),
+          Text('${item.className} · 截止 ${item.due}',
+              style: AppTextStyles.caption),
+          const SizedBox(height: AppDimens.grid2),
           Row(
             children: <Widget>[
-              const Text(
-                '提交进度',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.muted,
-                ),
-              ),
+              const Text('提交进度'),
               const Spacer(),
-              Text(
-                '${item.submitted} / ${item.total}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.brandStrong,
-                ),
-              ),
+              Text('${item.submitted} / ${item.total}'),
             ],
           ),
           const SizedBox(height: 6),
-          ZyProgress(value: item.progress, height: 8),
-          const SizedBox(height: AppDimens.grid3),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: <Widget>[
-              if (item.requireRecord)
-                ZyChip('需大病历', tone: ZyChipTone.brand),
-              ZyChip(item.variable, tone: ZyChipTone.warning),
-            ],
+          ZyProgress(value: item.progress),
+          const SizedBox(height: 4),
+          Text(
+            _metaLine(item),
+            style: AppTextStyles.caption,
           ),
         ],
       ),
     );
+  }
+
+  String _metaLine(AssignmentModel a) {
+    final List<String> parts = <String>[];
+    if (a.requireRecord) parts.add('需大病历');
+    parts.add(a.variable);
+    return parts.join(' · ');
   }
 
   ZyChipTone _statusTone(String status) {
@@ -183,11 +164,34 @@ class _AssignmentCard extends StatelessWidget {
         return ZyChipTone.aqua;
       case '待复核':
         return ZyChipTone.warning;
-      case '已完成':
-        return ZyChipTone.success;
       default:
         return ZyChipTone.neutral;
     }
+  }
+}
+
+class _FormatRules extends StatelessWidget {
+  const _FormatRules({required this.rules, required this.onEdit});
+
+  final List<FormatShieldRule> rules;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        ZySectionHeader(
+          title: '格式规则',
+          actionLabel: '编辑规则',
+          onAction: onEdit,
+        ),
+        const SizedBox(height: AppDimens.grid2),
+        Text('提交前的自动校验规则，未通过会被打回。', style: AppTextStyles.caption),
+        const SizedBox(height: AppDimens.grid3),
+        ...rules.map((FormatShieldRule rule) => _RuleRow(rule: rule)),
+      ],
+    );
   }
 }
 
@@ -198,66 +202,20 @@ class _RuleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ZyChipTone tone;
-    final IconData icon;
-    switch (rule.state) {
-      case '通过':
-        tone = ZyChipTone.success;
-        icon = Icons.check_circle_outline_rounded;
-        break;
-      case '打回':
-        tone = ZyChipTone.danger;
-        icon = Icons.block_rounded;
-        break;
-      case '提示':
-      default:
-        tone = ZyChipTone.warning;
-        icon = Icons.info_outline_rounded;
-        break;
-    }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: AppDimens.grid3),
-      padding: const EdgeInsets.all(AppDimens.grid3),
-      decoration: BoxDecoration(
-        color: const Color(0x080F766E),
-        borderRadius: BorderRadius.circular(AppDimens.radiusMd),
-        border: Border.all(color: AppColors.line, width: 1),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppDimens.grid3),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Icon(icon, size: 18, color: _iconColor(tone)),
+          ZyChip(rule.state, tone: _ruleTone(rule.state)),
           const SizedBox(width: AppDimens.grid3),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        rule.label,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                    ),
-                    ZyChip(rule.state, tone: tone),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  rule.detail,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.muted,
-                    height: 1.5,
-                  ),
-                ),
+                Text(rule.label, style: AppTextStyles.bodyStrong),
+                const SizedBox(height: 2),
+                Text(rule.detail, style: AppTextStyles.caption),
               ],
             ),
           ),
@@ -266,15 +224,133 @@ class _RuleRow extends StatelessWidget {
     );
   }
 
-  Color _iconColor(ZyChipTone tone) {
-    switch (tone) {
-      case ZyChipTone.success:
-        return AppColors.brand;
-      case ZyChipTone.danger:
-        return AppColors.danger;
-      case ZyChipTone.warning:
+  ZyChipTone _ruleTone(String state) {
+    switch (state) {
+      case '通过':
+        return ZyChipTone.success;
+      case '打回':
+        return ZyChipTone.danger;
       default:
-        return AppColors.warning;
+        return ZyChipTone.warning;
     }
+  }
+}
+
+/// 格式规则说明（只读）
+class _FormatRulesSheet extends StatelessWidget {
+  const _FormatRulesSheet({required this.rules});
+
+  final List<FormatShieldRule> rules;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(
+            AppDimens.pagePadding, 0, AppDimens.pagePadding, AppDimens.grid6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text('格式规则说明', style: AppTextStyles.h3),
+            const SizedBox(height: AppDimens.grid2),
+            Text('以下是当前启用的提交校验规则，学生提交时会自动检查。', style: AppTextStyles.caption),
+            const SizedBox(height: AppDimens.grid4),
+            ...rules.map((FormatShieldRule rule) => _RuleRow(rule: rule)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 新建作业表单
+class _CreateAssignmentSheet extends StatefulWidget {
+  const _CreateAssignmentSheet({required this.onCreate});
+
+  final ValueChanged<AssignmentModel> onCreate;
+
+  @override
+  State<_CreateAssignmentSheet> createState() => _CreateAssignmentSheetState();
+}
+
+class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _classCtrl = TextEditingController();
+  final TextEditingController _dueCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _classCtrl.dispose();
+    _dueCtrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    widget.onCreate(AssignmentModel(
+      title: _titleCtrl.text.trim(),
+      className:
+          _classCtrl.text.trim().isEmpty ? '未指定班级' : _classCtrl.text.trim(),
+      submitted: 0,
+      total: 0,
+      due: _dueCtrl.text.trim().isEmpty ? '未设置' : _dueCtrl.text.trim(),
+      status: '进行中',
+      requireRecord: false,
+      variable: '关闭',
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(AppDimens.pagePadding, 0,
+            AppDimens.pagePadding, bottomInset + AppDimens.grid6),
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text('新建作业', style: AppTextStyles.h3),
+              const SizedBox(height: AppDimens.grid4),
+              TextFormField(
+                controller: _titleCtrl,
+                decoration: const InputDecoration(labelText: '作业名称'),
+                validator: (String? value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return '请输入作业名称';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppDimens.grid3),
+              TextFormField(
+                controller: _classCtrl,
+                decoration: const InputDecoration(labelText: '班级'),
+              ),
+              const SizedBox(height: AppDimens.grid3),
+              TextFormField(
+                controller: _dueCtrl,
+                decoration: const InputDecoration(labelText: '截止日期'),
+              ),
+              const SizedBox(height: AppDimens.grid5),
+              FilledButton(
+                onPressed: _submit,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
+                ),
+                child: const Text('创建作业'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

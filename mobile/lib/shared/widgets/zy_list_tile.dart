@@ -33,55 +33,67 @@ class ZyListTile extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: padding,
-          child: Row(
-            children: <Widget>[
-              if (leading != null) ...<Widget>[
-                leading!,
-                const SizedBox(width: AppDimens.grid3),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: AppDimens.touchTarget,
+              ),
+              child: Padding(
+                padding: padding,
+                child: Row(
                   children: <Widget>[
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.ink,
+                    if (leading != null) ...<Widget>[
+                      leading!,
+                      const SizedBox(width: AppDimens.grid3),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.ink,
+                            ),
+                          ),
+                          if (subtitle != null) ...<Widget>[
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle!,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                                color: AppColors.muted,
+                                height: 1.4,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                    if (subtitle != null) ...<Widget>[
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle!,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.muted,
-                          height: 1.4,
-                        ),
+                    if (trailing != null) ...<Widget>[
+                      const SizedBox(width: AppDimens.grid2),
+                      trailing!,
+                    ] else if (onTap != null) ...<Widget>[
+                      const SizedBox(width: AppDimens.grid2),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 22,
+                        color: AppColors.soft,
                       ),
                     ],
                   ],
                 ),
               ),
-              if (trailing != null) ...<Widget>[
-                const SizedBox(width: AppDimens.grid2),
-                trailing!,
-              ] else if (onTap != null) ...<Widget>[
-                const SizedBox(width: AppDimens.grid2),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 22,
-                  color: AppColors.soft,
-                ),
-              ],
-            ],
-          ),
+            ),
+            if (showDivider)
+              const Divider(height: 1, thickness: 1, color: AppColors.line),
+          ],
         ),
       ),
     );

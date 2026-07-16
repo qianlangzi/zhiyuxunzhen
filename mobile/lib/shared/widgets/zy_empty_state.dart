@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
 
-/// 空状态占位
+/// 空状态占位：标题、说明、一个操作
 class ZyEmptyState extends StatelessWidget {
   const ZyEmptyState({
     super.key,
@@ -28,21 +28,13 @@ class ZyEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: AppColors.brandSoft,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, size: 32, color: AppColors.brand),
-            ),
-            const SizedBox(height: AppDimens.grid4),
+            Icon(icon, size: 28, color: AppColors.soft),
+            const SizedBox(height: AppDimens.grid3),
             Text(
               title,
               style: const TextStyle(
                 fontSize: 15,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
                 color: AppColors.ink,
               ),
               textAlign: TextAlign.center,
@@ -53,7 +45,7 @@ class ZyEmptyState extends StatelessWidget {
                 detail!,
                 style: const TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w400,
                   color: AppColors.muted,
                   height: 1.5,
                 ),
@@ -71,39 +63,23 @@ class ZyEmptyState extends StatelessWidget {
   }
 }
 
-/// 加载占位
-class ZyLoading extends StatelessWidget {
-  const ZyLoading({super.key, this.label});
+/// 错误状态：原因 + 重新加载
+class ZyErrorState extends StatelessWidget {
+  const ZyErrorState({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
 
-  final String? label;
+  final String message;
+  final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: AppColors.brand,
-            ),
-          ),
-          if (label != null) ...<Widget>[
-            const SizedBox(height: AppDimens.grid3),
-            Text(
-              label!,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: AppColors.muted,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => ZyEmptyState(
+        icon: Icons.refresh_rounded,
+        title: '暂时无法加载',
+        detail: message,
+        actionLabel: '重新加载',
+        onAction: onRetry,
+      );
 }

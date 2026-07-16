@@ -105,46 +105,34 @@ mobile/
 
 ## 工程化与原生工程
 
-当前环境 **未安装 Flutter / Dart CLI**，因此：
-
-- 已交付 `pubspec.yaml` / `lib/` 完整源码骨架
-- **未执行** `flutter create .`，因此 `android/`、`ios/`、`web/`、`test/` 等原生工程目录尚未生成
-- **未执行** `flutter pub get`、`flutter analyze`、`flutter build`
-
-安装 Flutter SDK 后，在 `mobile/` 目录执行：
+当前仓库已经生成 Android 原生工程目录，可直接在 `mobile/` 目录执行：
 
 ```bash
-# 1. 生成原生工程（保留现有 pubspec.yaml 与 lib/）
-flutter create --org com.zhiyu --project-name zhiyu .
-
-# 2. 拉取依赖
 flutter pub get
-
-# 3. 静态检查
 flutter analyze
-
-# 4. 运行
+flutter test
 flutter run
 ```
 
-如果 `flutter create .` 检测到 `pubspec.yaml` 已存在，会询问是否覆盖，选择保留即可。
-若它仍尝试覆盖 `pubspec.yaml`，可先备份再恢复：
+如果本机终端暂时没有刷新 PATH，也可以直接使用 Flutter 绝对路径：
 
-```bash
-cp pubspec.yaml pubspec.yaml.bak
-flutter create --org com.zhiyu --project-name zhiyu .
-mv pubspec.yaml.bak pubspec.yaml
-flutter pub get
+```powershell
+E:\flutter_windows_3.44.5\flutter\bin\flutter.bat doctor
 ```
 
-## 已知未执行校验项
+Docker 中也提供了移动端校验服务：
+
+```powershell
+docker compose --profile mobile run --rm mobile
+```
+
+该服务会执行 `flutter pub get && flutter analyze && flutter test`，用于在没有本机 Flutter PATH 的环境里做一致性检查。
+
+## 已知校验项
 
 | 项 | 原因 | 后续动作 |
 |----|------|----------|
-| `flutter analyze` | 本机无 Flutter SDK | 安装 SDK 后执行，修正 lint |
-| `flutter test` | 无 `test/` 目录 | 安装 SDK 后补充 widget 测试 |
-| 原生工程生成 | 同上 | `flutter create .` |
-| 真机 UI 走查 | 同上 | iOS Simulator / Android Emulator 验证 |
+| 真机 UI 走查 | 需要连接 Android 真机或模拟器 | `flutter run` 后验证主要页面 |
 | `fl_chart` 雷达图 | 当前用进度条表达四维 | 后续接入 fl_chart 替换 |
 | `image_picker` 影像上传 | 暂未启用 | 影像判读页接入时启用 |
 | 模型代码生成（json_serializable / riverpod_generator） | 已声明 dev 依赖但未跑 build_runner | 接入真实接口前执行 `dart run build_runner build` |

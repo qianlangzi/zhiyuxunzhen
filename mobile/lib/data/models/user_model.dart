@@ -16,6 +16,7 @@ class UserModel {
   final int id;
   final String username;
   final String displayName;
+
   /// 0 学生 / 1 教师 / 其他由 Web 管理端处理
   final int role;
   final String? avatarUrl;

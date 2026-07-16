@@ -21,6 +21,7 @@ class AssignmentModel {
   final String due;
   final String status;
   final bool requireRecord;
+
   /// 同病不同检验值 / 关闭 等
   final String variable;
 
@@ -44,6 +45,7 @@ class ReviewItem {
   final String assignment;
   final int score;
   final String issue;
+
   /// 待复核 / 已初步批阅 / 有争议项 / 已复核
   final String status;
 }
@@ -58,6 +60,7 @@ class FormatShieldRule {
   });
 
   final String label;
+
   /// 通过 / 打回 / 提示
   final String state;
   final String detail;

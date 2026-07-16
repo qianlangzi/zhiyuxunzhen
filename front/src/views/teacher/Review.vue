@@ -1,18 +1,25 @@
 <script setup lang="ts">
-import { reviewQueue } from '../mockData'
 import { computed, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { reviewQueue } from '../mockData'
 
 const selectedReviewId = ref(1)
 const selectedReview = computed(() => {
   return reviewQueue.find((item) => item.id === selectedReviewId.value) || reviewQueue[0]
 })
+
+function confirmReview(action: string) {
+  ElMessage.success(`${action}：${selectedReview.value.student}`)
+}
 </script>
 
 <template>
   <main class="review-page">
     <section class="page-head">
-      <span>批阅复核</span>
-      <h1>处理智能批阅结果</h1>
+      <div>
+        <span>批阅复核</span>
+        <h1>处理智能批阅结果</h1>
+      </div>
     </section>
 
     <section class="review-grid">
@@ -42,11 +49,12 @@ const selectedReview = computed(() => {
         <p>{{ selectedReview.issue }}</p>
         <div class="note">
           <span>建议关注</span>
-          <strong>核心检查项缺失，建议补充心电图与肌钙蛋白。</strong>
+          <strong>核心检查项缺失，建议补充心电图与肌钙蛋白，并确认疼痛放射方向。</strong>
         </div>
         <div class="actions">
-          <el-button>标记申诉</el-button>
-          <el-button type="primary">确认复核</el-button>
+          <el-button @click="confirmReview('标记申诉')">标记申诉</el-button>
+          <el-button plain @click="confirmReview('退回修改')">退回修改</el-button>
+          <el-button type="primary" @click="confirmReview('确认复核')">确认复核</el-button>
         </div>
       </aside>
     </section>
@@ -57,18 +65,6 @@ const selectedReview = computed(() => {
 .review-page {
   display: grid;
   gap: 20px;
-}
-
-.page-head span {
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1 {
-  margin: 6px 0 0;
-  color: var(--zy-ink);
-  font-size: clamp(26px, 3vw, 34px);
 }
 
 .review-grid {
@@ -101,7 +97,7 @@ const selectedReview = computed(() => {
 }
 
 .review-item.active {
-  border-color: rgba(15, 118, 110, 0.38);
+  border-color: rgba(15, 76, 92, 0.38);
   background: var(--zy-brand-soft);
 }
 
@@ -158,7 +154,7 @@ p {
   margin: 18px 0;
   padding: 16px;
   border-radius: 16px;
-  background: rgba(224, 87, 87, 0.08);
+  background: rgba(194, 65, 58, 0.08);
 }
 
 .note span,
@@ -180,6 +176,7 @@ p {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 10px;
 }

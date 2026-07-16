@@ -5,8 +5,10 @@ import { abilityScores, learningPath } from '../mockData'
 <template>
   <main class="page-shell">
     <section class="page-head">
-      <span>能力反馈</span>
-      <h1>查看本次训练反馈</h1>
+      <div>
+        <span>能力反馈</span>
+        <h1>查看本次训练反馈和下一步练习</h1>
+      </div>
     </section>
 
     <section class="feedback-grid">
@@ -34,23 +36,6 @@ import { abilityScores, learningPath } from '../mockData'
 </template>
 
 <style scoped>
-.page-shell {
-  display: grid;
-  gap: 20px;
-}
-
-.page-head span {
-  color: var(--zy-muted);
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.page-head h1 {
-  margin: 6px 0 0;
-  color: var(--zy-ink);
-  font-size: clamp(26px, 3vw, 34px);
-}
-
 .feedback-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

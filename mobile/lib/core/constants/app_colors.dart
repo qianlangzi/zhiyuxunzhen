@@ -1,70 +1,52 @@
 import 'package:flutter/material.dart';
 
-/// 临床玻璃舱配色系统
-/// 对齐 front/legacy-student-teacher 中的 CSS 变量，保留品牌识别
+/// Mobile clinical education palette inspired by the Stitch prototypes.
+///
+/// 核心令牌收敛为冷白背景、深青强调和业务状态色。
 class AppColors {
   AppColors._();
 
-  // 背景层
-  static const Color bg = Color(0xFFF4F8F7);
-  static const Color bgStrong = Color(0xFFE8F2EF);
-  static const Color bgGradientTop = Color(0xFFF9FBFA);
+  // 基础表面
+  static const Color bg = Color(0xFFF7F9F9);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color card = surface;
 
-  // 文本层
-  static const Color ink = Color(0xFF10231F);
-  static const Color muted = Color(0xFF536862);
-  static const Color soft = Color(0xFF78908A);
+  // 文字
+  static const Color ink = Color(0xFF161A1C);
+  static const Color muted = Color(0xFF596367);
+  static const Color soft = Color(0xFF7A8488);
 
-  // 描边层
-  static const Color line = Color(0x241B564C); // rgba(27,86,76,0.14)
-  static const Color lineStrong = Color(0x3D1B564C); // rgba(27,86,76,0.24)
+  // 分隔线
+  static const Color line = Color(0xFFE3E8EA);
+  static const Color lineStrong = Color(0xFFC7D0D3);
 
-  // 品牌色（玉青）
-  static const Color brand = Color(0xFF0F766E);
-  static const Color brandStrong = Color(0xFF0B5F59);
-  static const Color brandSoft = Color(0xFFDFF4F1);
-  static const Color brandPressed = Color(0xFF094F49);
+  // 品牌深青
+  static const Color brand = Color(0xFF064B59);
+  static const Color brandStrong = Color(0xFF003441);
+  static const Color brandSoft = Color(0xFFEAF1F2);
+  static const Color brandPressed = Color(0xFF002B35);
 
-  // 医疗青
-  static const Color aqua = Color(0xFF14B8A6);
-  static const Color aquaSoft = Color(0x2414B8A6);
+  // 训练热力图四级深青色阶
+  static const Color activity1 = Color(0xFFD8E7E9);
+  static const Color activity2 = Color(0xFFA9CDD2);
+  static const Color activity3 = Color(0xFF5F9CA5);
+  static const Color activity4 = brand;
 
-  // 状态色
-  static const Color danger = Color(0xFFE05757);
-  static const Color dangerSoft = Color(0x24E05757);
-  static const Color warning = Color(0xFFC47A20);
-  static const Color amberSoft = Color(0xFFFFF2D8);
+  // 业务状态色（仅用于真实状态，不参与装饰）
+  static const Color success = Color(0xFF247A5A);
+  static const Color successSoft = Color(0xFFE7F4ED);
+  static const Color danger = Color(0xFFC2413A);
+  static const Color dangerSoft = Color(0xFFFBE9E8);
+  static const Color warning = Color(0xFFA7631B);
 
-  // 深色面板（问诊室）
-  static const Color deep = Color(0xFF071B22);
-  static const Color deepInk = Color(0xFFEFFFFB);
-  static const Color deepMuted = Color(0xB0EFFFFB);
-
-  // 卡片
-  static const Color card = Colors.white;
-  static const Color cardGlass = Color(0xAEFFFFFF); // rgba(255,255,255,0.68)
-  static const Color cardGlassStrong = Color(0xDCFFFFFF);
-
-  // 阴影
-  static const List<BoxShadow> shadow = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x1A154E44),
-      offset: Offset(0, 18),
-      blurRadius: 44,
-    ),
-  ];
-  static const List<BoxShadow> shadowSoft = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x14154E44),
-      offset: Offset(0, 10),
-      blurRadius: 28,
-    ),
-  ];
-  static const List<BoxShadow> shadowCard = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x0F154E44),
-      offset: Offset(0, 8),
-      blurRadius: 24,
-    ),
-  ];
+  // 业务语义色与场景别名
+  static const Color bgStrong = Color(0xFFECEFEE);
+  static const Color inkTeal = brand;
+  static const Color lineSoft = line;
+  static const Color aqua = Color(0xFF5AB7BE);
+  static const Color aquaSoft = Color(0xFFE0F3F4);
+  static const Color gold = Color(0xFFB7791F);
+  static const Color goldSoft = Color(0xFFFFF4DF);
+  static const Color amberSoft = Color(0xFFFFF4DF);
+  static const Color field = Color(0xFFF3F5F6);
 }

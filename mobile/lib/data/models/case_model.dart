@@ -26,6 +26,7 @@ class CaseModel {
   final String chief;
   final List<String> tags;
   final String department;
+
   /// 基础 / 标准 / 进阶 / 高阶
   final String difficulty;
   final String duration;

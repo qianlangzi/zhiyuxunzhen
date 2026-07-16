@@ -1,13 +1,6 @@
-import '../models/assignment_model.dart';
-import '../models/case_model.dart';
-import '../models/chat_model.dart';
-import '../models/learning_model.dart';
 import '../models/user_model.dart';
 import 'package:zhiyu/data/models.dart';
 
-/// Mock 数据源
-/// 对齐 front/legacy-student-teacher/src/views/mockData.ts
-/// 后续接入真实接口时，Repository 直接替换为 dio 调用即可
 class MockData {
   MockData._();
 
@@ -15,7 +8,7 @@ class MockData {
     CaseModel(
       id: 'copd-acute',
       title: '慢阻肺急性加重',
-      chief: '反复咳嗽、咳痰 10 年，加重伴气促 3 天',
+      chief: '反复咳嗽、咳痰 10 年，加重伴气促 3 天。',
       tags: <String>['呼吸系统', '低氧血症', '肺功能'],
       department: '呼吸系统',
       difficulty: '进阶',
@@ -27,7 +20,7 @@ class MockData {
     CaseModel(
       id: 'chest-pain',
       title: '胸痛待查',
-      chief: '突发胸骨后压榨样疼痛 2 小时',
+      chief: '突发胸骨后压榨样疼痛 2 小时，伴出汗和濒死感。',
       tags: <String>['心血管', '心电图', '鉴别诊断'],
       department: '心血管',
       difficulty: '高阶',
@@ -39,7 +32,7 @@ class MockData {
     CaseModel(
       id: 'gi-bleeding',
       title: '上消化道出血',
-      chief: '黑便 2 天，伴头晕乏力',
+      chief: '黑便 2 天，伴头晕乏力，既往有胃溃疡病史。',
       tags: <String>['消化系统', '休克评估', '病史采集'],
       department: '消化系统',
       difficulty: '基础',
@@ -74,7 +67,7 @@ class MockData {
   ];
 
   static const List<LearningPathItem> learningPath = <LearningPathItem>[
-    LearningPathItem(title: '心衰问诊补救病例', meta: '12 分钟 · 简单病例', progress: 35),
+    LearningPathItem(title: '心衰问诊补救病例', meta: '12 分钟 · 简短病例', progress: 35),
     LearningPathItem(title: '胸痛鉴别诊断切片', meta: '教材第 4 章 · 500 字', progress: 64),
     LearningPathItem(title: '血常规判读关卡', meta: '检验指标 · 8 道题', progress: 20),
   ];
@@ -88,7 +81,7 @@ class MockData {
       due: '今晚 22:00',
       status: '进行中',
       requireRecord: true,
-      variable: '同病不同检验值',
+      variable: '同病不同检查值',
     ),
     AssignmentModel(
       title: '胸痛鉴别诊断',
@@ -118,7 +111,7 @@ class MockData {
       student: '林同学',
       assignment: '胸痛鉴别诊断',
       score: 82,
-      issue: '现病史遗漏放射痛方向，未开心电图',
+      issue: '现病史遗漏放射痛方向，未及时开立心电图。',
       status: '待复核',
     ),
     ReviewItem(
@@ -126,7 +119,7 @@ class MockData {
       student: '周同学',
       assignment: '慢阻肺急性加重',
       score: 76,
-      issue: '体征记录缺少桶状胸和肺部啰音描述',
+      issue: '体征记录缺少桶状胸和肺部啰音描述。',
       status: '已初步批阅',
     ),
     ReviewItem(
@@ -134,7 +127,7 @@ class MockData {
       student: '陈同学',
       assignment: '消化系统大病历',
       score: 89,
-      issue: '诊断推理完整，需人工确认用药史',
+      issue: '诊断推理完整，需要人工确认用药史。',
       status: '有争议项',
     ),
   ];
@@ -147,7 +140,7 @@ class MockData {
   ];
 
   static const CaseModel dailyCase = CaseModel(
-    id: 'daily-20260627',
+    id: 'daily-20260711',
     title: '每日一例：活动后胸闷',
     chief: '活动后胸闷',
     tags: <String>['心血管', '心绞痛'],
@@ -164,39 +157,57 @@ class MockData {
     source: '《内科学》第 3 章，心血管系统，P128',
   );
 
-  static List<HeatmapDay> heatmapDays = List<HeatmapDay>.generate(84, (int index) {
-    final int value = (index * 7 + 3) % 5;
-    return HeatmapDay(date: 'D-${83 - index}', value: value);
-  });
+  static List<HeatmapDay> heatmapDays = _buildHeatmapDays();
+
+  static List<HeatmapDay> _buildHeatmapDays() {
+    final DateTime today =
+        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    return List<HeatmapDay>.generate(91, (int index) {
+      final DateTime date = today.subtract(Duration(days: 90 - index));
+      final String iso = '${date.year.toString().padLeft(4, '0')}-'
+          '${date.month.toString().padLeft(2, '0')}-'
+          '${date.day.toString().padLeft(2, '0')}';
+      // 确定性强度：0~4，避免使用随机数
+      final int level = (index * 7 + 3) % 5;
+      return HeatmapDay(
+        date: iso,
+        value: level,
+        completedCount: level == 0 ? 0 : 1 + (index % 2),
+        activities: level == 0
+            ? const <String>[]
+            : <String>['完成病例问诊', if (index.isEven) '复盘诊断依据'],
+      );
+    });
+  }
 
   static const List<MistakeItem> mistakes = <MistakeItem>[
     MistakeItem(
       type: '诊断错误',
       title: '胸痛病例误判为胃炎',
       tag: '胸痛鉴别',
-      evidence: '遗漏胸骨后压榨痛、出汗、心电图检查',
+      evidence: '遗漏胸骨后压榨痛、出汗和心电图检查。',
       reviewed: false,
     ),
     MistakeItem(
       type: '漏问病史',
       title: '慢阻肺病例未追问夜间憋醒',
       tag: '心衰',
-      evidence: '端坐呼吸已经出现，但未继续确认 PND',
+      evidence: '端坐呼吸已经出现，但未继续确认 PND。',
       reviewed: true,
     ),
     MistakeItem(
       type: '检查错误',
       title: '优先选择高价 CT',
       tag: '卫生经济学',
-      evidence: '未完成低成本必要检查前开立胸部增强 CT',
+      evidence: '未完成低成本必要检查前开立胸部增强 CT。',
       reviewed: false,
     ),
   ];
 
   static const List<FormatShieldRule> formatShieldRules = <FormatShieldRule>[
-    FormatShieldRule(label: '主诉 20 字以内', state: '通过', detail: '包含主要症状和持续时间'),
-    FormatShieldRule(label: '过敏史不可为空', state: '打回', detail: '未知需填写"否认"或"不详"'),
-    FormatShieldRule(label: '现病史时间线', state: '提示', detail: '建议补充症状发展和就诊经过'),
+    FormatShieldRule(label: '主诉 20 字以内', state: '通过', detail: '包含主要症状和持续时间。'),
+    FormatShieldRule(label: '过敏史不可为空', state: '打回', detail: '未知时需填写“否认”或“不详”。'),
+    FormatShieldRule(label: '现病史时间线', state: '提示', detail: '建议补充症状发展和就诊经过。'),
   ];
 
   static const List<MarketCaseModel> marketCases = <MarketCaseModel>[
@@ -229,7 +240,6 @@ class MockData {
     ),
   ];
 
-  /// 演示账号：对齐 Vue 端 Login.vue
   static const Map<String, _DemoAccount> demoAccounts = <String, _DemoAccount>{
     'teacher01': _DemoAccount(password: '123456', role: 1, displayName: '王老师'),
     'student01': _DemoAccount(password: '123456', role: 0, displayName: '林同学'),
