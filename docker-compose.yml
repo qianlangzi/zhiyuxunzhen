@@ -118,17 +118,36 @@ services:
       - redis
     environment:
       <<: *no-proxy-env
-      SPARK_APP_ID: ${SPARK_APP_ID:-}
-      SPARK_API_KEY: ${SPARK_API_KEY:-}
-      SPARK_API_SECRET: ${SPARK_API_SECRET:-}
-      SPARK_VISION_APP_ID: ${SPARK_VISION_APP_ID:-}
-      SPARK_VISION_API_KEY: ${SPARK_VISION_API_KEY:-}
-      SPARK_VISION_API_SECRET: ${SPARK_VISION_API_SECRET:-}
+      ENV_MODE: ${ENV_MODE:-dev}
+      # LLM（OpenAI 兼容协议，留空则降级）
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-generalv3.5}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      # 多模态
+      VISION_BASE_URL: ${VISION_BASE_URL:-}
+      VISION_API_KEY: ${VISION_API_KEY:-}
+      VISION_MODEL: ${VISION_MODEL:-4.0VImage}
+      # Embedding
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embedding-v1}
+      # Milvus
       MILVUS_HOST: milvus
       MILVUS_PORT: 19530
+      MILVUS_COLLECTION: ${MILVUS_COLLECTION:-zhiyu_textbook}
+      MILVUS_VECTOR_DIM: ${MILVUS_VECTOR_DIM:-1024}
+      # Redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # 内部 token（必须与 Java 后端 zhiyu.ai.internal-token 一致）
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-dev-internal-token}
       BACKEND_CALLBACK_URL: http://backend:8080
+      ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-true}
+      ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-true}
 
   front:
     build:
