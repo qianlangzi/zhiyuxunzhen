@@ -136,8 +136,3 @@ docker compose --profile mobile run --rm mobile
 | `fl_chart` 雷达图 | 当前用进度条表达四维 | 后续接入 fl_chart 替换 |
 | `image_picker` 影像上传 | 暂未启用 | 影像判读页接入时启用 |
 | 模型代码生成（json_serializable / riverpod_generator） | 已声明 dev 依赖但未跑 build_runner | 接入真实接口前执行 `dart run build_runner build` |
-
-## 旧代码备份
-
-Vue 旧学生 / 教师端代码已备份至 `front/legacy-student-teacher-20260626211852/`，
-后续如需继续维护 Web 端页面，可基于该备份分支开发。

@@ -1,8 +1,0 @@
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781523386458}
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781523387823}
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781523388379}
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781523389143}
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781523389339}
-{"type":"click","text":"B\n    \n      多路由产品骨架\n      新增 /student/chat、/teacher/case、/teacher/review 等路由。结构更完整，但当前接口和组件较少，容易分散时间。","choice":"b","id":null,"timestamp":1781525577261}
-{"type":"click","text":"C\n    \n      只做登录与首页视觉升级\n      风险最低，但无法体现 PRD 里的问诊、影像圈选、思维树、批阅复核等关键功能，展示价值不足。","choice":"c","id":null,"timestamp":1781525577852}
-{"type":"click","text":"A\n    \n      角色化演示 MVP（推荐）\n      只改 Login / Home / 全局样式。登录后同一路由根据 role 展示教师或学生工作台，包含折叠模块、模拟数据、核心操作入口。最快形成高级产品气质。","choice":"a","id":null,"timestamp":1781525578565}
