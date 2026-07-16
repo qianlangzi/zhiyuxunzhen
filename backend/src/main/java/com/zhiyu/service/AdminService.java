@@ -71,4 +71,23 @@ public interface AdminService {
      */
     PageResult<AuditLogVO> auditLogList(PageParam param, Long operatorId, String action,
                                         String targetType, LocalDate startDate, LocalDate endDate);
+
+    /**
+     * 冻结账号（PRD 4.14 / 4.17）
+     * status: 0 → 1，写审计日志
+     */
+    void freezeUser(Long userId);
+
+    /**
+     * 解冻账号（PRD 4.14 / 4.17）
+     * status: 1 → 0，写审计日志
+     */
+    void unfreezeUser(Long userId);
+
+    /**
+     * 修改用户角色（PRD 4.14 / 4.17）
+     * 仅允许在学生(0) ↔ 教师(1) ↔ 教学秘书(2) ↔ 教研室主任(3) 之间切换
+     * 管理员(4) / 运维(5) 角色变更需走更高级别审批，本接口不处理
+     */
+    void changeUserRole(Long userId, Integer newRole);
 }

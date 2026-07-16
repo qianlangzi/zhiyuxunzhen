@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MedEd Authority - Case Training</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@500&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9fa; /* surface-bright */
+            -webkit-font-smoothing: antialiased;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#f9f9fa",
+                        "surface-container-high": "#e7e8e9",
+                        "on-tertiary": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "on-primary-fixed": "#001f28",
+                        "primary-fixed-dim": "#9acee1",
+                        "inverse-surface": "#2e3132",
+                        "secondary-fixed": "#dfe3e6",
+                        "primary-fixed": "#b6ebfe",
+                        "primary": "#003441",
+                        "outline": "#70787c",
+                        "on-error-container": "#93000a",
+                        "on-background": "#191c1d",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-dim": "#d9dadb",
+                        "on-tertiary-fixed-variant": "#454748",
+                        "on-error": "#ffffff",
+                        "outline-variant": "#c0c8cb",
+                        "surface": "#f9f9fa",
+                        "on-primary": "#ffffff",
+                        "on-secondary-container": "#5e6366",
+                        "surface-container-low": "#f3f4f5",
+                        "background": "#f9f9fa",
+                        "tertiary-fixed": "#e1e3e4",
+                        "on-secondary": "#ffffff",
+                        "inverse-primary": "#9acee1",
+                        "on-secondary-fixed-variant": "#43474a",
+                        "on-surface-variant": "#40484b",
+                        "secondary-container": "#dce0e3",
+                        "error-container": "#ffdad6",
+                        "primary-container": "#0f4c5c",
+                        "on-primary-fixed-variant": "#114d5d",
+                        "secondary": "#5a5f62",
+                        "on-secondary-fixed": "#171c1f",
+                        "on-primary-container": "#87bbce",
+                        "tertiary": "#2d3031",
+                        "error": "#ba1a1a",
+                        "surface-container-highest": "#e1e2e4",
+                        "secondary-fixed-dim": "#c3c7ca",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-container": "#434647",
+                        "tertiary-fixed-dim": "#c5c7c8",
+                        "surface-tint": "#306576",
+                        "on-tertiary-fixed": "#191c1d",
+                        "on-surface": "#191c1d",
+                        "surface-variant": "#e1e2e4",
+                        "on-tertiary-container": "#b2b4b5"
+                    },
+                    "spacing": {
+                        "stack-gap-sm": "8px",
+                        "section-margin": "40px",
+                        "unit": "4px",
+                        "container-padding": "20px",
+                        "stack-gap-lg": "24px",
+                        "stack-gap-md": "16px"
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["28px", {"lineHeight": "36px", "fontWeight": "600"}],
+                        "display-lg": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                        "headline-sm": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700"}],
+                        "body-md": ["15px", {"lineHeight": "22px", "fontWeight": "400"}],
+                        "body-lg": ["17px", {"lineHeight": "26px", "fontWeight": "400"}],
+                        "medical-data": ["14px", {"lineHeight": "20px", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface-bright text-on-surface pb-24">
+<!-- Top AppBar (from JSON) -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-container-padding h-16 bg-surface-container-lowest dark:bg-inverse-surface border-b border-outline-variant dark:border-outline transition-colors duration-150 ease-linear">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover" data-alt="A clean professional profile portrait of a medical student in a white coat, soft clinical lighting, minimalist background, high-end medical education aesthetic, sharp focus on facial features." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDSRivYqsVPkYNtM_9-cwQSOko6BUVPNsputF9UDdYxKDOtpNCjqTdVg0jkabq-JpFhjtcYezjZg2mpVvq37HiYiRYRqHUazivktYtDOkjq2Q5vKlybFrc9PtbZt59yxYrvNQazhCqXVz5C7_k62OvEY7rdAYE2pATVN0TqsA8fDdpTYzNuXPa26z28TPzcIVL77zbqg4dFG4Gff6ik3izn4RoiVnZ7B_851tCcEIlofIxPt0_VaXo7NTgVT3Q7pWxMRL2PjA3wuZLH"/>
+</div>
+<h1 class="font-headline-sm text-headline-sm font-bold text-primary dark:text-primary-fixed">MedEd Authority</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-primary">notifications</span>
+</button>
+</header>
+<main class="mt-16 px-container-padding pt-6 space-y-section-margin max-w-4xl mx-auto">
+<!-- Search & Department Filters -->
+<section class="space-y-4">
+<div class="relative group">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-12 pr-4 py-3 bg-surface-container-low border border-outline-variant rounded-xl focus:border-primary focus:ring-0 transition-all font-body-md text-on-surface" placeholder="Search clinical cases, symptoms, or diagnoses..." type="text"/>
+</div>
+<div class="flex gap-3 overflow-x-auto hide-scrollbar -mx-5 px-5 py-1">
+<button class="whitespace-nowrap px-4 py-2 bg-primary text-on-primary rounded-full font-label-caps text-label-caps shadow-sm">ALL CASES</button>
+<button class="whitespace-nowrap px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary rounded-full font-label-caps text-label-caps transition-colors">INTERNAL MEDICINE</button>
+<button class="whitespace-nowrap px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary rounded-full font-label-caps text-label-caps transition-colors">SURGERY</button>
+<button class="whitespace-nowrap px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary rounded-full font-label-caps text-label-caps transition-colors">PEDIATRICS</button>
+<button class="whitespace-nowrap px-4 py-2 bg-surface-container-lowest border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary rounded-full font-label-caps text-label-caps transition-colors">NEUROLOGY</button>
+</div>
+</section>
+<!-- Recent History Section -->
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Recent History</h2>
+<button class="font-label-caps text-label-caps text-primary hover:underline">VIEW ALL</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-stack-md">
+<!-- History Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex gap-4 items-center">
+<div class="w-12 h-12 rounded-lg bg-primary/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">history</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-label-caps text-label-caps text-primary-container mb-0.5">INTERNAL MEDICINE</p>
+<h3 class="font-body-lg text-body-lg text-on-surface truncate">Acute Coronary Syndrome</h3>
+<p class="font-medical-data text-medical-data text-on-surface-variant">Completed • 88% Score</p>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center border border-outline-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-outline">arrow_forward_ios</span>
+</button>
+</div>
+<!-- History Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 flex gap-4 items-center">
+<div class="w-12 h-12 rounded-lg bg-primary/5 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">history</span>
+</div>
+<div class="flex-1 min-w-0">
+<p class="font-label-caps text-label-caps text-primary-container mb-0.5">SURGERY</p>
+<h3 class="font-body-lg text-body-lg text-on-surface truncate">Acute Appendicitis</h3>
+<p class="font-medical-data text-medical-data text-on-surface-variant">In Progress • Step 4/10</p>
+</div>
+<button class="w-8 h-8 rounded-full flex items-center justify-center border border-outline-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-outline">arrow_forward_ios</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Clinical Cases Grid -->
+<section class="space-y-4">
+<h2 class="font-headline-sm text-headline-sm text-on-surface">Available Training Cases</h2>
+<div class="grid grid-cols-1 gap-stack-md">
+<!-- Case Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col md:flex-row transition-transform active:scale-[0.98]">
+<div class="w-full md:w-48 h-32 md:h-auto bg-surface-container-high relative">
+<img class="w-full h-full object-cover" data-alt="High-resolution clinical visualization of a thoracic X-ray displaying subtle pulmonary findings, presented in a clean medical diagnostic interface style with soft teal accents and professional clarity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzv3GVZoUaw2LgFEpQvzU90htDAcKtRriKXBm3ewnb7F18RTra5njV2fIY2e1gT_VVf7V1RWNsdn1f_IshDQc1FOZBJa1Utd9qNDxKLotZnIeBzO4Dr91dCnJHRicIpudwab9mX58VuYWNfjoPYcBqUPvafMRg9I3qHpmX4rSxG8PHLbnvGTWsRo4KSzAbknThYPraa3QII2LDcDSu14HCRp9N_lA0ukCdTbgpEjbz4aXo7som-DUvyqpfsYezvRQ3HJc8axtuBeqQ"/>
+<div class="absolute top-2 left-2 px-2 py-1 bg-white/90 glass-blur rounded text-[10px] font-bold text-primary tracking-wider">NEW</div>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-bold tracking-wider">CARDIOLOGY</span>
+<div class="flex items-center gap-0.5 text-secondary">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+</div>
+</div>
+<span class="font-medical-data text-medical-data text-outline">ID: IM-204</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2">Refractory Hypertension in 55M</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 line-clamp-2">Patient presents with persistent elevated BP despite triple therapy. Explore secondary causes including renal artery stenosis and hyperaldosteronism.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high"></div>
+<div class="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high"></div>
+<span class="pl-4 font-medical-data text-[12px] text-outline self-center">+1.2k trained</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors shadow-sm">START TRAINING</button>
+</div>
+</div>
+</div>
+<!-- Case Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col md:flex-row transition-transform active:scale-[0.98]">
+<div class="w-full md:w-48 h-32 md:h-auto bg-surface-container-high relative">
+<img class="w-full h-full object-cover" data-alt="Microscopic view of pathology slide showing cellular structures, vibrant purple and pink staining, high-end scientific photography style, clean and precise medical imagery for educational use." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJN-vmDiGWMLArElBdjq2sXkoGpslpDSjziSQeP7RcTH7sNAW5FRONjOmPpHc20Jw9yawIvehfQucQ0ANKiVHrmxLCVCPj9HeSkQ36NEe76f9TJ33Ee_YoDMz2WvOtbvGUDrxBbmMTYecDnvyCkOIBmy0W632cJPq362N9JOFKwfEl2i-Vp7BzqOuG5Rc8cuSpRpJPE0lx3Kcx29dXHRCMeebf3tyHDQjFjEty-mKAWGOArH7Uf_jIjRjR9Y76QOhwRzESn0H0vcVI"/>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-bold tracking-wider">NEUROLOGY</span>
+<div class="flex items-center gap-0.5 text-secondary">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+</div>
+</div>
+<span class="font-medical-data text-medical-data text-outline">ID: NR-401</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2">Acute Ischemic Stroke: Large Vessel Occlusion</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 line-clamp-2">Rapid neurological assessment of a 72-year-old female presenting with sudden-onset left-sided weakness and expressive aphasia.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high"></div>
+<div class="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high"></div>
+<span class="pl-4 font-medical-data text-[12px] text-outline self-center">+840 trained</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors shadow-sm">START TRAINING</button>
+</div>
+</div>
+</div>
+<!-- Case Card 3 (Simplified for Mobile List feel) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col md:flex-row transition-transform active:scale-[0.98]">
+<div class="w-full md:w-48 h-32 md:h-auto bg-surface-container-high relative">
+<img class="w-full h-full object-cover" data-alt="A clean top-down view of a sterile surgical tray with high-grade stainless steel instruments, cool clinical lighting, professional hospital operating room atmosphere, deep teal shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJO1Vdi5I_ajdweM17IabqKTD0pVuRdfJcpZtLKwmLijF-38iPOXD46xFEjmckSBytrP7PuL9-iv7sPy7BtmxHkx-e-SmSl6ofAV5Kigl6cv1Po58nX5sSPTbRrZRrdD2M76PjCFvyD73FHbNnupE7oUrbh3D9hPuo-9uAudLdn_pSUQKj2jBjsWauNfukMbjV3mU22ues2RmyIdBTorKCbkyc_KzMkz0tGlvCpzLMTBPI9gVcVPdlfqAqg82pQjB2Ws-0Q4N1VVHc"/>
+</div>
+<div class="p-5 flex-1 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-2">
+<div class="flex gap-2">
+<span class="px-2 py-0.5 bg-primary/10 text-primary rounded text-[10px] font-bold tracking-wider">GENERAL SURGERY</span>
+<div class="flex items-center gap-0.5 text-secondary">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 0;">star</span>
+</div>
+</div>
+<span class="font-medical-data text-medical-data text-outline">ID: GS-112</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2">Inguinal Hernia Repair Selection</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 line-clamp-2">Determine the optimal surgical approach for a 40-year-old male athlete with a reducible indirect inguinal hernia.</p>
+</div>
+<div class="flex items-center justify-between">
+<div class="flex -space-x-2">
+<div class="w-7 h-7 rounded-full border-2 border-white bg-surface-container-high"></div>
+<span class="pl-4 font-medical-data text-[12px] text-outline self-center">+2.4k trained</span>
+</div>
+<button class="bg-primary text-on-primary px-5 py-2.5 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors shadow-sm">START TRAINING</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation (from JSON) -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-4 py-2 pb-safe bg-surface-container-lowest dark:bg-inverse-surface border-t border-outline-variant dark:border-outline shadow-none">
+<!-- Home -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-3 py-1 hover:text-primary dark:hover:text-primary-fixed transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+<span class="font-label-caps text-label-caps mt-1">Home</span>
+</a>
+<!-- Cases (ACTIVE) -->
+<a class="flex flex-col items-center justify-center bg-primary-container dark:bg-primary text-on-primary-container dark:text-on-primary rounded-xl px-3 py-1 transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="medical_services">medical_services</span>
+<span class="font-label-caps text-label-caps mt-1">Cases</span>
+</a>
+<!-- Review -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-3 py-1 hover:text-primary dark:hover:text-primary-fixed transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="history_edu">history_edu</span>
+<span class="font-label-caps text-label-caps mt-1">Review</span>
+</a>
+<!-- Profile -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant dark:text-on-surface-variant px-3 py-1 hover:text-primary dark:hover:text-primary-fixed transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+<span class="font-label-caps text-label-caps mt-1">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple filter toggle interaction
+        const filterButtons = document.querySelectorAll('button.whitespace-nowrap');
+        filterButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterButtons.forEach(b => {
+                    b.classList.remove('bg-primary', 'text-on-primary');
+                    b.classList.add('bg-surface-container-lowest', 'text-on-surface-variant', 'border-outline-variant');
+                });
+                btn.classList.add('bg-primary', 'text-on-primary');
+                btn.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant', 'border-outline-variant');
+            });
+        });
+
+        // Search highlight effect
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('ring-2', 'ring-primary/20');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('ring-2', 'ring-primary/20');
+        });
+    </script>
+</body></html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>医疗辅助系统 - 虚拟问诊室</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "on-secondary-fixed-variant": "#334b4c",
+                "outline-variant": "#c0c8cb",
+                "on-error-container": "#93000a",
+                "background": "#f1f3f4",
+                "on-surface": "#191c1d",
+                "tertiary-fixed-dim": "#ffb86b",
+                "tertiary-container": "#673c00",
+                "on-surface-variant": "#40484b",
+                "primary": "#0f4c5c",
+                "surface-container-low": "#f2f4f5",
+                "primary-container": "#0f4c5c",
+                "inverse-surface": "#2e3132",
+                "surface-dim": "#d8dadb",
+                "secondary-fixed": "#cde8e9",
+                "inverse-primary": "#9acee1",
+                "on-tertiary-fixed": "#2c1700",
+                "secondary": "#4a6364",
+                "surface-variant": "#e1e3e4",
+                "on-primary-container": "#87bbce",
+                "on-tertiary-fixed-variant": "#683d00",
+                "on-secondary-fixed": "#051f20",
+                "tertiary-fixed": "#ffdcbc",
+                "secondary-fixed-dim": "#b1cbcd",
+                "on-secondary": "#ffffff",
+                "surface": "#f1f3f4",
+                "error-container": "#ffdad6",
+                "surface-bright": "#f8fafb",
+                "tertiary": "#472800",
+                "inverse-on-surface": "#eff1f2",
+                "on-background": "#191c1d",
+                "on-tertiary-container": "#fd9e1a",
+                "outline": "#70787c",
+                "on-primary-fixed-variant": "#114d5d",
+                "error": "#ba1a1a",
+                "surface-container-high": "#e6e8e9",
+                "on-error": "#ffffff",
+                "surface-tint": "#306576",
+                "on-tertiary": "#ffffff",
+                "on-secondary-container": "#50696a",
+                "on-primary": "#ffffff",
+                "surface-container-lowest": "#ffffff",
+                "primary-fixed": "#b6ebfe",
+                "secondary-container": "#cde8e9",
+                "surface-container-highest": "#e1e3e4",
+                "primary-fixed-dim": "#9acee1",
+                "surface-container": "#eceeef",
+                "on-primary-fixed": "#001f28"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "2xl": "20px",
+                "full": "9999px"
+            },
+            "spacing": {
+                "card-padding": "24px",
+                "section-gap": "48px",
+                "unit": "4px",
+                "gutter": "24px",
+                "container-padding": "20px"
+            },
+            "fontFamily": {
+                "sans": ["Inter", "PingFang SC", "system-ui", "sans-serif"],
+                "headline": ["Plus Jakarta Sans", "PingFang SC", "sans-serif"]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        body {
+            background-color: #f1f3f4;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior: none;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .typewriter-text::after {
+            content: '|';
+            animation: blink 0.8s infinite;
+            margin-left: 2px;
+            color: #0f4c5c;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        .chat-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #d1d9de;
+            border-radius: 10px;
+        }
+
+        .glass-header {
+            background: rgba(248, 250, 251, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .bubble-shadow {
+            box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col text-on-surface">
+<!-- 顶部导航栏：病人概况 -->
+<header class="fixed top-0 w-full z-50 flex items-center justify-between px-container-padding h-20 glass-header">
+<div class="flex items-center gap-4">
+<div class="relative">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-white ring-1 ring-outline-variant shadow-sm">
+<img alt="赵先生头像" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC1MV_uG1G3qLcPc7vV-dzC7IfCFETUNOjR8pwlQFopNoJJy5IzYQm9S0ZvOipUvDhqSauA9NAhczSjmYAQVz2lxrbxzFsuOdUTTzcI0EcNtOISR6dCM_FxJ0OHFevFnUo1k5fts9zxv1Hz8FGkw-ixzyNuSYbpS3SQHT6GwbzSyAR3E69XPTHrKBBzwllOgIzkFhMB8qRGYYDaBJhQY3tqaIfez3TogUap4OZQBKrQdmwXYMAwuYeqMidbHlhCMV1QxCLUTUvDIDdP"/>
+</div>
+<div class="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h1 class="font-headline text-lg font-bold text-primary">赵先生</h1>
+<span class="text-sm text-on-surface-variant font-medium">45岁，男性</span>
+</div>
+<div class="flex gap-1.5 mt-1">
+<span class="bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider border border-amber-200/50">焦虑</span>
+<span class="bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider border border-emerald-200/50">配合</span>
+</div>
+</div>
+</div>
+<!-- 状态追踪 -->
+<div class="hidden md:flex bg-white/50 border border-outline-variant/30 rounded-2xl px-4 py-2 items-center gap-4">
+<div class="text-right">
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">问诊费用</div>
+<div class="font-mono text-sm font-semibold text-primary">¥285.00</div>
+</div>
+<div class="w-px h-6 bg-outline-variant/30"></div>
+<div class="text-right">
+<div class="text-[10px] text-on-surface-variant uppercase tracking-tighter opacity-70">诊断效率</div>
+<div class="font-mono text-sm font-semibold text-emerald-600">94%</div>
+</div>
+</div>
+</header>
+<!-- 对话画布 -->
+<main class="flex-1 mt-20 mb-32 overflow-y-auto chat-container p-container-padding space-y-6 flex flex-col">
+<!-- 病人消息 -->
+<div class="flex flex-col items-start max-w-[85%] self-start">
+<div class="bg-white text-on-surface rounded-2xl rounded-tl-none px-5 py-3.5 bubble-shadow border border-gray-100">
+<p class="text-[16px] leading-relaxed">
+                医生，这两天我胸口这里总感觉有种钻心的疼，尤其是在深呼吸的时候更明显。我... 我真的很担心会不会是什么大毛病。
+            </p>
+</div>
+<span class="mt-2 ml-1 text-[11px] text-on-surface-variant/60 font-medium">10:42 AM · 患者</span>
+</div>
+<!-- 医生/用户消息 -->
+<div class="flex flex-col items-end max-w-[85%] self-end">
+<div class="bg-primary text-white rounded-2xl rounded-tr-none px-5 py-3.5 bubble-shadow">
+<p class="text-[16px] leading-relaxed">
+                别担心，赵先生。我会详细了解您的情况。这种疼痛是固定在一个位置，还是会放射到您的手臂或下巴？
+            </p>
+</div>
+<span class="mt-2 mr-1 text-[11px] text-on-surface-variant/60 font-medium">10:43 AM · 您</span>
+</div>
+<!-- 正在输入/模拟打字机 -->
+<div class="flex flex-col items-start max-w-[85%] self-start" id="typewriter-container">
+<div class="bg-white text-on-surface rounded-2xl rounded-tl-none px-5 py-3.5 bubble-shadow border border-gray-100 min-h-[56px]">
+<p class="text-[16px] leading-relaxed typewriter-text" id="active-typing">
+                大部分时间在胸口左侧，感觉像被针扎一样...
+            </p>
+</div>
+<div class="flex items-center gap-2 mt-2 ml-1">
+<div class="flex gap-1 items-center bg-gray-200/50 px-2 py-1 rounded-full">
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"></span>
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.2s]"></span>
+<span class="w-1.5 h-1.5 bg-primary rounded-full animate-bounce [animation-delay:0.4s]"></span>
+</div>
+<span class="text-[11px] text-on-surface-variant/60 font-medium italic">赵先生正在输入...</span>
+</div>
+</div>
+</main>
+<!-- 底部沉浸式操作栏 -->
+<nav class="fixed bottom-0 w-full p-4 bg-gradient-to-t from-background via-background to-transparent pointer-events-none">
+<div class="max-w-4xl mx-auto w-full flex flex-col gap-3 pointer-events-auto">
+<!-- 模式切换器 -->
+<div class="flex bg-white/80 backdrop-blur-md p-1 rounded-2xl border border-white/50 shadow-sm mx-auto w-fit">
+<button class="px-6 py-2 rounded-xl text-xs font-bold transition-all bg-primary text-white shadow-md" id="btn-ask" onclick="switchMode('ask')">
+                向患者提问
+            </button>
+<button class="px-6 py-2 rounded-xl text-xs font-bold transition-all text-on-surface-variant hover:bg-gray-100" id="btn-lab" onclick="switchMode('lab')">
+                申请检查项
+            </button>
+<button class="px-6 py-2 rounded-xl text-xs font-bold transition-all text-on-surface-variant hover:bg-gray-100" id="btn-diag" onclick="switchMode('diag')">
+                提交确诊建议
+            </button>
+</div>
+<!-- 输入区域 -->
+<div class="relative group">
+<input class="w-full h-14 pl-6 pr-16 bg-white border border-outline-variant/30 rounded-2xl shadow-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[16px] outline-none placeholder:text-gray-400" id="main-input" placeholder="向赵先生询问病情..." type="text"/>
+<button class="absolute right-2.5 top-2.5 w-9 h-9 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-opacity-90 active:scale-95 transition-all shadow-sm">
+<span class="material-symbols-outlined text-[20px]">arrow_upward</span>
+</button>
+</div>
+<!-- 底部安全间距 (iOS 适配) -->
+<div class="h-2"></div>
+</div>
+</nav>
+<script>
+    // 模式切换逻辑
+    function switchMode(mode) {
+        const input = document.getElementById('main-input');
+        const btns = ['btn-ask', 'btn-lab', 'btn-diag'];
+        const activeClass = "px-6 py-2 rounded-xl text-xs font-bold transition-all bg-primary text-white shadow-md";
+        const inactiveClass = "px-6 py-2 rounded-xl text-xs font-bold transition-all text-on-surface-variant hover:bg-gray-100";
+
+        btns.forEach(id => {
+            document.getElementById(id).className = inactiveClass;
+        });
+
+        const activeBtn = document.getElementById('btn-' + mode);
+        activeBtn.className = activeClass;
+
+        if (mode === 'ask') {
+            input.placeholder = "向赵先生询问病情...";
+            input.className = "w-full h-14 pl-6 pr-16 bg-white border border-outline-variant/30 rounded-2xl shadow-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[16px] outline-none placeholder:text-gray-400";
+        } else if (mode === 'lab') {
+            input.placeholder = "输入要进行的检查 (如：心电图、血常规、心肌酶谱)...";
+            input.className = "w-full h-14 pl-6 pr-16 bg-white border-2 border-primary/20 rounded-2xl shadow-lg focus:ring-2 focus:ring-primary/30 transition-all text-[16px] outline-none";
+        } else if (mode === 'diag') {
+            input.placeholder = "请输入您的最终诊断结论...";
+            input.className = "w-full h-14 pl-6 pr-16 bg-amber-50/50 border-2 border-amber-200 rounded-2xl shadow-lg focus:ring-2 focus:ring-amber-300 transition-all text-[16px] outline-none text-amber-900";
+        }
+    }
+
+    // 打字机效果模拟
+    const textToType = "大部分时间在胸口左侧，感觉像被针扎一样。当我尝试坐起来或者在床上翻身时，那种刺痛感特别明显。";
+    let index = 0;
+    const typingElement = document.getElementById('active-typing');
+
+    function typeWriter() {
+        if (index < textToType.length) {
+            typingElement.innerHTML = textToType.substring(0, index + 1);
+            index++;
+            setTimeout(typeWriter, 50 + Math.random() * 50);
+        } else {
+            typingElement.classList.remove('typewriter-text');
+        }
+    }
+
+    // 延迟启动打字效果
+    setTimeout(typeWriter, 1200);
+
+    // 页面加载自动滚动到底部
+    window.onload = () => {
+        const container = document.querySelector('main');
+        container.scrollTop = container.scrollHeight;
+    };
+</script>
+</body></html>

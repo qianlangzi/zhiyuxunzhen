@@ -1,0 +1,72 @@
+<style>
+  .nav-grid{display:grid;grid-template-columns:repeat(3,minmax(250px,1fr));gap:22px;margin-top:24px}
+  .nav-card{border:1px solid #cbd5d8;border-radius:22px;padding:16px;background:#fff;cursor:pointer;transition:.18s ease;box-shadow:0 8px 28px rgba(0,52,65,.05)}
+  .nav-card:hover{transform:translateY(-2px);border-color:#0f5b69}
+  .nav-card.selected{outline:3px solid rgba(15,91,105,.18);border-color:#0f5b69}
+  .phone{height:480px;border:7px solid #16333a;border-radius:28px;background:#f7f9fa;overflow:hidden;display:flex;flex-direction:column}
+  .status{height:22px;background:white}
+  .head{padding:18px 16px 12px;background:white;border-bottom:1px solid #dce4e6}
+  .brand{font-size:12px;color:#0b5664;font-weight:800;margin-bottom:5px}
+  .title{font-size:21px;font-weight:800;color:#172124}
+  .sub{font-size:11px;color:#58666b;margin-top:5px}
+  .content-area{flex:1;padding:14px;display:flex;flex-direction:column;gap:11px}
+  .hero{padding:16px;border-radius:18px;background:#073d48;color:white}
+  .hero small{opacity:.72}.hero strong{display:block;font-size:17px;margin:7px 0}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .tile{border:1px solid #d2dcdf;background:white;border-radius:14px;padding:12px;color:#273337;font-size:12px}
+  .tile b{display:block;color:#074b59;font-size:16px;margin-top:5px}
+  .list{border:1px solid #d2dcdf;background:white;border-radius:14px;padding:12px;color:#273337;font-size:12px;line-height:1.7}
+  .bottom{height:62px;background:white;border-top:1px solid #cbd5d8;display:flex;align-items:center;justify-content:space-around;padding:0 5px}
+  .tab{font-size:10px;color:#58666b;text-align:center;min-width:42px;padding:7px 4px;border-radius:13px}
+  .tab i{display:block;font-style:normal;font-size:17px;margin-bottom:3px}.tab.active{background:#075765;color:white;font-weight:800}
+  .hub{display:grid;grid-template-columns:1fr 1fr;gap:9px}.hub .tile{min-height:62px}
+  .fab{width:48px;height:48px;border-radius:16px;background:#075765;color:white;display:flex;align-items:center;justify-content:center;font-size:23px;margin-top:-18px;box-shadow:0 8px 18px rgba(7,87,101,.24)}
+  .card-copy h3{margin:14px 0 7px;color:#122a30}.card-copy p{margin:0;color:#59686d;line-height:1.55;font-size:14px}
+  .recommend{display:inline-block;margin-top:10px;padding:5px 9px;border-radius:999px;background:#e1f2f3;color:#075765;font-size:12px;font-weight:800}
+  @media(max-width:900px){.nav-grid{grid-template-columns:1fr}}
+</style>
+
+<h2>全部功能应该怎样进入？</h2>
+<p class="subtitle">重点比较：学生和教师能否迅速找到任务，同时让底部导航保持稳定、中文清楚、不过度拥挤。</p>
+
+<div class="nav-grid">
+  <div class="nav-card option" data-choice="role-five-tabs" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="status"></div>
+      <div class="head"><div class="brand">知语寻真 · 学生端</div><div class="title">今天从一个病例开始</div><div class="sub">训练入口按任务归类，详情页继续向下深入</div></div>
+      <div class="content-area">
+        <div class="hero"><small>今日训练</small><strong>每日一例：活动后胸闷</strong><small>问诊 · 检查决策 · 诊断推理</small></div>
+        <div class="row"><div class="tile">可训练病例<b>12</b></div><div class="tile">待复盘<b>3</b></div></div>
+        <div class="list">训练中心<br>病例选择 · 每日一例 · 影像判读 · 大病历提交</div>
+      </div>
+      <div class="bottom"><div class="tab active"><i>⌂</i>首页</div><div class="tab"><i>▣</i>训练</div><div class="tab"><i>⌁</i>反馈</div><div class="tab"><i>↺</i>复盘</div><div class="tab"><i>○</i>我的</div></div>
+    </div>
+    <div class="card-copy"><span class="recommend">推荐</span><h3>A. 分角色五入口</h3><p>保留学生与教师各自的五个高频入口，新增页面放进对应任务域。学习成本最低，也最接近当前代码结构。</p></div>
+  </div>
+
+  <div class="nav-card option" data-choice="four-tabs-workbench" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="status"></div>
+      <div class="head"><div class="brand">知语寻真 · 工作台</div><div class="title">我的学习工作台</div><div class="sub">把全部功能集中在一个应用网格中</div></div>
+      <div class="content-area">
+        <div class="hub"><div class="tile">模拟问诊<b>继续</b></div><div class="tile">影像判读<b>2 项</b></div><div class="tile">大病历<b>草稿</b></div><div class="tile">错题复盘<b>3 题</b></div></div>
+        <div class="list">最近任务<br>慢阻肺急性加重 · 已完成 88%</div>
+      </div>
+      <div class="bottom"><div class="tab active"><i>⌂</i>首页</div><div class="tab"><i>▦</i>工作台</div><div class="tab"><i>⌁</i>进展</div><div class="tab"><i>○</i>我的</div></div>
+    </div>
+    <div class="card-copy"><h3>B. 四入口加工作台</h3><p>底栏更简洁，全部功能集中。缺点是很多任务多一次点击，工作台容易变成图标宫格，教师端也需要重新映射。</p></div>
+  </div>
+
+  <div class="nav-card option" data-choice="three-tabs-central-action" onclick="toggleSelect(this)">
+    <div class="phone">
+      <div class="status"></div>
+      <div class="head"><div class="brand">知语寻真</div><div class="title">临床训练</div><div class="sub">用中央操作按钮展开全部训练方式</div></div>
+      <div class="content-area">
+        <div class="hero"><small>正在进行</small><strong>胸痛鉴别诊断</strong><small>已完成 4 / 10 个步骤</small></div>
+        <div class="list">学习概况<br>能力反馈 · 错题复盘 · 最近训练</div>
+      </div>
+      <div class="bottom"><div class="tab active"><i>⌂</i>首页</div><div class="tab"><i>⌁</i>进展</div><div class="fab">＋</div><div class="tab"><i>▤</i>任务</div><div class="tab"><i>○</i>我的</div></div>
+    </div>
+    <div class="card-copy"><h3>C. 中央训练按钮</h3><p>视觉焦点强，适合单一核心动作；但教师端核心任务不止一个，中央按钮含义会随角色变化，长期一致性较弱。</p></div>
+  </div>
+</div>

@@ -3,6 +3,7 @@ package com.zhiyu.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.entity.AuditLog;
 import com.zhiyu.entity.ChatSession;
@@ -30,8 +31,11 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * 学生复盘报告服务实现（PRD 4.11）
- * 简化实现：汇总问诊会话数据返回报告 JSON，并写审计日志（action=export_report）。
+ * 学生复盘报告服务实现（PRD 4.11 / 9.3）
+ * 1. 汇总问诊会话数据生成报告 JSON
+ * 2. 调用 FastAPI /report/generate_review_pdf 生成 PDF（按会话维度）
+ * 3. AI 不可用时降级返回 JSON，不阻断导出流程
+ * 4. 写审计日志（action=export_report）
  */
 @Slf4j
 @Service
@@ -42,6 +46,7 @@ public class StudentReportServiceImpl implements StudentReportService {
     private final SpCaseConfigMapper caseMapper;
     private final AuditLogMapper auditLogMapper;
     private final ObjectMapper objectMapper;
+    private final AiPlatformClient aiPlatformClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -81,6 +86,18 @@ public class StudentReportServiceImpl implements StudentReportService {
         for (ChatSession s : sessions) {
             BigDecimal cost = s.getTotalExamCost() == null ? BigDecimal.ZERO : s.getTotalExamCost();
             costSum = costSum.add(cost);
+
+            // 仅对已完成的会话调用 AI 生成 PDF（PRD 4.11.3 / 9.3）
+            // AI 不可用时降级返回 null，不阻断报告导出
+            String pdfUrl = null;
+            if (s.getStatus() != null && s.getStatus() == 1) {
+                try {
+                    pdfUrl = aiPlatformClient.generateReviewPdf(s.getId());
+                } catch (Exception e) {
+                    log.warn("AI生成PDF失败，降级返回JSON: sessionId={} error={}", s.getId(), e.getMessage());
+                }
+            }
+
             sessionVOs.add(ReportSessionVO.builder()
                     .sessionId(s.getId())
                     .caseId(s.getCaseId())
@@ -90,6 +107,7 @@ public class StudentReportServiceImpl implements StudentReportService {
                     .totalExamCost(cost)
                     .endedAt(s.getEndedAt())
                     .createdAt(s.getCreatedAt())
+                    .pdfUrl(pdfUrl)
                     .build());
         }
 

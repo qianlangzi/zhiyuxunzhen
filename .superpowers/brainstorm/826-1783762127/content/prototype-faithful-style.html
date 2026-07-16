@@ -1,0 +1,78 @@
+<style>
+  :root{--clinical:#063f4c;--clinical-2:#0f5664;--canvas:#f7f9fa;--paper:#fff;--ink:#191d1f;--sub:#4c565a;--line:#c5cfd3;--line-soft:#e3e8ea;--cyan:#dff5f7;--cyan-strong:#65bac2;--warn:#fff4d2;--warn-ink:#9a5316}
+  .note{max-width:980px;margin:0 auto 22px;padding:16px 18px;border:1px solid var(--line);border-radius:14px;background:white;color:var(--sub);line-height:1.7}
+  .note strong{color:var(--clinical)}
+  .screens{display:grid;grid-template-columns:repeat(2,minmax(320px,390px));justify-content:center;gap:34px;margin-top:26px}
+  .screen-wrap h3{margin:0 0 10px;color:#183036}.screen-wrap>p{margin:10px 0 0;color:#5a666a;line-height:1.55;font-size:14px}
+  .phone{height:720px;border:8px solid #172f35;border-radius:34px;background:var(--canvas);overflow:hidden;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,52,65,.12)}
+  .status{height:22px;background:white;flex:none}
+  .app-head{height:78px;background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 18px;gap:12px;flex:none}
+  .brand-mark{width:42px;height:42px;border:1px solid var(--line);border-radius:15px;display:flex;align-items:center;justify-content:center;color:var(--clinical);font-weight:900;font-size:21px;background:white}
+  .head-copy{flex:1}.head-copy small{display:block;color:var(--sub);font-size:12px;font-weight:700;margin-bottom:2px}.head-copy b{display:block;color:var(--clinical);font-size:20px;line-height:1.2}.bell{color:var(--clinical);font-size:21px}
+  .scroll{flex:1;overflow:hidden;padding:18px 18px 16px}
+  .section-line{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px}.section-line b{font-size:13px;color:#475156}.section-line span{font-size:12px;color:var(--clinical);font-weight:800}
+  .daily{border:1px solid var(--line);border-radius:16px;overflow:hidden;background:white}
+  .clinical-image{height:160px;background:#18353d;position:relative;overflow:hidden}
+  .clinical-image:before{content:"";position:absolute;inset:22px 78px;background:rgba(231,246,247,.86);border-radius:46% 46% 35% 35%;box-shadow:0 0 0 12px rgba(118,165,173,.15),inset 0 0 28px rgba(0,52,65,.34)}
+  .clinical-image:after{content:"胸部影像资料";position:absolute;left:15px;bottom:14px;background:#cff2f5;color:var(--clinical);border-radius:5px;padding:5px 9px;font-size:11px;font-weight:900}
+  .daily-copy{padding:17px}.daily-copy h4{margin:0;color:var(--clinical);font-size:22px;line-height:1.35}.daily-copy p{margin:8px 0 14px;color:var(--sub);font-size:13px;line-height:1.55}.primary{height:44px;border:0;border-radius:11px;background:var(--clinical);color:white;font-weight:800;width:100%;font-size:14px}
+  .assignment-title{margin:20px 0 10px;font-size:14px;color:#424c50;font-weight:850}
+  .assignment{border:1px solid var(--line);border-radius:15px;background:white;padding:13px 14px;margin-bottom:9px;display:grid;grid-template-columns:42px 1fr auto;gap:11px;align-items:center}
+  .assignment-icon{width:42px;height:42px;border-radius:10px;background:var(--cyan);display:flex;align-items:center;justify-content:center;color:var(--clinical);font-size:20px}.assignment b{font-size:14px;color:var(--ink)}.assignment small{display:block;margin-top:4px;color:var(--sub)}.assignment em{font-style:normal;color:var(--clinical);font-size:12px;font-weight:800}
+  .bottom{height:70px;background:white;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-around;padding:0 7px;flex:none}.tab{font-size:10px;color:#4d575b;text-align:center;min-width:49px;padding:8px 5px;border-radius:13px;font-weight:700}.tab i{display:block;font-style:normal;font-size:17px;margin-bottom:4px}.tab.active{background:var(--clinical-2);color:white}
+  .patient-head{height:92px;background:white;border-bottom:1px solid var(--line-soft);display:flex;align-items:center;padding:0 18px;gap:13px;flex:none}.avatar{width:52px;height:52px;border-radius:50%;background:#dde4e6;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;color:#455156;font-weight:900}.patient-info{flex:1}.patient-info b{font-size:20px;color:var(--clinical)}.patient-info span{color:var(--sub);font-size:14px;margin-left:7px}.patient-tags{display:flex;gap:7px;margin-top:6px}.tag{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid #f0cf79;background:#fff9e8;color:var(--warn-ink);font-weight:800}.tag.ok{border-color:#9be0c3;background:#effcf6;color:#147653}
+  .chat-body{flex:1;padding:17px 18px 10px;overflow:hidden;background:#f4f6f7}.bubble{max-width:78%;padding:13px 15px;border-radius:17px;font-size:14px;line-height:1.6;margin-bottom:7px}.bubble.patient{background:white;color:var(--ink);border-top-left-radius:4px;box-shadow:0 5px 16px rgba(0,52,65,.05)}.bubble.student{background:var(--clinical-2);color:white;border-top-right-radius:4px;margin-left:auto}.time{font-size:10px;color:#879196;margin:0 4px 16px}.time.right{text-align:right}.typing{font-size:11px;color:#8b9599;margin:6px}.typing b{color:var(--clinical);letter-spacing:2px}
+  .composer{background:#f4f6f7;padding:10px 14px 14px;flex:none}.mode{background:white;border:1px solid var(--line-soft);border-radius:18px;padding:5px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:9px}.mode span{padding:9px 5px;text-align:center;font-size:11px;font-weight:800;color:#4d575b;border-radius:13px}.mode span.active{background:var(--clinical-2);color:white}.input{height:49px;border:1px solid var(--line);border-radius:17px;background:white;display:flex;align-items:center;padding:0 8px 0 15px;color:#7b8589;font-size:13px}.send{margin-left:auto;width:37px;height:37px;border-radius:12px;background:var(--clinical-2);color:white;display:flex;align-items:center;justify-content:center;font-size:19px}
+  .tokens{display:flex;flex-wrap:wrap;gap:9px;margin-top:22px;justify-content:center}.token{padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:white;color:#455156;font-size:12px}.token b{color:var(--clinical)}
+  .confirm{display:block;margin:28px auto 0;padding:12px 20px;border-radius:12px;border:1px solid var(--clinical);background:white;color:var(--clinical);font-weight:850;cursor:pointer}.confirm.selected{background:var(--clinical);color:white}
+  @media(max-width:820px){.screens{grid-template-columns:minmax(300px,390px)}}
+</style>
+
+<h2>“智愈寻真”原型风格忠实迁移</h2>
+<p class="subtitle">不重新发明一套视觉，而是把你提供的 Stitch 原型翻译成完整、中文原生、可复用的 Flutter 产品界面。</p>
+
+<div class="note">
+  <strong>这次修正的核心：</strong>冷白画布承载长时间阅读；深青只用于主操作、标题和选中态；卡片以细描边建立层级，不靠大阴影和装饰渐变；医学内容占据视觉中心；页面标题全部使用“智愈寻真”与自然中文。
+</div>
+
+<div class="screens">
+  <div class="screen-wrap">
+    <h3>学生首页</h3>
+    <div class="phone">
+      <div class="status"></div>
+      <div class="app-head"><div class="brand-mark">✚</div><div class="head-copy"><small>智愈寻真 · 学生端</small><b>早上好，林同学</b></div><div class="bell">♧</div></div>
+      <div class="scroll">
+        <div class="section-line"><b>每日一例</b><span>优先训练</span></div>
+        <div class="daily">
+          <div class="clinical-image"></div>
+          <div class="daily-copy"><h4>活动后胸闷，伴夜间憋醒</h4><p>59 岁男性，症状持续 3 个月，近一周加重。请完成问诊与初步鉴别。</p><button class="primary">开始鉴别诊断</button></div>
+        </div>
+        <div class="assignment-title">进行中的训练</div>
+        <div class="assignment"><div class="assignment-icon">⌁</div><div><b>心电图进阶判读</b><small>已完成 8 / 10</small></div><em>继续</em></div>
+        <div class="assignment"><div class="assignment-icon">＋</div><div><b>大病历结构化提交</b><small>草稿已自动保存</small></div><em>编辑</em></div>
+      </div>
+      <div class="bottom"><div class="tab active"><i>⌂</i>首页</div><div class="tab"><i>▣</i>训练</div><div class="tab"><i>⌁</i>反馈</div><div class="tab"><i>↺</i>复盘</div><div class="tab"><i>○</i>我的</div></div>
+    </div>
+    <p>继承原型第 3 张图的首页结构，但去掉英文品牌和夸张大标题，让病例与当前任务成为第一视觉焦点。</p>
+  </div>
+
+  <div class="screen-wrap">
+    <h3>模拟问诊室</h3>
+    <div class="phone">
+      <div class="status"></div>
+      <div class="patient-head"><div class="avatar">赵</div><div class="patient-info"><div><b>赵先生</b><span>45 岁，男性</span></div><div class="patient-tags"><span class="tag">焦虑</span><span class="tag ok">配合</span></div></div></div>
+      <div class="chat-body">
+        <div class="bubble patient">医生，这两天我胸口总感觉有种钻心的疼，尤其是深呼吸时更明显。我很担心会不会是什么大毛病。</div><div class="time">10:42 · 模拟病人</div>
+        <div class="bubble student">别担心，赵先生。我会详细了解您的情况。这种疼痛是固定在一个位置，还是会放射到手臂或下颌？</div><div class="time right">10:43 · 我</div>
+        <div class="bubble patient">大部分时间在胸口左侧，坐起来或翻身时刺痛感特别明显。</div>
+        <div class="typing"><b>•••</b> 赵先生正在输入</div>
+      </div>
+      <div class="composer"><div class="mode"><span class="active">向患者提问</span><span>申请检查</span><span>提交建议</span></div><div class="input">向赵先生询问病情…<div class="send">↑</div></div></div>
+    </div>
+    <p>直接采用你提供的 iOS 问诊原型逻辑：浅色对话空间、患者状态前置、三种临床动作固定在输入区上方。</p>
+  </div>
+</div>
+
+<div class="tokens"><span class="token"><b>主色</b> #063F4C</span><span class="token"><b>背景</b> #F7F9FA</span><span class="token"><b>描边</b> #C5CFD3</span><span class="token"><b>圆角</b> 12–16px</span><span class="token"><b>间距</b> 4 / 8 / 16 / 24</span><span class="token"><b>动效</b> 150–220ms</span></div>
+
+<button class="confirm option" data-choice="approve-prototype-faithful-style" onclick="toggleSelect(this)">确认采用这一视觉方向</button>

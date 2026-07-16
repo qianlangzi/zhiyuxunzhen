@@ -40,7 +40,9 @@ public class PermissionInterceptor implements HandlerInterceptor {
             // 教师需资质审核通过才能操作写接口（GET 预览/试诊放宽）
             Integer audit = user.getAuditStatus();
             boolean isWrite = !"GET".equalsIgnoreCase(req.getMethod());
-            if (isWrite && (audit == null || audit != 2)) {
+            // 例外：资质认证提交接口允许未审核教师调用（PRD 9.1）
+            boolean isAuditSubmit = "/api/v1/teacher/profile/audit-submit".equals(uri);
+            if (isWrite && !isAuditSubmit && (audit == null || audit != 2)) {
                 throw new BizException(ResultCode.TEACHER_NOT_AUDITED);
             }
         } else if (uri.startsWith("/api/v1/student/")) {

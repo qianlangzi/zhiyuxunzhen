@@ -59,4 +59,11 @@ public class TeacherCaseController {
     public R<CasePreviewVO> preview(@PathVariable Long id) {
         return R.ok(teacherCaseService.preview(id));
     }
+
+    @Operation(summary = "发布病例到病例广场（提交管理员审核）")
+    @PostMapping("/{id}/publish-to-market")
+    public R<Void> publishToMarket(@PathVariable Long id) {
+        teacherCaseService.publishToMarket(id);
+        return R.ok();
+    }
 }
