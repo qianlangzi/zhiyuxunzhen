@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0891B2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="智愈寻真">
+<meta name="description" content="智愈寻真 — 医学知识数据平台">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<title>智愈寻真 — 医学知识平台</title>
+<style>
+/* ═══════════════════════════════════════════
+   DESIGN TOKENS — Light & Dark
+   ═══════════════════════════════════════════ */
+:root {
+  /* Light */
+  --color-primary:        #0891B2;
+  --color-primary-hover:  #0E7490;
+  --color-primary-light:  #ECFEFF;
+  --color-accent:         #16A34A;
+  --color-accent-light:   #DCFCE7;
+  --color-bg:             #F0FDFA;
+  --color-surface:        #FFFFFF;
+  --color-surface-hover:  #F8FAFC;
+  --color-foreground:     #134E4A;
+  --color-foreground-dim: #475569;
+  --color-muted:          #E8F1F6;
+  --color-border:         #CCFBF1;
+  --color-destructive:    #DC2626;
+  --color-destructive-bg: #FEF2F2;
+  --color-warning:        #D97706;
+  --color-warning-bg:     #FFFBEB;
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md:    0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.06), 0 4px 6px -4px rgba(0,0,0,0.05);
+  --radius-sm:    8px;
+  --radius-md:    12px;
+  --radius-lg:    16px;
+  --radius-xl:    24px;
+  --font-display: 'Figtree', system-ui, sans-serif;
+  --font-body:    'Noto Sans', system-ui, sans-serif;
+  --nav-height:   64px;
+  --header-height: 56px;
+  --safe-bottom:  env(safe-area-inset-bottom, 0px);
+}
+
+[data-theme="dark"] {
+  --color-primary:        #22D3EE;
+  --color-primary-hover:  #67E8F9;
+  --color-primary-light:  #0F2C33;
+  --color-accent:         #4ADE80;
+  --color-accent-light:   #0F2C1B;
+  --color-bg:             #0B1120;
+  --color-surface:        #1E293B;
+  --color-surface-hover:  #273548;
+  --color-foreground:     #E2E8F0;
+  --color-foreground-dim: #94A3B8;
+  --color-muted:          #334155;
+  --color-border:         #1E3A5F;
+  --color-destructive:    #F87171;
+  --color-destructive-bg: #3B1818;
+  --color-warning:        #FBBF24;
+  --color-warning-bg:     #3B2E0A;
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md:    0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -2px rgba(0,0,0,0.3);
+  --shadow-lg:    0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -4px rgba(0,0,0,0.3);
+}
+
+/* ═══════════════════════════════════════════
+   RESET & BASE
+   ═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-foreground);
+  line-height: 1.5;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ═══════════════════════════════════════════
+   APP SHELL
+   ═══════════════════════════════════════════ */
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: var(--color-bg);
+}
+
+/* ═══════════════════════════════════════════
+   HEADER
+   ═══════════════════════════════════════════ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--color-bg);
+  padding: 8px 16px;
+  padding-top: max(8px, env(safe-area-inset-top, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: auto;
+  min-height: var(--header-height);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.app-header.scrolled {
+  border-bottom-color: var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.header-logo {
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--color-primary), #0E7490);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--color-foreground);
+  letter-spacing: -0.01em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════ */
+.btn-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--color-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease, transform 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.btn-icon:active {
+  background: var(--color-muted);
+  transform: scale(0.94);
+}
+
+.btn-icon svg { width: 22px; height: 22px; stroke-width: 1.8; }
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: #FFFFFF;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  min-height: 48px;
+  min-width: 48px;
+  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
+  touch-action: manipulation;
+}
+
+.btn-primary:active {
+  background: var(--color-primary-hover);
+  transform: scale(0.97);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-foreground);
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.btn-outline:active {
+  background: var(--color-muted);
+  border-color: var(--color-primary);
+}
+
+.btn-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  background: var(--color-surface);
+  color: var(--color-foreground-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 36px;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  white-space: nowrap;
+}
+
+.btn-tag.active {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════
+   SEARCH BAR
+   ═══════════════════════════════════════════ */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  transition: all 0.25s ease;
+  cursor: text;
+}
+
+.search-bar:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.search-bar svg {
+  flex-shrink: 0;
+  color: var(--color-foreground-dim);
+  transition: color 0.2s ease;
+}
+
+.search-bar:focus-within svg {
+  color: var(--color-primary);
+}
+
+.search-bar input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-foreground);
+  min-width: 0;
+}
+
+.search-bar input::placeholder {
+  color: var(--color-foreground-dim);
+  opacity: 0.6;
+}
+
+/* Pulse animation — heartbeat-style for search icon */
+@keyframes searchPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  15% { transform: scale(1.15); opacity: 0.85; }
+  30% { transform: scale(1); opacity: 1; }
+  45% { transform: scale(1.12); opacity: 0.9; }
+  60% { transform: scale(1); opacity: 1; }
+}
+
+.search-bar.searching svg {
+  animation: searchPulse 1.4s ease-in-out infinite;
+  color: var(--color-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-bar.searching svg { animation: none; }
+}
+
+/* ═══════════════════════════════════════════
+   STAT CARDS
+   ═══════════════════════════════════════════ */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+}
+
+.stat-card:active {
+  transform: scale(0.96);
+  background: var(--color-surface-hover);
+  box-shadow: var(--shadow-sm);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 26px;
+  color: var(--color-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--color-foreground-dim);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════
+   CONTENT CARDS
+   ═══════════════════════════════════════════ */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: all 0.2s ease;
+}
+
+.card:active {
+  transform: scale(0.98);
+  background: var(--color-surface-hover);
+}
+
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--color-foreground);
+  margin-bottom: 4px;
+}
+
+.card-subtitle {
+  font-size: 13px;
+  color: var(--color-foreground-dim);
+  line-height: 1.4;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-foreground-dim);
+}
+
+.card-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-easy    { background: var(--color-accent-light);   color: var(--color-accent); }
+.badge-medium  { background: var(--color-warning-bg);     color: var(--color-warning); }
+.badge-hard    { background: var(--color-destructive-bg); color: var(--color-destructive); }
+.badge-domain  { background: var(--color-primary-light);  color: var(--color-primary); }
+.badge-book     { background: var(--color-muted);          color: var(--color-foreground-dim); }
+
+/* ═══════════════════════════════════════════
+   DOMAIN GRID
+   ═══════════════════════════════════════════ */
+.domain-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.domain-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 16px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.domain-card:active {
+  transform: scale(0.97);
+  background: var(--color-surface-hover);
+}
+
+.domain-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
+.domain-icon.cardio    { background: #FCE4EC; color: #C62828; }
+.domain-icon.endo      { background: #FFF3E0; color: #E65100; }
+.domain-icon.neuro     { background: #EDE7F6; color: #4527A0; }
+.domain-icon.resp      { background: #E1F5FE; color: #01579B; }
+.domain-icon.gastro    { background: #FFF9C4; color: #F57F17; }
+.domain-icon.onco      { background: #FCE4EC; color: #880E4F; }
+.domain-icon.default   { background: var(--color-muted); color: var(--color-foreground-dim); }
+
+.domain-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-foreground);
+}
+
+.domain-count {
+  font-size: 12px;
+  color: var(--color-foreground-dim);
+  margin-top: 2px;
+}
+
+/* ═══════════════════════════════════════════
+   BOTTOM NAVIGATION
+   ═══════════════════════════════════════════ */
+.bottom-nav {
+  position: sticky;
+  bottom: 0;
+  z-index: 50;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 4px 8px;
+  padding-bottom: calc(4px + var(--safe-bottom));
+  min-height: var(--nav-height);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 12px;
+  min-width: 56px;
+  min-height: 48px;
+  border: none;
+  background: transparent;
+  color: var(--color-foreground-dim);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  position: relative;
+}
+
+.nav-item svg { width: 22px; height: 22px; stroke-width: 1.8; }
+
+.nav-item .nav-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.nav-item.active {
+  color: var(--color-primary);
+}
+
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  width: 24px;
+  height: 3px;
+  background: var(--color-primary);
+  border-radius: 0 0 3px 3px;
+}
+
+.nav-item:active {
+  transform: scale(0.92);
+}
+
+/* ═══════════════════════════════════════════
+   PAGES CONTAINER
+   ═══════════════════════════════════════════ */
+.pages-container {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 16px;
+}
+
+.page {
+  display: none;
+  padding: 0 16px;
+  animation: fadeSlideIn 0.25s ease;
+}
+
+.page.active { display: block; }
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page { animation: none; }
+}
+
+.page-section {
+  margin-top: 20px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--color-foreground);
+  letter-spacing: -0.01em;
+}
+
+.section-link {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════
+   DIVIDERS
+   ═══════════════════════════════════════════ */
+.divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 16px 0;
+  border: none;
+}
+
+/* ═══════════════════════════════════════════
+   EMPTY STATE
+   ═══════════════════════════════════════════ */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  gap: 12px;
+}
+
+.empty-state svg {
+  width: 56px;
+  height: 56px;
+  color: var(--color-foreground-dim);
+  opacity: 0.4;
+}
+
+.empty-state-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  color: var(--color-foreground);
+}
+
+.empty-state-desc {
+  font-size: 14px;
+  color: var(--color-foreground-dim);
+  max-width: 240px;
+}
+
+/* ═══════════════════════════════════════════
+   REPORT BARS (mini CSS chart)
+   ═══════════════════════════════════════════ */
+.report-bar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.report-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.report-bar-label {
+  width: 80px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-foreground-dim);
+  flex-shrink: 0;
+}
+
+.report-bar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--color-muted);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.report-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.report-bar-fill.primary { background: var(--color-primary); }
+.report-bar-fill.accent  { background: var(--color-accent); }
+.report-bar-fill.warn    { background: var(--color-warning); }
+
+.report-bar-value {
+  width: 48px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-foreground);
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════
+   QUALITY SCORE RING
+   ═══════════════════════════════════════════ */
+.quality-ring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.quality-score {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-accent) 0deg, var(--color-accent) calc(3.6deg * var(--score, 92)), var(--color-muted) calc(3.6deg * var(--score, 92)));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.quality-score::after {
+  content: '';
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  position: absolute;
+}
+
+.quality-score-value {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  color: var(--color-foreground);
+}
+
+.quality-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.quality-label {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--color-foreground);
+}
+
+.quality-desc {
+  font-size: 13px;
+  color: var(--color-foreground-dim);
+}
+
+/* ═══════════════════════════════════════════
+   RESULT LIST
+   ═══════════════════════════════════════════ */
+.result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.result-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.result-item:active {
+  background: var(--color-surface-hover);
+  transform: scale(0.98);
+}
+
+.result-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 16px;
+  font-family: var(--font-display);
+}
+
+.result-content { flex: 1; min-width: 0; }
+
+.result-content .result-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--color-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.result-content .result-desc {
+  font-size: 13px;
+  color: var(--color-foreground-dim);
+  margin-top: 2px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════
+   FILTER TAGS ROW
+   ═══════════════════════════════════════════ */
+.filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.filter-row::-webkit-scrollbar { display: none; }
+
+/* ═══════════════════════════════════════════
+   LOADING SKELETON
+   ═══════════════════════════════════════════ */
+@keyframes shimmer {
+  0%   { background-position: -200px 0; }
+  100% { background-position: 200px 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg,
+    var(--color-muted) 25%,
+    var(--color-border) 50%,
+    var(--color-muted) 75%
+  );
+  background-size: 400px 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-line { height: 14px; width: 100%; margin-bottom: 8px; }
+.skeleton-line.short { width: 60%; }
+.skeleton-card { height: 80px; width: 100%; border-radius: var(--radius-md); }
+
+/* ═══════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════ */
+.toast {
+  position: fixed;
+  top: 20px;
+  top: calc(20px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%) translateY(-120px);
+  background: var(--color-foreground);
+  color: var(--color-bg);
+  padding: 12px 24px;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  font-size: 14px;
+  z-index: 100;
+  box-shadow: var(--shadow-lg);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  pointer-events: none;
+}
+
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ═══════════════════════════════════════════
+   RESPONSIVE — Tablet+
+   ═══════════════════════════════════════════ */
+@media (min-width: 768px) {
+  #app {
+    max-width: 720px;
+    border-left: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-border);
+  }
+
+  .stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .domain-grid { grid-template-columns: repeat(3, 1fr); }
+  .page { padding: 0 24px; }
+}
+
+@media (min-width: 1024px) {
+  #app { max-width: 960px; }
+  .domain-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ═══════════════════════════════════════════
+   FOCUS VISIBLE — Accessibility
+   ═══════════════════════════════════════════ */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.btn-icon:focus-visible,
+.nav-item:focus-visible {
+  outline-offset: -2px;
+}
+
+/* ═══════════════════════════════════════════
+   SCROLLBAR
+   ═══════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ═══════════ HEADER ═══════════ -->
+  <header class="app-header" id="appHeader">
+    <a class="header-brand" href="#" onclick="navigateTo('home'); return false;">
+      <div class="header-logo">寻</div>
+      <span class="header-title">智愈寻真</span>
+    </a>
+    <div class="header-actions">
+      <button class="btn-icon" id="themeToggle" aria-label="切换深色模式" onclick="toggleTheme()">
+        <!-- Sun icon -->
+        <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+        <!-- Moon icon (hidden in light mode) -->
+        <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════ PAGES ═══════════ -->
+  <div class="pages-container" id="pagesContainer">
+
+    <!-- ── HOME ── -->
+    <div class="page active" id="page-home">
+      <!-- Search -->
+      <div style="margin-top:12px;">
+        <div class="search-bar" id="homeSearchBar" onclick="focusSearch()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="homeSearchInput" placeholder="搜索医学知识、病例、指南…" onfocus="navigateTo('search')" oninput="performSearch(this.value)" autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="page-section">
+        <div class="stat-grid">
+          <div class="stat-card" onclick="navigateTo('knowledge')">
+            <div class="stat-value" data-count="11806">11,806</div>
+            <div class="stat-label">RAG 语料</div>
+          </div>
+          <div class="stat-card" onclick="navigateTo('cases')">
+            <div class="stat-value" data-count="98641">98,641</div>
+            <div class="stat-label">脱敏病例</div>
+          </div>
+          <div class="stat-card" onclick="navigateTo('knowledge')">
+            <div class="stat-value">16</div>
+            <div class="stat-label">医学书籍</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Domains -->
+      <div class="page-section">
+        <div class="section-header">
+          <span class="section-title">医学领域</span>
+          <a class="section-link" onclick="navigateTo('knowledge')">全部 →</a>
+        </div>
+        <div class="domain-grid">
+          <div class="domain-card" onclick="filterByDomain('心血管')">
+            <div class="domain-icon cardio">♥</div>
+            <div><div class="domain-name">心血管</div><div class="domain-count">高血压·冠心病</div></div>
+          </div>
+          <div class="domain-card" onclick="filterByDomain('内分泌')">
+            <div class="domain-icon endo">☤</div>
+            <div><div class="domain-name">内分泌</div><div class="domain-count">糖尿病·甲状腺</div></div>
+          </div>
+          <div class="domain-card" onclick="filterByDomain('神经')">
+            <div class="domain-icon neuro">◎</div>
+            <div><div class="domain-name">神经系统</div><div class="domain-count">脑血管·癫痫</div></div>
+          </div>
+          <div class="domain-card" onclick="filterByDomain('呼吸')">
+            <div class="domain-icon resp">◉</div>
+            <div><div class="domain-name">呼吸系统</div><div class="domain-count">肺炎·COPD</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Quality Report -->
+      <div class="page-section">
+        <div class="section-header">
+          <span class="section-title">质量概览</span>
+          <a class="section-link" onclick="navigateTo('reports')">详情 →</a>
+        </div>
+        <div class="card" onclick="navigateTo('reports')">
+          <div class="quality-ring">
+            <div class="quality-score" style="--score:100">
+              <span class="quality-score-value">✓</span>
+            </div>
+            <div class="quality-meta">
+              <div class="quality-label">两项硬指标全部通过</div>
+              <div class="quality-desc">跨书混用 0 · 明文 PII 0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SEARCH ── -->
+    <div class="page" id="page-search">
+      <div style="margin-top:12px;">
+        <div class="search-bar" id="searchBar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="mainSearchInput" placeholder="输入关键词搜索…" oninput="performSearch(this.value)" autocomplete="off" autofocus>
+        </div>
+      </div>
+      <div class="page-section">
+        <div class="filter-row" id="searchFilters">
+          <button class="btn-tag active" onclick="setSearchFilter('all', this)">全部</button>
+          <button class="btn-tag" onclick="setSearchFilter('corpus', this)">语料库</button>
+          <button class="btn-tag" onclick="setSearchFilter('cases', this)">病例库</button>
+          <button class="btn-tag" onclick="setSearchFilter('ner', this)">NER 实体</button>
+        </div>
+      </div>
+      <div id="searchResults"><div class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <div class="empty-state-title">输入关键词开始搜索</div>
+        <div class="empty-state-desc">支持搜索医学语料、病例、实体识别等</div>
+      </div></div>
+    </div>
+
+    <!-- ── KNOWLEDGE BASE ── -->
+    <div class="page" id="page-knowledge">
+      <div class="page-section">
+        <div class="section-title" style="margin-bottom:12px;">临床指南</div>
+        <div class="result-list" id="guidelinesList"></div>
+      </div>
+      <div class="page-section">
+        <div class="section-header">
+          <span class="section-title">医学教材</span>
+          <span style="font-size:13px;color:var(--color-foreground-dim)">14 本</span>
+        </div>
+        <div class="result-list" id="textbooksList"></div>
+      </div>
+      <div class="page-section">
+        <div class="section-title" style="margin-bottom:12px;">领域分布</div>
+        <div class="domain-grid" id="domainGrid"></div>
+      </div>
+    </div>
+
+    <!-- ── CASES ── -->
+    <div class="page" id="page-cases">
+      <div style="margin-top:12px;">
+        <div class="search-bar" id="caseSearchBar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input type="search" id="caseSearchInput" placeholder="搜索病例…" oninput="filterCases(this.value)" autocomplete="off">
+        </div>
+      </div>
+      <div class="page-section">
+        <div class="filter-row" id="difficultyFilters">
+          <button class="btn-tag active" onclick="setCaseFilter('all', this)">全部</button>
+          <button class="btn-tag" onclick="setCaseFilter('easy', this)">🟢 简单</button>
+          <button class="btn-tag" onclick="setCaseFilter('medium', this)">🟡 中等</button>
+          <button class="btn-tag" onclick="setCaseFilter('hard', this)">🔴 困难</button>
+        </div>
+      </div>
+      <div class="page-section" id="casesResultList"></div>
+    </div>
+
+    <!-- ── REPORTS ── -->
+    <div class="page" id="page-reports">
+      <div class="page-section">
+        <!-- Quality score card -->
+        <div class="card">
+          <div class="quality-ring" style="justify-content:flex-start; padding:8px;">
+            <div class="quality-score" style="--score:100; width:72px; height:72px;">
+              <span class="quality-score-value" style="font-size:18px;">✓</span>
+            </div>
+            <div class="quality-meta">
+              <div class="quality-label">全部验收通过</div>
+              <div class="quality-desc">跨书混用 0 · PII 0 · 评测隔离 ✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="page-section">
+        <div class="section-title" style="margin-bottom:12px;">数据规模</div>
+        <div class="report-bar-group">
+          <div class="report-bar-item">
+            <span class="report-bar-label">RAG 语料</span>
+            <div class="report-bar-track"><div class="report-bar-fill primary" style="width:12%"></div></div>
+            <span class="report-bar-value">11,806</span>
+          </div>
+          <div class="report-bar-item">
+            <span class="report-bar-label">SFT 数据集</span>
+            <div class="report-bar-track"><div class="report-bar-fill primary" style="width:12%"></div></div>
+            <span class="report-bar-value">11,806</span>
+          </div>
+          <div class="report-bar-item">
+            <span class="report-bar-label">脱敏病例</span>
+            <div class="report-bar-track"><div class="report-bar-fill accent" style="width:100%"></div></div>
+            <span class="report-bar-value">98,641</span>
+          </div>
+          <div class="report-bar-item">
+            <span class="report-bar-label">NER 实体</span>
+            <div class="report-bar-track"><div class="report-bar-fill warn" style="width:2%"></div></div>
+            <span class="report-bar-value">1,632</span>
+          </div>
+        </div>
+      </div>
+      <div class="page-section">
+        <div class="section-title" style="margin-bottom:12px;">PII 脱敏统计</div>
+        <div class="card">
+          <div class="report-bar-group" style="margin-top:8px;">
+            <div class="report-bar-item">
+              <span class="report-bar-label">就诊日期</span>
+              <div class="report-bar-track"><div class="report-bar-fill primary" style="width:100%"></div></div>
+              <span class="report-bar-value">14,935</span>
+            </div>
+            <div class="report-bar-item">
+              <span class="report-bar-label">住院号</span>
+              <div class="report-bar-track"><div class="report-bar-fill accent" style="width:19%"></div></div>
+              <span class="report-bar-value">2,885</span>
+            </div>
+            <div class="report-bar-item">
+              <span class="report-bar-label">姓名</span>
+              <div class="report-bar-track"><div class="report-bar-fill warn" style="width:4%"></div></div>
+              <span class="report-bar-value">550</span>
+            </div>
+            <div class="report-bar-item">
+              <span class="report-bar-label">医院名</span>
+              <div class="report-bar-track"><div class="report-bar-fill primary" style="width:3%"></div></div>
+              <span class="report-bar-value">472</span>
+            </div>
+          </div>
+          <div style="margin-top:14px; padding:10px; background:var(--color-accent-light); border-radius:var(--radius-sm); display:flex; align-items:center; gap:8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <span style="font-size:13px; font-weight:600; color:var(--color-accent);">残留 PII 命中: <strong>0</strong></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ BOTTOM NAV ═══════════ -->
+  <nav class="bottom-nav" id="bottomNav">
+    <button class="nav-item active" data-page="home" onclick="navigateTo('home')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span class="nav-label">首页</span>
+    </button>
+    <button class="nav-item" data-page="search" onclick="navigateTo('search')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <span class="nav-label">搜索</span>
+    </button>
+    <button class="nav-item" data-page="knowledge" onclick="navigateTo('knowledge')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      </svg>
+      <span class="nav-label">知识库</span>
+    </button>
+    <button class="nav-item" data-page="cases" onclick="navigateTo('cases')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+      </svg>
+      <span class="nav-label">病例库</span>
+    </button>
+    <button class="nav-item" data-page="reports" onclick="navigateTo('reports')">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+      <span class="nav-label">报告</span>
+    </button>
+  </nav>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════
+   APP STATE
+   ═══════════════════════════════════════════ */
+const state = {
+  currentPage: 'home',
+  theme: 'light',
+  searchFilter: 'all',
+  caseFilter: 'all',
+};
+
+/* ═══════════════════════════════════════════
+   MOCK DATA — Based on PRD
+   ═══════════════════════════════════════════ */
+const guidelines = [
+  { book_name:'中国高血压防治指南2024', edition:'2024年版', domain:'心血管/指南', chunks: 4200 },
+  { book_name:'中国糖尿病防治指南2024', edition:'2024年版', domain:'内分泌/指南', chunks: 3800 },
+  { book_name:'中国高血压临床实践指南2022', edition:'2022年版', domain:'心血管/指南', chunks: 1800 },
+];
+
+const textbooks = [
+  { name:'内科学（第9版）', domain:'综合', chunks: 1200 },
+  { name:'外科学（第9版）', domain:'综合', chunks: 980 },
+  { name:'病理学（第9版）', domain:'基础医学', chunks: 650 },
+  { name:'药理学（第9版）', domain:'基础医学', chunks: 580 },
+  { name:'诊断学（第9版）', domain:'临床医学', chunks: 720 },
+];
+
+const domains = [
+  { name:'心血管', icon:'cardio', sym:'♥', count:'6,000+', desc:'高血压·冠心病·心衰' },
+  { name:'内分泌', icon:'endo', sym:'☤', count:'5,200+', desc:'糖尿病·甲状腺·肥胖' },
+  { name:'神经系统', icon:'neuro', sym:'◎', count:'3,800+', desc:'脑血管·癫痫·帕金森' },
+  { name:'呼吸系统', icon:'resp', sym:'◉', count:'4,100+', desc:'肺炎·COPD·哮喘' },
+  { name:'消化系统', icon:'gastro', sym:'♨', count:'2,900+', desc:'胃炎·肝硬化·IBD' },
+  { name:'肿瘤学', icon:'onco', sym:'⬡', count:'3,200+', desc:'肺癌·乳腺癌·胃癌' },
+];
+
+const mockCases = [
+  { case_id:'PMC1234567_1', chief_complaint:'胸痛伴呼吸困难2小时', diagnosis:'急性心肌梗死', difficulty:'hard', domain:'心血管' },
+  { case_id:'PMC1234567_2', chief_complaint:'多饮多尿消瘦3月', diagnosis:'2型糖尿病', difficulty:'easy', domain:'内分泌' },
+  { case_id:'PMC1234567_3', chief_complaint:'突发右侧肢体无力', diagnosis:'脑梗死', difficulty:'hard', domain:'神经系统' },
+  { case_id:'PMC1234567_4', chief_complaint:'发热咳嗽咳痰5天', diagnosis:'社区获得性肺炎', difficulty:'easy', domain:'呼吸系统' },
+  { case_id:'PMC1234567_5', chief_complaint:'反复上腹痛伴反酸', diagnosis:'胃食管反流病', difficulty:'medium', domain:'消化系统' },
+  { case_id:'PMC1234567_6', chief_complaint:'体检发现血压升高', diagnosis:'原发性高血压', difficulty:'easy', domain:'心血管' },
+  { case_id:'PMC1234567_7', chief_complaint:'颈部肿块逐渐增大', diagnosis:'甲状腺功能亢进', difficulty:'medium', domain:'内分泌' },
+  { case_id:'PMC1234567_8', chief_complaint:'咯血伴胸痛1周', diagnosis:'肺栓塞', difficulty:'hard', domain:'呼吸系统' },
+  { case_id:'PMC1234567_9', chief_complaint:'反复头痛视力模糊', diagnosis:'偏头痛', difficulty:'medium', domain:'神经系统' },
+  { case_id:'PMC1234567_10', chief_complaint:'便血伴排便习惯改变', diagnosis:'结直肠癌', difficulty:'hard', domain:'肿瘤学' },
+];
+
+const mockNER = [
+  { source:'高血压指南', text:'…苯磺酸氨氯地平…', entity:'药品', icd:'I10', quality:0.95 },
+  { source:'糖尿病指南', text:'…二甲双胍…', entity:'药品', icd:'E11', quality:0.92 },
+  { source:'内科学', text:'…冠状动脉粥样硬化…', entity:'疾病', icd:'I25.1', quality:0.88 },
+  { source:'外科学', text:'…腹腔镜胆囊切除术…', entity:'手术', icd:'K80', quality:0.91 },
+  { source:'病理学', text:'…鳞状细胞癌…', entity:'病理', icd:'C34', quality:0.87 },
+];
+
+const corpusItems = [
+  { book_name:'中国高血压防治指南2024', chapter:'高血压诊断标准', page:12, chunk_text:'…诊室血压≥140/90 mmHg定义为高血压…高血压分级仍采用1级、2级、3级分类体系…动态血压监测和家庭血压监测作为重要的补充手段…', quality:0.94, domain:'心血管/指南' },
+  { book_name:'中国糖尿病防治指南2024', chapter:'糖尿病分型', page:8, chunk_text:'…糖尿病分为1型糖尿病、2型糖尿病、妊娠期糖尿病和特殊类型糖尿病…糖化血红蛋白≥6.5%可作为诊断标准之一…', quality:0.91, domain:'内分泌/指南' },
+  { book_name:'内科学（第9版）', chapter:'心力衰竭', page:156, chunk_text:'…心力衰竭是各种心脏结构或功能性疾病导致心室充盈和（或）射血功能受损…主要表现为呼吸困难、乏力和液体潴留…', quality:0.89, domain:'综合' },
+];
+
+/* ═══════════════════════════════════════════
+   NAVIGATION
+   ═══════════════════════════════════════════ */
+function navigateTo(page) {
+  state.currentPage = page;
+
+  // Update pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  const target = document.getElementById('page-' + page);
+  if (target) target.classList.add('active');
+
+  // Update bottom nav
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  const navItem = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (navItem) navItem.classList.add('active');
+
+  // Scroll to top
+  document.getElementById('pagesContainer').scrollTop = 0;
+
+  // Focus search input on search page
+  if (page === 'search') {
+    setTimeout(() => {
+      const input = document.getElementById('mainSearchInput');
+      if (input) input.focus();
+    }, 300);
+  }
+
+  // Lazy render
+  if (page === 'knowledge') renderKnowledgePage();
+  if (page === 'cases') renderCasesPage();
+}
+
+function focusSearch() {
+  navigateTo('search');
+}
+
+/* ═══════════════════════════════════════════
+   THEME TOGGLE
+   ═══════════════════════════════════════════ */
+function toggleTheme() {
+  state.theme = state.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', state.theme);
+
+  const sunIcon = document.querySelector('.icon-sun');
+  const moonIcon = document.querySelector('.icon-moon');
+  if (state.theme === 'dark') {
+    sunIcon.style.display = 'none';
+    moonIcon.style.display = 'block';
+    document.querySelector('meta[name="theme-color"]').content = '#0B1120';
+  } else {
+    sunIcon.style.display = 'block';
+    moonIcon.style.display = 'none';
+    document.querySelector('meta[name="theme-color"]').content = '#0891B2';
+  }
+
+  // Persist
+  try { localStorage.setItem('zhyx-theme', state.theme); } catch(e) {}
+}
+
+function initTheme() {
+  try {
+    const saved = localStorage.getItem('zhyx-theme');
+    if (saved === 'dark') { state.theme = 'light'; toggleTheme(); }
+  } catch(e) {}
+}
+
+/* ═══════════════════════════════════════════
+   SEARCH
+   ═══════════════════════════════════════════ */
+let searchTimeout;
+function performSearch(query) {
+  clearTimeout(searchTimeout);
+  const bar = document.getElementById('searchBar') || document.getElementById('homeSearchBar');
+  if (!query.trim()) {
+    if (bar) bar.classList.remove('searching');
+    renderSearchResults([]);
+    return;
+  }
+  if (bar) bar.classList.add('searching');
+
+  searchTimeout = setTimeout(() => {
+    const q = query.toLowerCase();
+    let results = [];
+
+    // Search corpus
+    const corpusFilter = state.searchFilter === 'all' || state.searchFilter === 'corpus';
+    if (corpusFilter) {
+      results = results.concat(
+        corpusItems.filter(c =>
+          c.chunk_text.toLowerCase().includes(q) ||
+          c.book_name.toLowerCase().includes(q) ||
+          c.chapter.toLowerCase().includes(q) ||
+          c.domain.toLowerCase().includes(q)
+        ).map(c => ({ type:'corpus', ...c }))
+      );
+    }
+
+    // Search cases
+    const caseFilter = state.searchFilter === 'all' || state.searchFilter === 'cases';
+    if (caseFilter) {
+      results = results.concat(
+        mockCases.filter(c =>
+          c.chief_complaint.toLowerCase().includes(q) ||
+          c.diagnosis.toLowerCase().includes(q) ||
+          c.domain.toLowerCase().includes(q)
+        ).map(c => ({ type:'case', ...c }))
+      );
+    }
+
+    // Search NER
+    const nerFilter = state.searchFilter === 'all' || state.searchFilter === 'ner';
+    if (nerFilter) {
+      results = results.concat(
+        mockNER.filter(n =>
+          n.text.toLowerCase().includes(q) ||
+          n.entity.toLowerCase().includes(q) ||
+          n.icd.toLowerCase().includes(q) ||
+          n.source.toLowerCase().includes(q)
+        ).map(n => ({ type:'ner', ...n }))
+      );
+    }
+
+    renderSearchResults(results);
+    if (bar) bar.classList.remove('searching');
+  }, 300);
+}
+
+function renderSearchResults(results) {
+  const container = document.getElementById('searchResults');
+  if (!results.length) {
+    container.innerHTML = `<div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div class="empty-state-title">未找到匹配结果</div>
+      <div class="empty-state-desc">尝试更换关键词或筛选条件</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="section-header" style="margin-bottom:12px;"><span class="section-title">${results.length} 条结果</span></div>` +
+    `<div class="result-list">${results.map(r => resultHTML(r)).join('')}</div>`;
+}
+
+function resultHTML(r) {
+  const typeLabel = { corpus:'语料', case:'病例', ner:'NER' }[r.type] || '';
+  const typeBadge = { corpus:'badge-domain', case:'badge-medium', ner:'badge-book' }[r.type] || 'badge-book';
+
+  let title = '', desc = '', meta = '';
+
+  if (r.type === 'corpus') {
+    title = r.chapter || r.book_name;
+    desc = r.chunk_text.substring(0, 120) + '…';
+    meta = `${r.book_name} · p${r.page} · 质量 ${(r.quality*100).toFixed(0)}%`;
+  } else if (r.type === 'case') {
+    title = r.chief_complaint;
+    desc = `诊断: ${r.diagnosis}`;
+    meta = `${r.domain} · ${r.case_id}`;
+  } else if (r.type === 'ner') {
+    title = r.entity;
+    desc = r.text;
+    meta = `ICD: ${r.icd} · ${r.source} · ${(r.quality*100).toFixed(0)}%`;
+  }
+
+  return `<div class="result-item">
+    <div class="result-avatar"><span class="card-badge ${typeBadge}">${typeLabel}</span></div>
+    <div class="result-content">
+      <div class="result-title">${title}</div>
+      <div class="result-desc">${desc}</div>
+      <div class="card-meta">${meta}</div>
+    </div>
+  </div>`;
+}
+
+function setSearchFilter(filter, el) {
+  state.searchFilter = filter;
+  document.querySelectorAll('#searchFilters .btn-tag').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  performSearch(document.getElementById('mainSearchInput')?.value || '');
+}
+
+/* ═══════════════════════════════════════════
+   CASE FILTER
+   ═══════════════════════════════════════════ */
+function setCaseFilter(filter, el) {
+  state.caseFilter = filter;
+  document.querySelectorAll('#difficultyFilters .btn-tag').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderCasesPage();
+}
+
+function filterCases(query) {
+  renderCasesPage(query);
+}
+
+function renderCasesPage(query) {
+  let filtered = [...mockCases];
+  if (state.caseFilter !== 'all') {
+    filtered = filtered.filter(c => c.difficulty === state.caseFilter);
+  }
+  if (query) {
+    const q = query.toLowerCase();
+    filtered = filtered.filter(c =>
+      c.chief_complaint.toLowerCase().includes(q) ||
+      c.diagnosis.toLowerCase().includes(q) ||
+      c.domain.toLowerCase().includes(q)
+    );
+  }
+
+  const diffBadge = { easy:'badge-easy', medium:'badge-medium', hard:'badge-hard' };
+  const diffLabel = { easy:'简单', medium:'中等', hard:'困难' };
+
+  const container = document.getElementById('casesResultList');
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <div class="empty-state-title">无匹配病例</div>
+      <div class="empty-state-desc">调整筛选条件试试</div>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = `<div class="section-header"><span class="section-title">病例列表</span><span style="font-size:13px;color:var(--color-foreground-dim)">${filtered.length} 条</span></div>
+    <div class="result-list">${filtered.map(c => `
+      <div class="result-item">
+        <div class="result-avatar" style="background:var(--color-muted)">${c.domain[0]}</div>
+        <div class="result-content">
+          <div class="result-title">${c.chief_complaint}</div>
+          <div class="result-desc">诊断: ${c.diagnosis}</div>
+          <div class="card-meta">
+            <span class="card-badge badge-domain">${c.domain}</span>
+            <span class="card-badge ${diffBadge[c.difficulty]}">${diffLabel[c.difficulty]}</span>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+}
+
+/* ═══════════════════════════════════════════
+   KNOWLEDGE PAGE
+   ═══════════════════════════════════════════ */
+function renderKnowledgePage() {
+  // Guidelines
+  document.getElementById('guidelinesList').innerHTML = guidelines.map(g => `
+    <div class="result-item">
+      <div class="result-avatar" style="background:var(--color-primary-light);color:var(--color-primary);">指</div>
+      <div class="result-content">
+        <div class="result-title">${g.book_name}</div>
+        <div class="result-desc">${g.edition} · ${g.domain}</div>
+        <div class="card-meta">
+          <span class="card-badge badge-domain">${g.chunks.toLocaleString()} chunks</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Textbooks
+  document.getElementById('textbooksList').innerHTML = textbooks.map(t => `
+    <div class="result-item">
+      <div class="result-avatar" style="background:var(--color-muted);">教</div>
+      <div class="result-content">
+        <div class="result-title">${t.name}</div>
+        <div class="result-desc">${t.domain}</div>
+        <div class="card-meta">
+          <span class="card-badge badge-book">${t.chunks.toLocaleString()} chunks</span>
+        </div>
+      </div>
+    </div>`).join('');
+
+  // Domains
+  document.getElementById('domainGrid').innerHTML = domains.map(d => `
+    <div class="domain-card" onclick="filterByDomain('${d.name}')">
+      <div class="domain-icon ${d.icon}">${d.sym}</div>
+      <div>
+        <div class="domain-name">${d.name}</div>
+        <div class="domain-count">${d.count} · ${d.desc}</div>
+      </div>
+    </div>`).join('');
+}
+
+function filterByDomain(domain) {
+  navigateTo('search');
+  const input = document.getElementById('mainSearchInput');
+  if (input) {
+    input.value = domain;
+    performSearch(domain);
+  }
+}
+
+/* ═══════════════════════════════════════════
+   TOAST
+   ═══════════════════════════════════════════ */
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  clearTimeout(toast._timeout);
+  toast._timeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+/* ═══════════════════════════════════════════
+   HEADER SCROLL EFFECT
+   ═══════════════════════════════════════════ */
+document.getElementById('pagesContainer').addEventListener('scroll', function() {
+  const header = document.getElementById('appHeader');
+  if (this.scrollTop > 8) {
+    header.classList.add('scrolled');
+  } else {
+    header.classList.remove('scrolled');
+  }
+});
+
+/* ═══════════════════════════════════════════
+   KEYBOARD SHORTCUTS
+   ═══════════════════════════════════════════ */
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    navigateTo('search');
+  }
+});
+
+/* ═══════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════ */
+initTheme();
+renderKnowledgePage();
+renderCasesPage();
+
+console.log('🩺 智愈寻真 — 医学知识平台已就绪');
+console.log('  Design System: Medical Teal + Health Green');
+console.log('  Typography: Figtree / Noto Sans');
+console.log('  Touch: 44px+ targets, safe-area compliant');
+console.log('  ⌘K / Ctrl+K to search');
+</script>
+</body>
+</html>
