@@ -52,6 +52,7 @@ uploads/
 
 # ===== 本地/工具目录（勿提交） =====
 .workbuddy/
+.worktrees/
 .scratch/
 .superpowers/
 stitch_ai/
