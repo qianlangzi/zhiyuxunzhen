@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
@@ -22,8 +23,11 @@ import com.zhiyu.vo.StudentAssignmentVO;
 import com.zhiyu.vo.SubmitRecordResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -45,6 +49,7 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
     private final SpCaseConfigMapper caseMapper;
     private final FormatCheckService formatCheckService;
     private final ObjectMapper objectMapper;
+    private final AiPlatformClient aiPlatformClient;
 
     @Override
     public PageResult<StudentAssignmentVO> myAssignments(Integer pageNum, Integer pageSize) {
@@ -142,12 +147,41 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
         instanceMapper.updateById(inst);
 
         log.info("学生{}提交作业实例{}，格式校验{}，状态={}", studentId, instanceId, checkResult.getPassed(), inst.getStatus());
+
+        // 格式校验通过：事务提交后异步触发 AI 批阅（PRD 5.3 第 4-5 步）
+        // 失败不回滚学生提交事务，AI 批阅结果由 FastAPI 通过 /api/internal/review/callback 回写
+        if (Boolean.TRUE.equals(checkResult.getPassed())) {
+            final Long instanceIdRef = instanceId;
+            final String medicalText = req.getMedicalRecordText();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    triggerAiReview(instanceIdRef, medicalText);
+                }
+            });
+        }
+
         return SubmitRecordResultVO.builder()
                 .instanceId(instanceId)
                 .status(inst.getStatus())
                 .passed(checkResult.getPassed())
                 .formatCheckResult(checkResult)
                 .build();
+    }
+
+    /**
+     * 异步触发 AI 批阅（PRD 5.3 / 9.3）
+     * 由 aiTaskExecutor 线程池执行，异常仅记录日志不抛出
+     */
+    @Async("aiTaskExecutor")
+    public void triggerAiReview(Long instanceId, String medicalRecordText) {
+        try {
+            log.info("触发AI批阅: instanceId={}", instanceId);
+            aiPlatformClient.reviewMedicalRecord(instanceId, medicalRecordText);
+        } catch (Exception e) {
+            // AI 中台不可用时仅记录日志，状态仍为 3（AI批阅中），后续可由运维触发重试
+            log.error("AI批阅触发失败: instanceId={} error={}", instanceId, e.getMessage(), e);
+        }
     }
 
     private String toJson(Object obj) {

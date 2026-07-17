@@ -30,4 +30,10 @@ public interface TeacherCaseService {
      * 预览病例配置（含隐藏疾病、标准路径）
      */
     CasePreviewVO preview(Long id);
+
+    /**
+     * 发布病例到病例广场（PRD 5.1 第 4 步）
+     * is_public=true + admin_audit_status=1（待管理员审核）+ status=1（已发布）
+     */
+    void publishToMarket(Long id);
 }

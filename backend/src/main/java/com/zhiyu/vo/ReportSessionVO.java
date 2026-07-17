@@ -22,4 +22,6 @@ public class ReportSessionVO {
     private BigDecimal totalExamCost;
     private LocalDateTime endedAt;
     private LocalDateTime createdAt;
+    /** AI 生成的 PDF URL（PRD 4.11.3），AI 不可用时为 null */
+    private String pdfUrl;
 }

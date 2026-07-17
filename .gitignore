@@ -11,6 +11,8 @@ dist/
 dist-admin/
 dist-*/
 .vite/
+*.tsbuildinfo
+front/vite.config.d.ts
 *.log
 
 # ===== Python =====
@@ -51,3 +53,6 @@ uploads/
 # ===== 本地/工具目录（勿提交） =====
 .workbuddy/
 .scratch/
+.superpowers/
+stitch_ai/
+front/legacy-*/

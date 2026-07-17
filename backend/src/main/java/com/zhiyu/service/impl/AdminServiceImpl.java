@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.param.PageParam;
 import com.zhiyu.common.result.PageResult;
@@ -340,6 +341,74 @@ public class AdminServiceImpl implements AdminService {
                 .collect(Collectors.toList());
 
         return PageResult.of(result, voList);
+    }
+
+    // ==================== 用户管理（PRD 4.14 / 4.17） ====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void freezeUser(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
+        }
+        if (user.getRole() != null && (user.getRole() == 4 || user.getRole() == 5)) {
+            throw new BizException(ResultCode.BAD_REQUEST, "不允许冻结管理员/运维账号");
+        }
+        String beforeJson = toJson(Map.of("status", user.getStatus()));
+        user.setStatus(1);
+        userMapper.updateById(user);
+        String afterJson = toJson(Map.of("status", 1));
+        auditLogService.record("user_freeze", "user", userId, beforeJson, afterJson);
+        log.info("账号冻结: userId={}, operator={}", userId, UserContext.requireUserId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unfreezeUser(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
+        }
+        String beforeJson = toJson(Map.of("status", user.getStatus()));
+        user.setStatus(0);
+        userMapper.updateById(user);
+        String afterJson = toJson(Map.of("status", 0));
+        auditLogService.record("user_unfreeze", "user", userId, beforeJson, afterJson);
+        log.info("账号解冻: userId={}, operator={}", userId, UserContext.requireUserId());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changeUserRole(Long userId, Integer newRole) {
+        if (newRole == null || newRole < 0 || newRole > 3) {
+            throw new BizException(ResultCode.BAD_REQUEST, "目标角色非法，仅支持 0-3");
+        }
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
+        }
+        if (user.getRole() != null && (user.getRole() == 4 || user.getRole() == 5)) {
+            throw new BizException(ResultCode.BAD_REQUEST, "不允许修改管理员/运维角色");
+        }
+        if (newRole.equals(user.getRole())) {
+            return; // 无变化
+        }
+        String beforeJson = toJson(Map.of("role", user.getRole()));
+        user.setRole(newRole);
+        // 角色变更后重置审核状态：教师(1)需重新认证，其他角色置为已通过(2)
+        if (newRole == 1) {
+            user.setAuditStatus(0);
+        } else {
+            user.setAuditStatus(2);
+        }
+        userMapper.updateById(user);
+        Map<String, Object> after = new HashMap<>();
+        after.put("role", newRole);
+        after.put("auditStatus", user.getAuditStatus());
+        auditLogService.record("user_role_change", "user", userId, beforeJson, toJson(after));
+        log.info("用户角色变更: userId={} {}->{} operator={}",
+                userId, beforeJson, newRole, UserContext.requireUserId());
     }
 
     // ==================== 工具方法 ====================
