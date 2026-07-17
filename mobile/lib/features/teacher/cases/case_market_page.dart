@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
@@ -7,9 +9,8 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
-import 'package:zhiyu/data/models.dart';
 
-/// 病例广场：搜索 + 列表 + 单一引用动作
+/// 病例广场：搜索、科室筛选与单一引用动作。
 class CaseMarketPage extends ConsumerStatefulWidget {
   const CaseMarketPage({super.key});
 
@@ -72,14 +73,24 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
     final List<MarketCaseModel> visible = _visible;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.paper,
       body: CustomScrollView(
+        key: const ValueKey<String>('case-market-scroll'),
         slivers: <Widget>[
           SliverToBoxAdapter(
-            child: ZyPageHead(
-              kicker: '病例广场',
-              title: '引用共享训练病例',
-              subtitle: '从广场引用已验证的病例到你的病例库。',
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '病例广场',
+              identityLabel: '教师工作台 · 共享病例',
+              action: BackButton(
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                    return;
+                  }
+                  context.go('/teacher/cases');
+                },
+              ),
             ),
           ),
           SliverToBoxAdapter(
@@ -87,10 +98,12 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
               padding:
                   const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
               child: TextField(
+                key: const ValueKey<String>('case-market-search'),
                 controller: _queryCtrl,
                 textInputAction: TextInputAction.search,
                 decoration: const InputDecoration(
-                  hintText: '搜索病例、作者或科室',
+                  labelText: '搜索病例',
+                  hintText: '按名称、来源或科室检索',
                   prefixIcon: Icon(Icons.search_rounded),
                 ),
                 onChanged: (String value) => setState(() => _query = value),
@@ -102,6 +115,20 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
               departments: _departments,
               value: _department,
               onChanged: (String value) => setState(() => _department = value),
+            ),
+          ),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid4,
+                AppDimens.pagePadding,
+                0,
+              ),
+              child: ClinicalSectionHeader(
+                title: '共享病例登记',
+                description: '按科室与关键词筛选，点击记录即可引用。',
+              ),
             ),
           ),
           if (visible.isEmpty)
@@ -117,18 +144,19 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
-                  AppDimens.pagePadding, 0, AppDimens.pagePadding, 120),
-              sliver: SliverList.separated(
+                AppDimens.pagePadding,
+                AppDimens.grid2,
+                AppDimens.pagePadding,
+                120,
+              ),
+              sliver: SliverList.builder(
                 itemCount: visible.length,
-                separatorBuilder: (BuildContext context, int index) =>
-                    const Divider(height: 1, color: AppColors.line),
-                itemBuilder: (BuildContext context, int index) {
-                  return _MarketRow(
-                    item: visible[index],
-                    referenced: _referenced.contains(visible[index].title),
-                    onReference: () => _reference(visible[index]),
-                  );
-                },
+                itemBuilder: (BuildContext context, int index) => _MarketRow(
+                  item: visible[index],
+                  referenced: _referenced.contains(visible[index].title),
+                  onReference: () => _reference(visible[index]),
+                  showDivider: index != visible.length - 1,
+                ),
               ),
             ),
         ],
@@ -151,7 +179,7 @@ class _DepartmentUnderlineFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: 52,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
@@ -177,9 +205,7 @@ class _DepartmentUnderlineFilter extends StatelessWidget {
               ),
               child: Text(
                 dept,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                style: AppTextStyles.bodyStrong.copyWith(
                   color: active ? AppColors.brand : AppColors.muted,
                 ),
               ),
@@ -196,70 +222,30 @@ class _MarketRow extends StatelessWidget {
     required this.item,
     required this.referenced,
     required this.onReference,
+    required this.showDivider,
   });
 
   final MarketCaseModel item;
   final bool referenced;
   final VoidCallback onReference;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(
-          vertical: AppDimens.grid4, horizontal: AppDimens.grid2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(item.title, style: AppTextStyles.title),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${item.author} · ${item.department}',
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ),
-              ),
-              if (item.certified)
-                ZyChip('已认证', tone: ZyChipTone.success)
-              else
-                ZyChip('未认证', tone: ZyChipTone.neutral),
-            ],
-          ),
-          const SizedBox(height: AppDimens.grid2),
-          Text(
-            '${Formatters.difficultyLabel(item.difficulty)} · 评分 ${item.rating.toStringAsFixed(1)} · ${item.referenceCount} 次引用',
-            style: AppTextStyles.caption,
-          ),
-          const SizedBox(height: AppDimens.grid3),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: referenced
-                ? FilledButton.tonal(
-                    onPressed: null,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(
-                          AppDimens.touchTarget, AppDimens.touchTarget),
-                    ),
-                    child: const Text('已引用'),
-                  )
-                : FilledButton(
-                    onPressed: onReference,
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size(
-                          AppDimens.touchTarget, AppDimens.touchTarget),
-                    ),
-                    child: const Text('引用病例'),
-                  ),
-          ),
-        ],
-      ),
+    return ClinicalRecordRow(
+      leadingLabel: item.department,
+      title: item.title,
+      subtitle: '来源：${item.author} · '
+          '难度：${Formatters.difficultyLabel(item.difficulty)} · '
+          '评分 ${item.rating.toStringAsFixed(1)} · '
+          '${item.referenceCount} 次引用 · '
+          '${item.certified ? '已认证' : '未认证'}',
+      statusLabel: referenced ? '已引用' : '引用病例',
+      statusTone: referenced
+          ? ClinicalEvidenceTone.success
+          : ClinicalEvidenceTone.action,
+      onTap: referenced ? null : onReference,
+      showDivider: showDivider,
     );
   }
 }

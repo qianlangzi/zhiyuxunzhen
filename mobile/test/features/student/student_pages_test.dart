@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zhiyu/data/models.dart';
@@ -20,15 +21,55 @@ class _EmptyMistakesRepository extends LearningRepository {
 
 void main() {
   group('student pages', () {
-    testWidgets('home prioritizes one training action and has no heatmap',
+    testWidgets('home presents a recommended case without invented progress',
         (WidgetTester tester) async {
       await pumpPage(tester, const StudentHomePage());
-      expect(find.text('今天的训练'), findsOneWidget);
-      expect(find.text('继续训练'), findsOneWidget);
-      expect(find.text('最近训练'), findsOneWidget);
-      expect(find.text('待复盘'), findsOneWidget);
+      expect(find.text('病例训练工作台'), findsOneWidget);
+      expect(find.text('推荐训练'), findsOneWidget);
+      expect(
+        find.widgetWithText(FilledButton, '查看病例'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('今天'), findsNothing);
+      expect(find.text('当前病例'), findsNothing);
+      expect(find.textContaining('继续完成'), findsNothing);
+      expect(find.text('待复盘'), findsWidgets);
+      await tester.scrollUntilVisible(
+        find.text('待复盘').first,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('学习热力图'), findsNothing);
       expect(find.text('MedEd Training'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+        'home does not present catalog cases as recent training history',
+        (WidgetTester tester) async {
+      await pumpPage(
+        tester,
+        const StudentHomePage(),
+        size: const Size(390, 1600),
+      );
+
+      expect(find.text('最近训练'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('home does not claim an empty review queue was completed today',
+        (WidgetTester tester) async {
+      await pumpPage(
+        tester,
+        const StudentHomePage(),
+        overrides: <Override>[
+          learningRepositoryProvider
+              .overrideWithValue(_EmptyMistakesRepository()),
+        ],
+        size: const Size(390, 1600),
+      );
+
+      expect(find.text('今日复盘已完成。'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -49,7 +90,8 @@ void main() {
     testWidgets('cases use searchable compact rows',
         (WidgetTester tester) async {
       await pumpPage(tester, const CasesListPage());
-      expect(find.widgetWithText(TextField, '搜索病例、症状或诊断'), findsOneWidget);
+      expect(find.widgetWithText(TextField, '搜索病例'), findsOneWidget);
+      expect(find.text('病例记录'), findsOneWidget);
       expect(find.text('全部'), findsOneWidget);
       expect(find.text('心血管'), findsOneWidget);
       expect(find.text('开始问诊'), findsNothing);
@@ -99,10 +141,18 @@ void main() {
 
     testWidgets('invalid case id shows error with return action',
         (WidgetTester tester) async {
+      final SemanticsHandle semantics = tester.ensureSemantics();
       await pumpPage(tester, const CaseDetailPage(caseId: 'does-not-exist'));
+      expect(find.text('病例不可用'), findsOneWidget);
       expect(find.text('病例不存在或已下架'), findsOneWidget);
-      expect(find.text('重新加载'), findsOneWidget);
+      expect(find.text('返回病例列表'), findsOneWidget);
+      expect(find.text('重新加载'), findsNothing);
+      final SemanticsNode error = tester.getSemantics(
+        find.bySemanticsLabel('病例不可用。病例不存在或已下架'),
+      );
+      expect(error.hasFlag(SemanticsFlag.isLiveRegion), isTrue);
       expect(tester.takeException(), isNull);
+      semantics.dispose();
     });
 
     testWidgets('feedback starts with a concise conclusion',
@@ -135,9 +185,9 @@ void main() {
         (WidgetTester tester) async {
       await pumpPage(tester, const MistakesPage());
       expect(find.text('全部'), findsOneWidget);
-      expect(find.text('待复盘'), findsOneWidget);
-      expect(find.text('已完成'), findsOneWidget);
-      await tester.tap(find.text('待复盘'));
+      expect(find.text('待复盘'), findsWidgets);
+      expect(find.text('已完成'), findsWidgets);
+      await tester.tap(find.text('待复盘').first);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
     });
@@ -179,7 +229,9 @@ void main() {
     testWidgets('student profile owns the compact three-month heatmap',
         (WidgetTester tester) async {
       await pumpPage(tester, const StudentProfilePage());
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('智愈寻真'), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
+      expect(find.text('学习概况'), findsOneWidget);
       expect(find.text('训练天数'), findsOneWidget);
       expect(find.text('连续天数'), findsOneWidget);
       expect(find.text('完成次数'), findsOneWidget);

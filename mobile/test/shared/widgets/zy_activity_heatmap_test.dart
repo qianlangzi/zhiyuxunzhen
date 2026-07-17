@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zhiyu/core/constants/app_colors.dart';
 import 'package:zhiyu/data/models.dart';
 import 'package:zhiyu/features/student/profile/training_activity.dart';
 import 'package:zhiyu/shared/widgets/zy_activity_heatmap.dart';
@@ -46,5 +47,53 @@ void main() {
     );
     expect(selected, isNotNull);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('heatmap offers a full-size daily record browser',
+      (WidgetTester tester) async {
+    HeatmapDay? selected;
+    await pumpPage(
+      tester,
+      Scaffold(
+        body: ZyActivityHeatmap(
+          days: const <HeatmapDay>[
+            HeatmapDay(
+              date: '2026-07-15',
+              value: 2,
+              completedCount: 2,
+              activities: <String>['胸痛病例训练', '心电图判读'],
+            ),
+          ],
+          endDate: DateTime(2026, 7, 15),
+          onDayTap: (HeatmapDay day) => selected = day,
+        ),
+      ),
+      size: phone360,
+    );
+
+    final Finder browserButton = find.widgetWithText(TextButton, '查看每日记录');
+    expect(browserButton, findsOneWidget);
+    expect(tester.getSize(browserButton).height, greaterThanOrEqualTo(44));
+
+    await tester.tap(browserButton);
+    await tester.pumpAndSettle();
+    expect(find.text('每日训练记录'), findsOneWidget);
+
+    await tester.tap(find.text('2026-07-15'));
+    await tester.pumpAndSettle();
+    expect(selected?.date, '2026-07-15');
+    expect(tester.takeException(), isNull);
+  });
+
+  test('heatmap uses paper for empty days and action scale for activity', () {
+    final ZyActivityHeatmap heatmap = ZyActivityHeatmap(
+      days: const <HeatmapDay>[],
+      endDate: DateTime(2026, 7, 15),
+      onDayTap: (_) {},
+    );
+
+    expect(heatmap.colorFor(0), AppColors.paperStrong);
+    expect(heatmap.colorFor(1), AppColors.activity1);
+    expect(heatmap.colorFor(4), AppColors.action);
   });
 }

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
-import 'package:zhiyu/data/models.dart';
 
 enum MistakeFilter { all, pending, completed }
 
@@ -35,11 +35,15 @@ class _MistakesPageState extends ConsumerState<MistakesPage> {
     };
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.paper,
       body: CustomScrollView(
         slivers: <Widget>[
           const SliverToBoxAdapter(
-            child: ZyPageHead(kicker: '错题复盘', title: '出错场景与改进线索'),
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '出错场景与改进线索',
+              identityLabel: '学生复盘',
+            ),
           ),
           SliverToBoxAdapter(
             child: Padding(
@@ -78,9 +82,9 @@ class _MistakesPageState extends ConsumerState<MistakesPage> {
                   sliver: SliverList.separated(
                     itemCount: filtered.length,
                     separatorBuilder: (BuildContext context, int _) =>
-                        const SizedBox(height: AppDimens.grid3),
+                        const SizedBox(height: AppDimens.grid4),
                     itemBuilder: (BuildContext context, int index) =>
-                        _MistakeCard(item: filtered[index]),
+                        _MistakeRecord(item: filtered[index]),
                   ),
                 ),
         ],
@@ -95,70 +99,138 @@ class _MistakesPageState extends ConsumerState<MistakesPage> {
       };
 }
 
-class _MistakeCard extends StatelessWidget {
-  const _MistakeCard({required this.item});
+class _MistakeRecord extends StatelessWidget {
+  const _MistakeRecord({required this.item});
 
   final MistakeItem item;
 
   @override
   Widget build(BuildContext context) {
     final bool pending = !item.reviewed;
-    return ZyCard(
-      padding: const EdgeInsets.all(AppDimens.cardPaddingLg),
-      child: Column(
+    final String status = pending ? '待复盘' : '已完成';
+    final String nextStep = pending ? '重做病例并补录诊断依据' : '再次训练并核对诊断依据';
+
+    return Semantics(
+      container: true,
+      label: '复盘记录，${item.title}，$status',
+      child: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: AppColors.surface,
+          border: Border(
+            top: BorderSide(color: AppColors.ink, width: 1),
+            bottom: BorderSide(color: AppColors.rule, width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(
+          AppDimens.grid3,
+          AppDimens.grid4,
+          AppDimens.grid3,
+          0,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(item.title, style: AppTextStyles.h3),
+            const SizedBox(height: AppDimens.grid3),
+            _RecordField(label: '错误依据', value: item.evidence),
+            _RecordField(
+              label: '来源 / 标签',
+              value: '${item.type} · ${item.tag}',
+            ),
+            _RecordField(
+              label: '状态',
+              value: status,
+              valueColor: pending ? AppColors.risk : AppColors.success,
+            ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => context.push('/student/cases'),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppDimens.touchTarget,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: AppDimens.grid3,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SizedBox(
+                          width: 88,
+                          child: Text(
+                            '下一步',
+                            style: AppTextStyles.data.copyWith(
+                              color: AppColors.graphite,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppDimens.grid2),
+                        Expanded(
+                          child: Text(
+                            nextStep,
+                            style: AppTextStyles.bodyStrong.copyWith(
+                              color: AppColors.action,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: AppDimens.grid2),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 18,
+                          color: AppColors.action,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecordField extends StatelessWidget {
+  const _RecordField({
+    required this.label,
+    required this.value,
+    this.valueColor = AppColors.ink,
+  });
+
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(minHeight: AppDimens.touchTarget),
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.grid3),
+      decoration: const BoxDecoration(
+        border: Border(
+          top: BorderSide(color: AppColors.rule, width: 1),
+        ),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              ZyChip(
-                item.type,
-                tone: item.type.contains('错误')
-                    ? ZyChipTone.danger
-                    : ZyChipTone.warning,
-              ),
-              const SizedBox(width: 6),
-              ZyChip(item.tag, tone: ZyChipTone.neutral),
-              const Spacer(),
-              ZyChip(
-                pending ? '未复盘' : '已复盘',
-                tone: pending ? ZyChipTone.brand : ZyChipTone.success,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimens.grid3),
-          Text(item.title, style: AppTextStyles.title),
-          const SizedBox(height: AppDimens.grid2),
-          Container(
-            padding: const EdgeInsets.all(AppDimens.grid3),
-            decoration: BoxDecoration(
-              color: AppColors.brandSoft,
-              borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                const Icon(Icons.lightbulb_outline_rounded,
-                    size: 16, color: AppColors.warning),
-                const SizedBox(width: AppDimens.grid2),
-                Expanded(
-                  child: Text(item.evidence, style: AppTextStyles.caption),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: AppDimens.grid3),
           SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: () => context.push('/student/cases'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(AppDimens.touchTarget),
-              ),
-              icon: Icon(
-                pending ? Icons.history_edu_rounded : Icons.replay_rounded,
-                size: 18,
-              ),
-              label: Text(pending ? '开始复盘' : '再次训练'),
+            width: 88,
+            child: Text(
+              label,
+              style: AppTextStyles.data.copyWith(color: AppColors.graphite),
+            ),
+          ),
+          const SizedBox(width: AppDimens.grid2),
+          Expanded(
+            child: Text(
+              value,
+              style: AppTextStyles.body.copyWith(color: valueColor),
             ),
           ),
         ],

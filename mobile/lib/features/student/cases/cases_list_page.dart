@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
-import 'package:zhiyu/data/models.dart';
 
 class CasesListPage extends ConsumerStatefulWidget {
   const CasesListPage({super.key});
@@ -17,7 +17,7 @@ class CasesListPage extends ConsumerStatefulWidget {
 }
 
 class _CasesListPageState extends ConsumerState<CasesListPage> {
-  final TextEditingController _queryCtrl = TextEditingController();
+  final TextEditingController _queryController = TextEditingController();
   String _query = '';
   String _department = '全部';
 
@@ -30,21 +30,20 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
 
   @override
   void dispose() {
-    _queryCtrl.dispose();
+    _queryController.dispose();
     super.dispose();
   }
 
   void _clearFilters() {
-    _queryCtrl.clear();
+    _queryController.clear();
     setState(() {
       _query = '';
       _department = '全部';
     });
   }
 
-  List<CaseModel> get _visible {
-    final CaseRepository repo = ref.read(caseRepositoryProvider);
-    final List<CaseModel> all = repo.all();
+  List<CaseModel> get _visibleCases {
+    final List<CaseModel> all = ref.read(caseRepositoryProvider).all();
     final String query = _query.trim().toLowerCase();
     return all.where((CaseModel item) {
       final bool departmentMatches =
@@ -59,26 +58,33 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<CaseModel> visible = _visible;
+    final List<CaseModel> visibleCases = _visibleCases;
 
     return Scaffold(
       body: CustomScrollView(
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         slivers: <Widget>[
-          SliverToBoxAdapter(
-            child: ZyPageHead(
-              kicker: '病例库',
-              title: '选择临床训练病例',
+          const SliverToBoxAdapter(
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '病例发现',
+              identityLabel: '学生工作区',
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid2,
+                AppDimens.pagePadding,
+                AppDimens.grid3,
+              ),
               child: TextField(
-                controller: _queryCtrl,
+                controller: _queryController,
                 textInputAction: TextInputAction.search,
                 decoration: const InputDecoration(
-                  hintText: '搜索病例、症状或诊断',
+                  labelText: '搜索病例',
+                  hintText: '输入症状、诊断或训练标签',
                   prefixIcon: Icon(Icons.search_rounded),
                 ),
                 onChanged: (String value) => setState(() => _query = value),
@@ -86,18 +92,34 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
             ),
           ),
           SliverToBoxAdapter(
-            child: _DepartmentUnderlineFilter(
+            child: _DepartmentFilter(
               departments: _departments,
               value: _department,
-              onChanged: (String value) => setState(() => _department = value),
+              onChanged: (String value) {
+                setState(() => _department = value);
+              },
             ),
           ),
-          if (visible.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid3,
+                AppDimens.pagePadding,
+                0,
+              ),
+              child: ClinicalSectionHeader(
+                title: '病例记录',
+                description: '共 ${visibleCases.length} 条符合条件的训练病例。',
+              ),
+            ),
+          ),
+          if (visibleCases.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: ZyEmptyState(
                 title: '没有找到匹配病例',
-                detail: '换一个症状、诊断名称或科室试试。',
+                detail: '可以更换关键词或科室后重新查找。',
                 actionLabel: '清除筛选',
                 onAction: _clearFilters,
               ),
@@ -105,13 +127,26 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
-                  AppDimens.pagePadding, 0, AppDimens.pagePadding, 120),
-              sliver: SliverList.separated(
-                itemCount: visible.length,
-                separatorBuilder: (BuildContext context, int index) =>
-                    const Divider(height: 1, color: AppColors.line),
+                AppDimens.pagePadding,
+                0,
+                AppDimens.pagePadding,
+                120,
+              ),
+              sliver: SliverList.builder(
+                itemCount: visibleCases.length,
                 itemBuilder: (BuildContext context, int index) {
-                  return _CaseRow(caseItem: visible[index]);
+                  final CaseModel item = visibleCases[index];
+                  return ClinicalRecordRow(
+                    leadingLabel: item.id,
+                    title: item.title,
+                    subtitle:
+                        '${item.department} · ${item.difficulty} · 预计 ${item.duration}\n${item.chief}',
+                    statusLabel: item.certified ? '已认证' : '训练病例',
+                    statusTone: item.certified
+                        ? ClinicalEvidenceTone.success
+                        : ClinicalEvidenceTone.neutral,
+                    onTap: () => context.push('/student/case/${item.id}'),
+                  );
                 },
               ),
             ),
@@ -121,8 +156,8 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
   }
 }
 
-class _DepartmentUnderlineFilter extends StatelessWidget {
-  const _DepartmentUnderlineFilter({
+class _DepartmentFilter extends StatelessWidget {
+  const _DepartmentFilter({
     required this.departments,
     required this.value,
     required this.onChanged,
@@ -138,98 +173,43 @@ class _DepartmentUnderlineFilter extends StatelessWidget {
       height: 48,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDimens.pagePadding,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
         itemCount: departments.length,
         separatorBuilder: (BuildContext context, int index) =>
             const SizedBox(width: AppDimens.grid4),
         itemBuilder: (BuildContext context, int index) {
-          final String dept = departments[index];
-          final bool active = dept == value;
-          return InkWell(
-            onTap: () => onChanged(dept),
-            child: Container(
-              constraints: const BoxConstraints(minHeight: 44),
-              padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid2),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: active ? AppColors.brand : Colors.transparent,
-                    width: 2,
+          final String department = departments[index];
+          final bool selected = department == value;
+          return Semantics(
+            button: true,
+            selected: selected,
+            label: '筛选科室：$department',
+            child: InkWell(
+              onTap: () => onChanged(department),
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: AppDimens.grid2),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: selected ? AppColors.action : Colors.transparent,
+                      width: 2,
+                    ),
                   ),
                 ),
-              ),
-              child: Text(
-                dept,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: active ? AppColors.brand : AppColors.muted,
+                child: Text(
+                  department,
+                  style: AppTextStyles.caption.copyWith(
+                    color: selected ? AppColors.action : AppColors.graphite,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-class _CaseRow extends StatelessWidget {
-  const _CaseRow({required this.caseItem});
-
-  final CaseModel caseItem;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.go('/student/case/${caseItem.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppDimens.grid4,
-          horizontal: AppDimens.grid2,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Row(
-              children: <Widget>[
-                Expanded(
-                  child: Text(
-                    '${caseItem.department} · ${caseItem.difficulty} · ${caseItem.duration}',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.brand,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (caseItem.certified) ...<Widget>[
-                  const SizedBox(width: AppDimens.grid2),
-                  const Icon(Icons.verified_rounded,
-                      size: 16, color: AppColors.brand),
-                ],
-              ],
-            ),
-            const SizedBox(height: AppDimens.grid2),
-            Text(
-              caseItem.title,
-              style: AppTextStyles.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              caseItem.chief,
-              style: AppTextStyles.body,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
       ),
     );
   }

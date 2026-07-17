@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
+import '../../core/constants/app_text_styles.dart';
 import '../../core/theme/app_motion.dart';
 
 class ZyTabSpec {
@@ -45,46 +46,76 @@ class ZyBottomBar extends StatelessWidget {
             children: List<Widget>.generate(tabs.length, (int i) {
               final ZyTabSpec tab = tabs[i];
               final bool active = i == currentIndex;
+              void handleTap() => onTap(tab);
               return Expanded(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => onTap(tab),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        AnimatedContainer(
-                          key:
-                              active ? const Key('bottom-tab-indicator') : null,
-                          duration: AppMotion.fast(context),
-                          curve: AppMotion.standardCurve,
-                          width: 36,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            color: active
-                                ? AppColors.brandSoft
-                                : Colors.transparent,
-                            borderRadius:
-                                BorderRadius.circular(AppDimens.radiusCard),
+                child: Semantics(
+                  key: ValueKey<String>('bottom-tab-$i'),
+                  label: tab.label,
+                  button: true,
+                  selected: active,
+                  onTap: handleTap,
+                  excludeSemantics: true,
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: handleTap,
+                      excludeFromSemantics: true,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: <Widget>[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              AppDimens.grid,
+                              AppDimens.grid2,
+                              AppDimens.grid,
+                              AppDimens.grid3,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: <Widget>[
+                                Icon(
+                                  active ? tab.activeIcon : tab.icon,
+                                  size: 22,
+                                  color: active
+                                      ? AppColors.action
+                                      : AppColors.graphite,
+                                ),
+                                const SizedBox(height: AppDimens.grid),
+                                Text(
+                                  tab.label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.tag.copyWith(
+                                    fontSize: 11,
+                                    fontWeight: active
+                                        ? FontWeight.w700
+                                        : FontWeight.w600,
+                                    color: active
+                                        ? AppColors.action
+                                        : AppColors.graphite,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          child: Icon(
-                            active ? tab.activeIcon : tab.icon,
-                            size: 22,
-                            color: active ? AppColors.brand : AppColors.muted,
+                          Positioned(
+                            bottom: 0,
+                            child: AnimatedContainer(
+                              key: active
+                                  ? const Key('bottom-tab-indicator')
+                                  : null,
+                              duration: AppMotion.fast(context),
+                              curve: AppMotion.standardCurve,
+                              width: active ? 28 : 0,
+                              height: 2,
+                              color: active
+                                  ? AppColors.action
+                                  : Colors.transparent,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          tab.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: active ? AppColors.brand : AppColors.muted,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),

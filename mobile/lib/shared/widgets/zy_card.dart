@@ -24,25 +24,28 @@ class ZyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final BorderRadius br = BorderRadius.circular(borderRadius);
-    return Container(
-      margin: margin,
-      decoration: BoxDecoration(
-        color: backgroundColor,
+    final Widget content = Padding(padding: padding, child: child);
+    final Widget card = Material(
+      color: backgroundColor,
+      elevation: 0,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
         borderRadius: br,
-        border: Border.all(color: AppColors.line, width: 1),
+        side: const BorderSide(color: AppColors.rule, width: 1),
       ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: br,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: br,
-          child: Padding(
-            padding: padding,
-            child: child,
-          ),
-        ),
-      ),
+      child: onTap == null
+          ? content
+          : InkWell(
+              onTap: onTap,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(
+                  minHeight: AppDimens.touchTarget,
+                ),
+                child: content,
+              ),
+            ),
     );
+
+    return margin == null ? card : Padding(padding: margin!, child: card);
   }
 }

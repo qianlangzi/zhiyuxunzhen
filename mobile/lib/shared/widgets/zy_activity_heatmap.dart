@@ -5,7 +5,7 @@ import '../../data/models/learning_model.dart';
 
 /// 最近三个月 13×7 小方块训练热力图
 ///
-/// 视觉规格：cellSize=8、cellGap=4；零值用 brandSoft，1~4 用 activity1~4；
+/// 视觉规格：cellSize=8、cellGap=4；零值用纸面层级，1~4 用 activity1~4；
 /// 月份标签在边界显示；未来日期不可点击。
 class ZyActivityHeatmap extends StatelessWidget {
   const ZyActivityHeatmap({
@@ -37,6 +37,7 @@ class ZyActivityHeatmap extends StatelessWidget {
     final DateTime windowStart = windowEnd.subtract(const Duration(days: 90));
 
     final List<Widget> weekColumns = <Widget>[];
+    final List<HeatmapDay> visibleDays = <HeatmapDay>[];
     String? lastMonthLabel;
     final List<_MonthMark> monthLabels = <_MonthMark>[];
 
@@ -49,6 +50,7 @@ class ZyActivityHeatmap extends StatelessWidget {
         final HeatmapDay dayData =
             byDate[iso] ?? HeatmapDay(date: iso, value: 0);
         final bool isFuture = date.isAfter(today);
+        if (!isFuture) visibleDays.add(dayData);
 
         // 收集每月首日标签
         final String monthLabel = '${date.month}月';
@@ -60,11 +62,9 @@ class ZyActivityHeatmap extends StatelessWidget {
           lastMonthLabel = monthLabel;
         }
 
-        cells.add(Semantics(
-          key: ValueKey<String>('activity-cell-$iso'),
-          label: '$iso，完成 ${dayData.completedCount} 次训练',
-          button: !isFuture,
+        cells.add(ExcludeSemantics(
           child: InkResponse(
+            key: ValueKey<String>('activity-cell-$iso'),
             radius: 12,
             onTap: isFuture ? null : () => onDayTap(dayData),
             child: Container(
@@ -100,19 +100,91 @@ class ZyActivityHeatmap extends StatelessWidget {
           cellGap: cellGap,
         ),
         const SizedBox(height: 4),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: weekColumns,
+        SizedBox(
+          width: weekCount * cellSize + (weekCount - 1) * cellGap,
+          child: Semantics(
+            image: true,
+            label: '最近三个月训练热力图。使用查看每日记录浏览具体日期。',
+            child: ExcludeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: weekColumns,
+              ),
+            ),
           ),
+        ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: () => _showDailyRecordBrowser(context, visibleDays),
+          icon: const Icon(Icons.calendar_view_day_outlined, size: 18),
+          label: const Text('查看每日记录'),
         ),
       ],
     );
   }
 
-  /// 按视觉强度返回颜色：0=brandSoft，1~4=activity1~4
+  Future<void> _showDailyRecordBrowser(
+    BuildContext context,
+    List<HeatmapDay> visibleDays,
+  ) async {
+    final HeatmapDay? selected = await showModalBottomSheet<HeatmapDay>(
+      context: context,
+      isScrollControlled: true,
+      builder: (BuildContext sheetContext) {
+        final List<HeatmapDay> latestFirst =
+            visibleDays.reversed.toList(growable: false);
+        return SafeArea(
+          child: FractionallySizedBox(
+            heightFactor: 0.72,
+            child: Column(
+              children: <Widget>[
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      '每日训练记录',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: latestFirst.length,
+                    separatorBuilder: (BuildContext context, int index) =>
+                        const Divider(height: 1),
+                    itemBuilder: (BuildContext context, int index) {
+                      final HeatmapDay day = latestFirst[index];
+                      return ListTile(
+                        minTileHeight: 52,
+                        title: Text(day.date),
+                        subtitle: Text(
+                          day.completedCount == 0
+                              ? '没有训练记录'
+                              : '完成 ${day.completedCount} 次训练',
+                        ),
+                        trailing: const Icon(Icons.chevron_right_rounded),
+                        onTap: () => Navigator.of(sheetContext).pop(day),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null) onDayTap(selected);
+  }
+
+  /// 按视觉强度返回颜色：0=paperStrong，1~4=activity1~4
   Color colorFor(int value) {
     switch (value) {
       case 1:
@@ -124,7 +196,7 @@ class ZyActivityHeatmap extends StatelessWidget {
       case 4:
         return AppColors.activity4;
       default:
-        return AppColors.brandSoft;
+        return AppColors.paperStrong;
     }
   }
 }
@@ -166,7 +238,7 @@ class _MonthRow extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.soft,
+                  color: AppColors.graphite,
                   height: 1.2,
                 ),
               ),

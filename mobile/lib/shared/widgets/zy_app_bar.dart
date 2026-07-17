@@ -31,7 +31,12 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     Widget? titleWidget = title is Widget ? title as Widget : null;
     if (title is String) {
-      titleWidget = Text(title as String, style: AppTextStyles.title);
+      titleWidget = Text(
+        title as String,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.title,
+      );
     }
     if (titleWidget != null && subtitle != null) {
       titleWidget = Column(
@@ -40,35 +45,45 @@ class ZyAppBar extends StatelessWidget implements PreferredSizeWidget {
         children: <Widget>[
           titleWidget,
           const SizedBox(height: 2),
-          Text(subtitle!, style: AppTextStyles.caption),
+          Text(
+            subtitle!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.data.copyWith(color: AppColors.weak),
+          ),
         ],
       );
     }
 
-    return Material(
-      color: transparent ? Colors.transparent : AppColors.bg,
-      elevation: elevation,
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: AppDimens.appBarHeight,
-          child: NavigationToolbar(
-            leading: leading ??
-                (canPop(context)
-                    ? IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                            size: 20),
-                        onPressed: () => _pop(context),
-                        tooltip:
-                            MaterialLocalizations.of(context).backButtonTooltip,
-                      )
-                    : null),
-            middle: titleWidget,
-            trailing: actions == null
-                ? null
-                : Row(mainAxisSize: MainAxisSize.min, children: actions!),
-            centerMiddle: centerTitle,
-            middleSpacing: 8,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: AppColors.rule, width: 1)),
+      ),
+      position: DecorationPosition.foreground,
+      child: Material(
+        color: transparent ? Colors.transparent : AppColors.paper,
+        elevation: elevation,
+        child: SafeArea(
+          bottom: false,
+          child: SizedBox(
+            height: AppDimens.appBarHeight,
+            child: NavigationToolbar(
+              leading: leading ??
+                  (canPop(context)
+                      ? IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded, size: 22),
+                          onPressed: () => _pop(context),
+                          tooltip: MaterialLocalizations.of(context)
+                              .backButtonTooltip,
+                        )
+                      : null),
+              middle: titleWidget,
+              trailing: actions == null
+                  ? null
+                  : Row(mainAxisSize: MainAxisSize.min, children: actions!),
+              centerMiddle: centerTitle,
+              middleSpacing: AppDimens.grid3,
+            ),
           ),
         ),
       ),
@@ -106,7 +121,7 @@ class ZyPageHead extends StatelessWidget {
       padding: padding ??
           const EdgeInsets.fromLTRB(
             AppDimens.pagePadding,
-            AppDimens.grid5,
+            AppDimens.grid4,
             AppDimens.pagePadding,
             AppDimens.grid3,
           ),
@@ -122,17 +137,17 @@ class ZyPageHead extends StatelessWidget {
               Expanded(
                 child: Text(
                   kicker,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.brand,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: AppTextStyles.kicker,
                 ),
               ),
               if (action != null) action!,
             ],
           ),
-          const SizedBox(height: AppDimens.grid2),
-          Text(title, style: AppTextStyles.h1),
+          const Divider(height: AppDimens.grid4, color: AppColors.ruleStrong),
+          Semantics(
+            header: true,
+            child: Text(title, style: AppTextStyles.h1),
+          ),
           if (subtitle != null) ...<Widget>[
             const SizedBox(height: AppDimens.grid2),
             ConstrainedBox(

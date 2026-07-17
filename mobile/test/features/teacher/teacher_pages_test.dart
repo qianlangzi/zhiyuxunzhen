@@ -6,6 +6,7 @@ import 'package:zhiyu/features/teacher/cases/case_market_page.dart';
 import 'package:zhiyu/features/teacher/overview/teacher_overview_page.dart';
 import 'package:zhiyu/features/teacher/profile/teacher_profile_page.dart';
 import 'package:zhiyu/features/teacher/review/review_page.dart';
+import 'package:zhiyu/shared/widgets/widgets.dart';
 
 import '../../helpers/test_harness.dart';
 
@@ -14,10 +15,16 @@ void main() {
     testWidgets('overview starts with actionable teaching work',
         (WidgetTester tester) async {
       await pumpPage(tester, const TeacherOverviewPage());
-      expect(find.text('今天需要处理'), findsOneWidget);
+      expect(find.text('今天需要处理的事'), findsOneWidget);
       expect(find.text('待复核'), findsWidgets);
       expect(find.text('作业进度'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('班级薄弱点'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('班级薄弱点'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.textContaining('Faculty'), findsNothing);
       expect(tester.takeException(), isNull);
     });
@@ -41,8 +48,19 @@ void main() {
       await pumpPage(tester, const CaseConfigPage());
       expect(find.text('病例配置'), findsOneWidget);
       expect(find.text('基本信息'), findsOneWidget);
+      final Finder configScrollable = find
+          .descendant(
+            of: find.byKey(const ValueKey<String>('case-config-scroll')),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      await tester.scrollUntilVisible(
+        find.text('教学目标'),
+        200,
+        scrollable: configScrollable,
+      );
       expect(find.text('教学目标'), findsOneWidget);
-      expect(find.text('保存配置'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '保存配置'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -85,13 +103,20 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('assignments show status, deadline and inline progress',
+    testWidgets('assignments show status and deadline as ledger records',
         (WidgetTester tester) async {
       await pumpPage(tester, const AssignmentsPage());
-      expect(find.text('作业'), findsWidgets);
-      expect(find.text('提交进度'), findsWidgets);
+      expect(find.text('作业登记'), findsOneWidget);
+      expect(find.text('班级任务'), findsOneWidget);
+      expect(find.textContaining('提交 37 / 42'), findsOneWidget);
+      expect(find.byType(LinearProgressIndicator), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('格式规则'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('格式规则'), findsOneWidget);
-      expect(find.text('编辑规则'), findsOneWidget);
+      expect(find.text('查看规则'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -122,9 +147,13 @@ void main() {
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
       expect(find.text('待复核'), findsWidgets);
-      await tester.tap(find.text('复核').first);
-      await tester.pumpAndSettle();
+      await _openFirstReview(tester);
       expect(find.text('批阅详情'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('通过'),
+        180,
+        scrollable: _sheetScrollable(),
+      );
       expect(find.text('通过'), findsOneWidget);
       expect(find.text('退回修改'), findsOneWidget);
       expect(find.byType(DraggableScrollableSheet), findsOneWidget);
@@ -134,8 +163,12 @@ void main() {
     testWidgets('review approve closes sheet and marks row reviewed',
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
-      await tester.tap(find.text('复核').first);
-      await tester.pumpAndSettle();
+      await _openFirstReview(tester);
+      await tester.scrollUntilVisible(
+        find.text('通过'),
+        180,
+        scrollable: _sheetScrollable(),
+      );
       await tester.tap(find.text('通过'));
       await tester.pumpAndSettle();
       expect(find.text('批阅详情'), findsNothing);
@@ -147,8 +180,12 @@ void main() {
     testWidgets('review return closes sheet and marks row for revision',
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
-      await tester.tap(find.text('复核').first);
-      await tester.pumpAndSettle();
+      await _openFirstReview(tester);
+      await tester.scrollUntilVisible(
+        find.text('通过'),
+        180,
+        scrollable: _sheetScrollable(),
+      );
       await tester.tap(find.text('退回修改'));
       await tester.pumpAndSettle();
       expect(find.text('批阅详情'), findsNothing);
@@ -160,8 +197,7 @@ void main() {
     testWidgets('review sheet can be dragged down to dismiss',
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
-      await tester.tap(find.text('复核').first);
-      await tester.pumpAndSettle();
+      await _openFirstReview(tester);
       expect(find.text('批阅详情'), findsOneWidget);
       await tester.drag(find.text('批阅详情'), const Offset(0, 500));
       await tester.pumpAndSettle();
@@ -177,16 +213,11 @@ void main() {
         size: phone360,
         textScaler: const TextScaler.linear(1.3),
       );
-      await tester.tap(find.text('复核').first);
-      await tester.pumpAndSettle();
-      final Finder sheetScrollable = find.descendant(
-        of: find.byType(DraggableScrollableSheet),
-        matching: find.byType(Scrollable),
-      );
+      await _openFirstReview(tester);
       await tester.scrollUntilVisible(
         find.text('通过'),
         200,
-        scrollable: sheetScrollable,
+        scrollable: _sheetScrollable(),
       );
       await tester.tap(find.text('通过'));
       await tester.pumpAndSettle();
@@ -197,7 +228,8 @@ void main() {
     testWidgets('teacher profile shares identity structure without heatmap',
         (WidgetTester tester) async {
       await pumpPage(tester, const TeacherProfilePage());
-      expect(find.byType(Image), findsOneWidget);
+      expect(find.text('智愈寻真'), findsOneWidget);
+      expect(find.byType(Image), findsNothing);
       expect(find.text('教师'), findsOneWidget);
       expect(find.text('教学概况'), findsOneWidget);
       expect(find.text('最近三个月'), findsNothing);
@@ -221,14 +253,32 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('我的班级'));
       await tester.pumpAndSettle();
-      expect(find.text('提交进度'), findsWidgets);
+      expect(find.text('作业登记'), findsOneWidget);
+      expect(find.text('班级任务'), findsOneWidget);
 
       await tester.tap(find.text('我的').last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('退出登录'));
       await tester.pumpAndSettle();
-      expect(find.text('知语寻真'), findsOneWidget);
+      expect(find.text('智愈寻真'), findsOneWidget);
+      expect(find.text('知语寻真'), findsNothing);
       expect(find.text('账号'), findsOneWidget);
     });
   });
+}
+
+Future<void> _openFirstReview(WidgetTester tester) async {
+  final Finder firstRow = find.byType(ClinicalRecordRow).first;
+  await tester.ensureVisible(firstRow);
+  await tester.tap(firstRow);
+  await tester.pumpAndSettle();
+}
+
+Finder _sheetScrollable() {
+  return find
+      .descendant(
+        of: find.byType(DraggableScrollableSheet),
+        matching: find.byType(Scrollable),
+      )
+      .first;
 }

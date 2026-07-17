@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
-import 'package:zhiyu/data/models.dart';
 
-/// 教师病例配置页：清楚表单分组 + 已配置病例次级列表
+/// 教师病例配置页：分区表单 + 已配置病例登记。
 class CaseConfigPage extends ConsumerStatefulWidget {
   const CaseConfigPage({super.key});
 
@@ -64,7 +64,7 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
     final List<CaseModel> cases = repo.all();
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.paper,
       body: Form(
         key: _formKey,
         autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -72,16 +72,20 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
           children: <Widget>[
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.only(bottom: AppDimens.grid6),
+                key: const ValueKey<String>('case-config-scroll'),
+                padding: const EdgeInsets.only(bottom: AppDimens.grid8),
                 children: <Widget>[
-                  const ZyPageHead(
-                    kicker: '病例配置',
-                    title: '配置训练病例',
+                  const ClinicalHeader(
+                    productName: '智愈寻真',
+                    title: '病例配置',
+                    identityLabel: '教师工作台 · 训练病例',
                   ),
                   _FormSection(
                     title: '基本信息',
+                    description: '定义病例身份与临床起点。',
                     children: <Widget>[
                       _LabeledField(
+                        fieldKey: const ValueKey<String>('case-config-title'),
                         label: '病例标题',
                         controller: _titleCtrl,
                         hint: '例如：胸痛三联鉴别',
@@ -106,6 +110,7 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                   ),
                   _FormSection(
                     title: '模拟病人',
+                    description: '描述沟通方式与配合程度。',
                     children: <Widget>[
                       _LabeledField(
                         label: '沟通特点',
@@ -121,6 +126,7 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                   ),
                   _FormSection(
                     title: '教学目标',
+                    description: '标注训练难度与知识目标。',
                     children: <Widget>[
                       _LabeledField(
                         label: '知识点标签',
@@ -136,6 +142,7 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                   ),
                   _FormSection(
                     title: '预览',
+                    description: '核对学生进入训练前看到的信息。',
                     children: <Widget>[
                       _LabeledField(
                         label: '学生将看到的简短病例摘要',
@@ -174,11 +181,16 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
   }
 }
 
-/// 表单分组：无阴影卡片的标题 + 字段列
+/// 表单分组：以规则线和留白组织字段，不额外套卡片。
 class _FormSection extends StatelessWidget {
-  const _FormSection({required this.title, required this.children});
+  const _FormSection({
+    required this.title,
+    required this.description,
+    required this.children,
+  });
 
   final String title;
+  final String description;
   final List<Widget> children;
 
   @override
@@ -189,8 +201,11 @@ class _FormSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ZySectionHeader(title: title),
-          const SizedBox(height: AppDimens.grid2),
+          ClinicalSectionHeader(
+            title: title,
+            description: description,
+          ),
+          const SizedBox(height: AppDimens.grid3),
           ...children,
         ],
       ),
@@ -198,12 +213,13 @@ class _FormSection extends StatelessWidget {
   }
 }
 
-/// 带可见标签的字段：使用 InputDecoration labelText 保证标签可见
+/// 字段标签始终位于输入框上方，输入后也不会消失。
 class _LabeledField extends StatelessWidget {
   const _LabeledField({
     required this.label,
     required this.controller,
     required this.hint,
+    this.fieldKey,
     this.validatorMsg,
     this.maxLines = 1,
   });
@@ -211,31 +227,41 @@ class _LabeledField extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final String hint;
+  final Key? fieldKey;
   final String? validatorMsg;
   final int maxLines;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.grid2),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        decoration: InputDecoration(
-          labelText: label,
-          hintText: hint,
-        ),
-        validator: (String? value) {
-          if (validatorMsg == null) return null;
-          if (value == null || value.trim().isEmpty) return validatorMsg;
-          return null;
-        },
+      padding: const EdgeInsets.only(bottom: AppDimens.grid4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Text(label, style: AppTextStyles.bodyStrong),
+          const SizedBox(height: AppDimens.grid2),
+          Semantics(
+            label: label,
+            textField: true,
+            child: TextFormField(
+              key: fieldKey,
+              controller: controller,
+              maxLines: maxLines,
+              decoration: InputDecoration(hintText: hint),
+              validator: (String? value) {
+                if (validatorMsg == null) return null;
+                if (value == null || value.trim().isEmpty) return validatorMsg;
+                return null;
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-/// 已配置病例次级列表：分隔行 + 病例广场入口
+/// 已配置病例登记：记录行 + 病例广场入口。
 class _ConfiguredCases extends StatelessWidget {
   const _ConfiguredCases({required this.cases});
 
@@ -249,10 +275,13 @@ class _ConfiguredCases extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          ZySectionHeader(
+          ClinicalSectionHeader(
             title: '已配置病例',
-            actionLabel: '病例广场',
-            onAction: () => context.go('/teacher/market'),
+            description: '当前病例库中的训练条目。',
+            action: TextButton(
+              onPressed: () => context.push('/teacher/market'),
+              child: const Text('病例广场'),
+            ),
           ),
           const SizedBox(height: AppDimens.grid2),
           if (cases.isEmpty)
@@ -265,7 +294,12 @@ class _ConfiguredCases extends StatelessWidget {
               ),
             )
           else
-            ...cases.map((CaseModel item) => _ConfiguredRow(item: item)),
+            ...List<Widget>.generate(cases.length, (int index) {
+              return _ConfiguredRow(
+                item: cases[index],
+                showDivider: index != cases.length - 1,
+              );
+            }),
         ],
       ),
     );
@@ -273,35 +307,26 @@ class _ConfiguredCases extends StatelessWidget {
 }
 
 class _ConfiguredRow extends StatelessWidget {
-  const _ConfiguredRow({required this.item});
+  const _ConfiguredRow({
+    required this.item,
+    required this.showDivider,
+  });
 
   final CaseModel item;
+  final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
-      child: Row(
-        children: <Widget>[
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(item.title, style: AppTextStyles.bodyStrong),
-                const SizedBox(height: 4),
-                Text(
-                  '${item.department} · ${item.difficulty} · ${item.duration}',
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ),
-          if (item.certified)
-            ZyChip('已认证', tone: ZyChipTone.success)
-          else
-            ZyChip('草稿', tone: ZyChipTone.neutral),
-        ],
-      ),
+    return ClinicalRecordRow(
+      leadingLabel: item.department,
+      title: item.title,
+      subtitle:
+          '${item.difficulty} · ${item.duration} · ${item.referenceCount} 次引用',
+      statusLabel: item.certified ? '已认证' : '草稿',
+      statusTone: item.certified
+          ? ClinicalEvidenceTone.success
+          : ClinicalEvidenceTone.neutral,
+      showDivider: showDivider,
     );
   }
 }

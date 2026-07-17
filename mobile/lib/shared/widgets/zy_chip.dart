@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/constants/app_dimens.dart';
+import '../../core/constants/app_text_styles.dart';
 
-/// 标签 / Chip
-/// 对齐 Web 端 el-tag plain 风格
+/// Compact status marker or filter control.
 enum ZyChipTone {
   brand,
   aqua,
@@ -36,40 +36,52 @@ class ZyChip extends StatelessWidget {
     final double h = small ? 22 : 24;
     final double fontSize = small ? 11 : 12;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
-        child: Container(
-          height: h,
-          padding: EdgeInsets.symmetric(
-            horizontal: small ? 6 : 8,
-            vertical: 0,
+    final BorderRadius borderRadius =
+        BorderRadius.circular(AppDimens.radiusStatus);
+    final Widget marker = Container(
+      height: h,
+      padding: EdgeInsets.symmetric(horizontal: small ? 6 : 8),
+      decoration: BoxDecoration(
+        color: style.bg,
+        borderRadius: borderRadius,
+        border: Border.all(color: AppColors.rule, width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          if (icon != null) ...<Widget>[
+            Icon(icon, size: 12, color: style.fg),
+            const SizedBox(width: AppDimens.grid),
+          ],
+          Text(
+            label,
+            style: AppTextStyles.tag.copyWith(
+              fontSize: fontSize,
+              color: style.fg,
+            ),
           ),
-          decoration: BoxDecoration(
-            color: style.bg,
-            borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
-            border: style.border
-                ? Border.all(color: style.borderColor, width: 1)
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              if (icon != null) ...<Widget>[
-                Icon(icon, size: 12, color: style.fg),
-                const SizedBox(width: 4),
-              ],
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w700,
-                  color: style.fg,
-                ),
-              ),
-            ],
+        ],
+      ),
+    );
+
+    if (onTap == null) return marker;
+
+    return Semantics(
+      label: label,
+      button: true,
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          excludeFromSemantics: true,
+          borderRadius: borderRadius,
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              vertical: (AppDimens.touchTarget - h) / 2,
+            ),
+            child: marker,
           ),
         ),
       ),
@@ -80,55 +92,44 @@ class ZyChip extends StatelessWidget {
     switch (t) {
       case ZyChipTone.brand:
         return _ChipStyle(
-          fg: AppColors.brandStrong,
-          bg: AppColors.brandSoft,
-          border: false,
+          fg: AppColors.action,
+          bg: AppColors.actionSoft,
         );
       case ZyChipTone.aqua:
         return _ChipStyle(
-          fg: AppColors.brandStrong,
-          bg: AppColors.aquaSoft,
-          border: false,
+          fg: AppColors.action,
+          bg: AppColors.actionSoft,
         );
       case ZyChipTone.neutral:
         return _ChipStyle(
-          fg: AppColors.muted,
-          bg: const Color(0x14000000),
-          border: true,
-          borderColor: AppColors.line,
+          fg: AppColors.graphite,
+          bg: AppColors.surface,
         );
       case ZyChipTone.success:
         return _ChipStyle(
-          fg: AppColors.brandStrong,
-          bg: AppColors.brandSoft,
-          border: false,
+          fg: AppColors.success,
+          bg: AppColors.successSoft,
         );
       case ZyChipTone.warning:
         return _ChipStyle(
           fg: AppColors.warning,
-          bg: AppColors.amberSoft,
-          border: false,
+          bg: AppColors.warningSoft,
         );
       case ZyChipTone.danger:
         return _ChipStyle(
-          fg: AppColors.danger,
-          bg: AppColors.dangerSoft,
-          border: false,
+          fg: AppColors.risk,
+          bg: AppColors.riskSoft,
         );
     }
   }
 }
 
 class _ChipStyle {
-  _ChipStyle({
+  const _ChipStyle({
     required this.fg,
     required this.bg,
-    required this.border,
-    this.borderColor = AppColors.line,
   });
 
   final Color fg;
   final Color bg;
-  final bool border;
-  final Color borderColor;
 }

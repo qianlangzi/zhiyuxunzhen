@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_dimens.dart';
-import '../../../core/constants/app_text_styles.dart';
-import '../../../data/repositories/content_repository.dart';
-import '../../../shared/widgets/widgets.dart';
 import 'package:zhiyu/data/models.dart';
 
-/// 教师作业列表与格式规则
+import '../../../core/constants/app_dimens.dart';
+import '../../../data/repositories/content_repository.dart';
+import '../../../shared/widgets/widgets.dart';
+
 class AssignmentsPage extends ConsumerStatefulWidget {
   const AssignmentsPage({super.key});
 
@@ -26,7 +23,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
   }
 
   void _showCreateSheet() {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -45,10 +42,11 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
   void _showRulesSheet() {
     final List<FormatShieldRule> rules =
         ref.read(teachingRepositoryProvider).formatRules();
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
-      builder: (BuildContext sheetContext) => _FormatRulesSheet(rules: rules),
+      useSafeArea: true,
+      builder: (BuildContext context) => _FormatRulesSheet(rules: rules),
     );
   }
 
@@ -58,19 +56,23 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
         ref.watch(teachingRepositoryProvider).formatRules();
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
       body: CustomScrollView(
         slivers: <Widget>[
-          SliverToBoxAdapter(
-            child: ZyPageHead(
-              kicker: '作业',
-              title: '查看班级训练任务',
+          const SliverToBoxAdapter(
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '作业登记',
+              identityLabel: '教师工作区',
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.pagePadding, vertical: AppDimens.grid2),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid2,
+                AppDimens.pagePadding,
+                AppDimens.grid4,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: FilledButton.icon(
@@ -81,24 +83,47 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
               ),
             ),
           ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimens.pagePadding,
+              ),
+              child: ClinicalSectionHeader(
+                title: '班级任务',
+                description: '共 ${_assignments.length} 项，按截止时间与处理状态登记。',
+              ),
+            ),
+          ),
           SliverPadding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-            sliver: SliverList.separated(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppDimens.pagePadding,
+            ),
+            sliver: SliverList.builder(
               itemCount: _assignments.length,
-              separatorBuilder: (BuildContext context, int index) =>
-                  const Divider(height: 1, color: AppColors.line),
-              itemBuilder: (BuildContext context, int index) =>
-                  _AssignmentRow(item: _assignments[index]),
+              itemBuilder: (BuildContext context, int index) {
+                final AssignmentModel item = _assignments[index];
+                return ClinicalRecordRow(
+                  leadingLabel: item.due,
+                  title: item.title,
+                  subtitle:
+                      '${item.className}\n提交 ${item.submitted} / ${item.total} · ${_assignmentMeta(item)}',
+                  statusLabel: item.status,
+                  statusTone: _assignmentTone(item.status),
+                );
+              },
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(AppDimens.pagePadding,
-                  AppDimens.grid6, AppDimens.pagePadding, 120),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+                AppDimens.pagePadding,
+                120,
+              ),
               child: _FormatRules(
                 rules: rules,
-                onEdit: _showRulesSheet,
+                onView: _showRulesSheet,
               ),
             ),
           ),
@@ -108,135 +133,77 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
   }
 }
 
-class _AssignmentRow extends StatelessWidget {
-  const _AssignmentRow({required this.item});
+String _assignmentMeta(AssignmentModel item) {
+  final List<String> parts = <String>[
+    if (item.requireRecord) '需提交大病历',
+    item.variable,
+  ];
+  return parts.join(' · ');
+}
 
-  final AssignmentModel item;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(child: Text(item.title, style: AppTextStyles.title)),
-              ZyChip(item.status, tone: _statusTone(item.status)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text('${item.className} · 截止 ${item.due}',
-              style: AppTextStyles.caption),
-          const SizedBox(height: AppDimens.grid2),
-          Row(
-            children: <Widget>[
-              const Text('提交进度'),
-              const Spacer(),
-              Text('${item.submitted} / ${item.total}'),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ZyProgress(value: item.progress),
-          const SizedBox(height: 4),
-          Text(
-            _metaLine(item),
-            style: AppTextStyles.caption,
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _metaLine(AssignmentModel a) {
-    final List<String> parts = <String>[];
-    if (a.requireRecord) parts.add('需大病历');
-    parts.add(a.variable);
-    return parts.join(' · ');
-  }
-
-  ZyChipTone _statusTone(String status) {
-    switch (status) {
-      case '进行中':
-        return ZyChipTone.brand;
-      case 'AI 批阅中':
-        return ZyChipTone.aqua;
-      case '待复核':
-        return ZyChipTone.warning;
-      default:
-        return ZyChipTone.neutral;
-    }
+ClinicalEvidenceTone _assignmentTone(String status) {
+  switch (status) {
+    case '进行中':
+    case 'AI 批阅中':
+      return ClinicalEvidenceTone.action;
+    case '待复核':
+      return ClinicalEvidenceTone.risk;
+    case '已完成':
+      return ClinicalEvidenceTone.success;
+    default:
+      return ClinicalEvidenceTone.neutral;
   }
 }
 
 class _FormatRules extends StatelessWidget {
-  const _FormatRules({required this.rules, required this.onEdit});
+  const _FormatRules({required this.rules, required this.onView});
 
   final List<FormatShieldRule> rules;
-  final VoidCallback onEdit;
+  final VoidCallback onView;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        ZySectionHeader(
+        ClinicalSectionHeader(
           title: '格式规则',
-          actionLabel: '编辑规则',
-          onAction: onEdit,
+          description: '学生提交前按当前规则自动检查。',
+          action: TextButton(
+            onPressed: onView,
+            child: const Text('查看规则'),
+          ),
         ),
-        const SizedBox(height: AppDimens.grid2),
-        Text('提交前的自动校验规则，未通过会被打回。', style: AppTextStyles.caption),
-        const SizedBox(height: AppDimens.grid3),
-        ...rules.map((FormatShieldRule rule) => _RuleRow(rule: rule)),
+        ClinicalEvidenceAxis(
+          nodes: rules
+              .map(
+                (FormatShieldRule rule) => ClinicalEvidenceNode(
+                  label: rule.label,
+                  detail: rule.detail,
+                  statusLabel: rule.state,
+                  tone: _ruleTone(rule.state),
+                ),
+              )
+              .toList(),
+        ),
       ],
     );
   }
 }
 
-class _RuleRow extends StatelessWidget {
-  const _RuleRow({required this.rule});
-
-  final FormatShieldRule rule;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.grid3),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          ZyChip(rule.state, tone: _ruleTone(rule.state)),
-          const SizedBox(width: AppDimens.grid3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(rule.label, style: AppTextStyles.bodyStrong),
-                const SizedBox(height: 2),
-                Text(rule.detail, style: AppTextStyles.caption),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  ZyChipTone _ruleTone(String state) {
-    switch (state) {
-      case '通过':
-        return ZyChipTone.success;
-      case '打回':
-        return ZyChipTone.danger;
-      default:
-        return ZyChipTone.warning;
-    }
+ClinicalEvidenceTone _ruleTone(String state) {
+  switch (state) {
+    case '通过':
+      return ClinicalEvidenceTone.success;
+    case '打回':
+      return ClinicalEvidenceTone.risk;
+    case '提示':
+      return ClinicalEvidenceTone.action;
+    default:
+      return ClinicalEvidenceTone.neutral;
   }
 }
 
-/// 格式规则说明（只读）
 class _FormatRulesSheet extends StatelessWidget {
   const _FormatRulesSheet({required this.rules});
 
@@ -244,19 +211,34 @@ class _FormatRulesSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-            AppDimens.pagePadding, 0, AppDimens.pagePadding, AppDimens.grid6),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.pagePadding,
+        0,
+        AppDimens.pagePadding,
+        AppDimens.grid6,
+      ),
+      child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            Text('格式规则说明', style: AppTextStyles.h3),
-            const SizedBox(height: AppDimens.grid2),
-            Text('以下是当前启用的提交校验规则，学生提交时会自动检查。', style: AppTextStyles.caption),
-            const SizedBox(height: AppDimens.grid4),
-            ...rules.map((FormatShieldRule rule) => _RuleRow(rule: rule)),
+            const ClinicalSectionHeader(
+              title: '格式规则说明',
+              description: '以下规则在学生提交时自动执行。',
+            ),
+            ClinicalEvidenceAxis(
+              nodes: rules
+                  .map(
+                    (FormatShieldRule rule) => ClinicalEvidenceNode(
+                      label: rule.label,
+                      detail: rule.detail,
+                      statusLabel: rule.state,
+                      tone: _ruleTone(rule.state),
+                    ),
+                  )
+                  .toList(),
+            ),
           ],
         ),
       ),
@@ -264,7 +246,6 @@ class _FormatRulesSheet extends StatelessWidget {
   }
 }
 
-/// 新建作业表单
 class _CreateAssignmentSheet extends StatefulWidget {
   const _CreateAssignmentSheet({required this.onCreate});
 
@@ -276,78 +257,94 @@ class _CreateAssignmentSheet extends StatefulWidget {
 
 class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-  final TextEditingController _titleCtrl = TextEditingController();
-  final TextEditingController _classCtrl = TextEditingController();
-  final TextEditingController _dueCtrl = TextEditingController();
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _classController = TextEditingController();
+  final TextEditingController _dueController = TextEditingController();
 
   @override
   void dispose() {
-    _titleCtrl.dispose();
-    _classCtrl.dispose();
-    _dueCtrl.dispose();
+    _titleController.dispose();
+    _classController.dispose();
+    _dueController.dispose();
     super.dispose();
   }
 
   void _submit() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    widget.onCreate(AssignmentModel(
-      title: _titleCtrl.text.trim(),
-      className:
-          _classCtrl.text.trim().isEmpty ? '未指定班级' : _classCtrl.text.trim(),
-      submitted: 0,
-      total: 0,
-      due: _dueCtrl.text.trim().isEmpty ? '未设置' : _dueCtrl.text.trim(),
-      status: '进行中',
-      requireRecord: false,
-      variable: '关闭',
-    ));
+    widget.onCreate(
+      AssignmentModel(
+        title: _titleController.text.trim(),
+        className: _classController.text.trim().isEmpty
+            ? '未指定班级'
+            : _classController.text.trim(),
+        submitted: 0,
+        total: 0,
+        due: _dueController.text.trim().isEmpty
+            ? '未设置'
+            : _dueController.text.trim(),
+        status: '进行中',
+        requireRecord: false,
+        variable: '关闭',
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final double bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final double bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(AppDimens.pagePadding, 0,
-            AppDimens.pagePadding, bottomInset + AppDimens.grid6),
-        child: Form(
-          key: _formKey,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Text('新建作业', style: AppTextStyles.h3),
-              const SizedBox(height: AppDimens.grid4),
-              TextFormField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(labelText: '作业名称'),
-                validator: (String? value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return '请输入作业名称';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: AppDimens.grid3),
-              TextFormField(
-                controller: _classCtrl,
-                decoration: const InputDecoration(labelText: '班级'),
-              ),
-              const SizedBox(height: AppDimens.grid3),
-              TextFormField(
-                controller: _dueCtrl,
-                decoration: const InputDecoration(labelText: '截止日期'),
-              ),
-              const SizedBox(height: AppDimens.grid5),
-              FilledButton(
-                onPressed: _submit,
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
+        padding: EdgeInsets.fromLTRB(
+          AppDimens.pagePadding,
+          0,
+          AppDimens.pagePadding,
+          bottomInset + AppDimens.grid6,
+        ),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: <Widget>[
+                const ClinicalSectionHeader(
+                  title: '新建作业',
+                  description: '填写任务名称，班级和截止时间。',
                 ),
-                child: const Text('创建作业'),
-              ),
-            ],
+                const SizedBox(height: AppDimens.grid4),
+                TextFormField(
+                  controller: _titleController,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: '作业名称'),
+                  validator: (String? value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return '请输入作业名称';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppDimens.grid3),
+                TextFormField(
+                  controller: _classController,
+                  textInputAction: TextInputAction.next,
+                  decoration: const InputDecoration(labelText: '班级'),
+                ),
+                const SizedBox(height: AppDimens.grid3),
+                TextFormField(
+                  controller: _dueController,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => _submit(),
+                  decoration: const InputDecoration(labelText: '截止日期'),
+                ),
+                const SizedBox(height: AppDimens.grid5),
+                FilledButton(
+                  onPressed: _submit,
+                  child: const Text('创建作业'),
+                ),
+              ],
+            ),
           ),
         ),
       ),

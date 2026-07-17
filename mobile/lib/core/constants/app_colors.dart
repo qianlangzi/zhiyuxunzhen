@@ -1,52 +1,57 @@
 import 'package:flutter/material.dart';
 
-/// Mobile clinical education palette inspired by the Stitch prototypes.
-///
-/// 核心令牌收敛为冷白背景、深青强调和业务状态色。
+/// Semantic palette for the clinical ledger interface.
 class AppColors {
   AppColors._();
 
-  // 基础表面
-  static const Color bg = Color(0xFFF7F9F9);
+  static const Color paper = Color(0xFFF7F7F5);
   static const Color surface = Color(0xFFFFFFFF);
+
+  static const Color ink = Color(0xFF171B1D);
+  static const Color graphite = Color(0xFF40484B);
+  static const Color weak = Color(0xFF687073);
+
+  static const Color rule = Color(0xFFCFD4D5);
+  static const Color ruleStrong = Color(0xFF8D9598);
+
+  static const Color action = Color(0xFF24508C);
+  static const Color actionPressed = Color(0xFF193E70);
+  static const Color actionSoft = Color(0xFFE8EEF6);
+
+  static const Color risk = Color(0xFFB73B32);
+  static const Color riskSoft = Color(0xFFF7E8E6);
+  static const Color success = Color(0xFF26705D);
+  static const Color successSoft = Color(0xFFE6F0EC);
+  static const Color warning = Color(0xFF8A5A22);
+  static const Color warningSoft = Color(0xFFF5EDE3);
+
+  static const Color field = Color(0xFFF1F2F0);
+  static const Color paperStrong = Color(0xFFECEDE9);
+
+  // Compatibility aliases retained while feature pages migrate to semantic names.
+  static const Color bg = paper;
+  static const Color bgStrong = paperStrong;
   static const Color card = surface;
+  static const Color muted = graphite;
+  static const Color soft = weak;
+  static const Color line = rule;
+  static const Color lineSoft = rule;
+  static const Color lineStrong = ruleStrong;
+  static const Color brand = action;
+  static const Color brandStrong = actionPressed;
+  static const Color brandSoft = actionSoft;
+  static const Color brandPressed = actionPressed;
+  static const Color danger = risk;
+  static const Color dangerSoft = riskSoft;
+  static const Color amberSoft = warningSoft;
+  static const Color gold = warning;
+  static const Color goldSoft = warningSoft;
+  static const Color inkTeal = action;
+  static const Color aqua = action;
+  static const Color aquaSoft = actionSoft;
 
-  // 文字
-  static const Color ink = Color(0xFF161A1C);
-  static const Color muted = Color(0xFF596367);
-  static const Color soft = Color(0xFF7A8488);
-
-  // 分隔线
-  static const Color line = Color(0xFFE3E8EA);
-  static const Color lineStrong = Color(0xFFC7D0D3);
-
-  // 品牌深青
-  static const Color brand = Color(0xFF064B59);
-  static const Color brandStrong = Color(0xFF003441);
-  static const Color brandSoft = Color(0xFFEAF1F2);
-  static const Color brandPressed = Color(0xFF002B35);
-
-  // 训练热力图四级深青色阶
-  static const Color activity1 = Color(0xFFD8E7E9);
-  static const Color activity2 = Color(0xFFA9CDD2);
-  static const Color activity3 = Color(0xFF5F9CA5);
-  static const Color activity4 = brand;
-
-  // 业务状态色（仅用于真实状态，不参与装饰）
-  static const Color success = Color(0xFF247A5A);
-  static const Color successSoft = Color(0xFFE7F4ED);
-  static const Color danger = Color(0xFFC2413A);
-  static const Color dangerSoft = Color(0xFFFBE9E8);
-  static const Color warning = Color(0xFFA7631B);
-
-  // 业务语义色与场景别名
-  static const Color bgStrong = Color(0xFFECEFEE);
-  static const Color inkTeal = brand;
-  static const Color lineSoft = line;
-  static const Color aqua = Color(0xFF5AB7BE);
-  static const Color aquaSoft = Color(0xFFE0F3F4);
-  static const Color gold = Color(0xFFB7791F);
-  static const Color goldSoft = Color(0xFFFFF4DF);
-  static const Color amberSoft = Color(0xFFFFF4DF);
-  static const Color field = Color(0xFFF3F5F6);
+  static const Color activity1 = Color(0xFFDDE5EF);
+  static const Color activity2 = Color(0xFFAFC1D8);
+  static const Color activity3 = Color(0xFF6D8FB8);
+  static const Color activity4 = action;
 }

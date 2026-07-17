@@ -1,233 +1,286 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
-import 'package:zhiyu/data/models.dart';
 
-/// 能力反馈：结论、维度与下一步建议
+/// 能力反馈：先给出可执行结论，再列出评分证据和训练顺序。
 class FeedbackPage extends ConsumerWidget {
   const FeedbackPage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final LearningRepository repo = ref.watch(learningRepositoryProvider);
-    final List<AbilityScore> abilities = repo.abilities();
-    final List<LearningPathItem> path = repo.learningPath();
-    final int avg = abilities.isEmpty
+    final LearningRepository repository = ref.watch(learningRepositoryProvider);
+    final List<AbilityScore> abilities = repository.abilities();
+    final List<LearningPathItem> path = repository.learningPath();
+    final int average = abilities.isEmpty
         ? 0
-        : (abilities.fold<int>(0, (int p, AbilityScore a) => p + a.value) /
+        : (abilities.fold<int>(
+                  0,
+                  (int total, AbilityScore item) => total + item.value,
+                ) /
                 abilities.length)
             .round();
+    final AbilityScore? weakest = _weakestAbility(abilities);
+    final LearningPathItem? firstStep = path.isEmpty ? null : path.first;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.paper,
       body: CustomScrollView(
         slivers: <Widget>[
           const SliverToBoxAdapter(
-            child: ZyPageHead(kicker: '反馈', title: '能力反馈'),
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '能力反馈',
+              identityLabel: '学生工作台',
+            ),
           ),
           SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: AppDimens.pagePadding, vertical: AppDimens.grid3),
-              child: _ConclusionCard(avg: avg),
+            child: _ActionConclusion(
+              average: average,
+              weakest: weakest,
+              firstStep: firstStep,
             ),
           ),
           SliverToBoxAdapter(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: _AbilitiesCard(abilities: abilities),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+                AppDimens.pagePadding,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const ClinicalSectionHeader(
+                    title: '能力证据',
+                    description: '本次问诊按 100 分制记录；状态由分数区间直接生成。',
+                  ),
+                  if (abilities.isEmpty)
+                    const _InlineEmpty(message: '完成一次问诊后显示能力证据。')
+                  else
+                    ...abilities.map(
+                      (AbilityScore item) => _AbilityEvidenceRow(item: item),
+                    ),
+                ],
+              ),
             ),
           ),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
           SliverToBoxAdapter(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-              child: _SuggestionsCard(path: path),
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+                AppDimens.pagePadding,
+                0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  const ClinicalSectionHeader(
+                    title: '下一步建议',
+                    description: '按记录顺序继续训练，首项可直接进入病例库。',
+                  ),
+                  if (path.isEmpty)
+                    const _InlineEmpty(message: '当前没有待执行的训练建议。')
+                  else
+                    ...path.asMap().entries.map(
+                          (MapEntry<int, LearningPathItem> entry) =>
+                              ClinicalRecordRow(
+                            leadingLabel:
+                                (entry.key + 1).toString().padLeft(2, '0'),
+                            title: entry.value.title,
+                            subtitle: entry.value.meta,
+                            statusLabel: '${entry.value.progress}%',
+                            statusTone: entry.key == 0
+                                ? ClinicalEvidenceTone.action
+                                : ClinicalEvidenceTone.neutral,
+                            onTap: entry.key == 0
+                                ? () => context.push('/student/cases')
+                                : null,
+                            showDivider: entry.key != path.length - 1,
+                          ),
+                        ),
+                ],
+              ),
             ),
           ),
           const SliverToBoxAdapter(
-              child: SizedBox(height: AppDimens.grid8 + AppDimens.grid4)),
-        ],
-      ),
-    );
-  }
-}
-
-class _ConclusionCard extends StatelessWidget {
-  const _ConclusionCard({required this.avg});
-
-  final int avg;
-
-  @override
-  Widget build(BuildContext context) {
-    return ZyCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Row(
-            children: <Widget>[
-              const Text('本次表现', style: AppTextStyles.title),
-              const Spacer(),
-              Text('$avg/100',
-                  style: AppTextStyles.h3.copyWith(color: AppColors.brand)),
-            ],
+            child: SizedBox(height: AppDimens.grid8 + AppDimens.grid4),
           ),
-          const SizedBox(height: AppDimens.grid2),
-          Text(_conclusionFor(avg), style: AppTextStyles.body),
         ],
       ),
     );
   }
 
-  String _conclusionFor(int v) {
-    if (v >= 85) return '整体表现优秀，继续保持当前训练节奏。';
-    if (v >= 75) return '表现稳定，诊断逻辑仍有提升空间。';
-    if (v >= 60) return '基础尚可，建议加强诊断逻辑与检查选择训练。';
-    return '需要系统复习并重点突破薄弱环节。';
+  static AbilityScore? _weakestAbility(List<AbilityScore> abilities) {
+    if (abilities.isEmpty) return null;
+    return abilities.reduce(
+      (AbilityScore current, AbilityScore next) =>
+          next.value < current.value ? next : current,
+    );
   }
 }
 
-class _AbilitiesCard extends StatelessWidget {
-  const _AbilitiesCard({required this.abilities});
+class _ActionConclusion extends StatelessWidget {
+  const _ActionConclusion({
+    required this.average,
+    required this.weakest,
+    required this.firstStep,
+  });
 
-  final List<AbilityScore> abilities;
+  final int average;
+  final AbilityScore? weakest;
+  final LearningPathItem? firstStep;
 
   @override
   Widget build(BuildContext context) {
-    return ZyCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const ZySectionHeader(title: '能力维度'),
-          const SizedBox(height: AppDimens.grid4),
-          ...abilities.map((AbilityScore a) => _AbilityRow(item: a)),
-        ],
+    final String conclusion = weakest == null || firstStep == null
+        ? '先完成一例完整问诊，再根据证据安排下一轮训练。'
+        : '下一轮先补强${weakest!.label}：完成「${firstStep!.title}」。';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimens.pagePadding,
+        AppDimens.grid3,
+        AppDimens.pagePadding,
+        0,
+      ),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+        decoration: const BoxDecoration(
+          border: Border(
+            top: BorderSide(color: AppColors.ink, width: 1),
+            bottom: BorderSide(color: AppColors.rule, width: 1),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Expanded(
+                  child: Text(
+                    '本次表现',
+                    style: AppTextStyles.data.copyWith(color: AppColors.action),
+                  ),
+                ),
+                Text(
+                  '$average / 100',
+                  style: AppTextStyles.data.copyWith(color: AppColors.ink),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppDimens.grid2),
+            Semantics(
+              liveRegion: true,
+              label: '行动结论，$conclusion',
+              child: ExcludeSemantics(
+                child: Text(conclusion, style: AppTextStyles.h3),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _AbilityRow extends StatelessWidget {
-  const _AbilityRow({required this.item});
+class _AbilityEvidenceRow extends StatelessWidget {
+  const _AbilityEvidenceRow({required this.item});
 
   final AbilityScore item;
 
   @override
   Widget build(BuildContext context) {
-    final Color color = _colorFor(item.value);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: AppDimens.grid3),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 72,
-            child: Text(item.label, style: AppTextStyles.bodyStrong),
-          ),
-          const SizedBox(width: AppDimens.grid3),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: item.value / 100,
-                minHeight: 6,
-                backgroundColor: AppColors.brandSoft,
-                color: color,
-              ),
+    final _AbilityState state = _abilityState(item.value);
+    return Semantics(
+      container: true,
+      label: '${item.label}，${item.value} 分，${state.label}',
+      child: ExcludeSemantics(
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 76),
+          padding: const EdgeInsets.symmetric(vertical: AppDimens.grid3),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.rule, width: 1),
             ),
           ),
-          const SizedBox(width: AppDimens.grid3),
-          SizedBox(
-            width: 36,
-            child: Text(
-              '${item.value}',
-              textAlign: TextAlign.right,
-              style: AppTextStyles.bodyStrong.copyWith(color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _colorFor(int v) {
-    if (v >= 85) return AppColors.success;
-    if (v >= 70) return AppColors.brand;
-    if (v >= 60) return AppColors.warning;
-    return AppColors.danger;
-  }
-}
-
-class _SuggestionsCard extends StatelessWidget {
-  const _SuggestionsCard({required this.path});
-
-  final List<LearningPathItem> path;
-
-  @override
-  Widget build(BuildContext context) {
-    return ZyCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const ZySectionHeader(title: '下一步建议'),
-          const SizedBox(height: AppDimens.grid3),
-          ...path.asMap().entries.map((MapEntry<int, LearningPathItem> e) {
-            // 仅第一项可路由到病例列表；其余作为信息呈现，避免死按钮
-            final bool routed = e.key == 0;
-            return _SuggestionRow(item: e.value, routed: routed);
-          }),
-        ],
-      ),
-    );
-  }
-}
-
-class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.item, required this.routed});
-
-  final LearningPathItem item;
-  final bool routed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: routed ? () => context.push('/student/cases') : null,
-        borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-              vertical: AppDimens.grid3, horizontal: AppDimens.grid2),
-          child: Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(item.title, style: AppTextStyles.bodyStrong),
-                    const SizedBox(height: 4),
-                    Text(item.meta, style: AppTextStyles.caption),
-                    const SizedBox(height: AppDimens.grid2),
-                    ZyProgress(value: item.progress / 100, height: 6),
-                  ],
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(item.label, style: AppTextStyles.bodyStrong),
+                  ),
+                  Text(
+                    state.label,
+                    style: AppTextStyles.data.copyWith(color: state.color),
+                  ),
+                  const SizedBox(width: AppDimens.grid3),
+                  Text(
+                    '${item.value} / 100',
+                    style: AppTextStyles.data.copyWith(color: AppColors.ink),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppDimens.grid2),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
+                child: LinearProgressIndicator(
+                  value: item.value / 100,
+                  minHeight: AppDimens.grid,
+                  backgroundColor: AppColors.paperStrong,
+                  color: state.color,
                 ),
               ),
-              if (routed) ...<Widget>[
-                const SizedBox(width: AppDimens.grid2),
-                const Icon(Icons.chevron_right_rounded,
-                    size: 22, color: AppColors.soft),
-              ],
             ],
           ),
         ),
       ),
+    );
+  }
+
+  static _AbilityState _abilityState(int value) {
+    if (value >= 85) {
+      return const _AbilityState('优势', AppColors.success);
+    }
+    if (value >= 75) {
+      return const _AbilityState('稳定', AppColors.action);
+    }
+    if (value >= 60) {
+      return const _AbilityState('待补强', AppColors.warning);
+    }
+    return const _AbilityState('重点复习', AppColors.risk);
+  }
+}
+
+class _AbilityState {
+  const _AbilityState(this.label, this.color);
+
+  final String label;
+  final Color color;
+}
+
+class _InlineEmpty extends StatelessWidget {
+  const _InlineEmpty({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+      child: Text(message, style: AppTextStyles.caption),
     );
   }
 }

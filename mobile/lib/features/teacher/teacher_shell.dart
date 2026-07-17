@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/constants/app_colors.dart';
 import '../../shared/widgets/widgets.dart';
 
 class TeacherShell extends StatelessWidget {
@@ -50,7 +51,8 @@ class TeacherShell extends StatelessWidget {
     final int index = _currentIndex(context);
     final String location = GoRouterState.of(context).matchedLocation;
     return Scaffold(
-      body: child,
+      backgroundColor: AppColors.paper,
+      body: SafeArea(bottom: false, child: child),
       bottomNavigationBar: ZyBottomBar(
         tabs: _tabs,
         currentIndex: index,

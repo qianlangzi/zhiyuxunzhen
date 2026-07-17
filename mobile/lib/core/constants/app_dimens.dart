@@ -14,11 +14,11 @@ class AppDimens {
   static const double pagePadding = 20;
   static const double pagePaddingLarge = 24;
 
-  // 临床极简圆角层级：8 卡片 / 12 控件 / 20 浮层 / 6 状态标签
-  static const double radiusCard = 8;
-  static const double radiusControl = 12;
-  static const double radiusSheet = 20;
-  static const double radiusStatus = 6;
+  // Compact hierarchy: status / record / control / overlay.
+  static const double radiusStatus = 4;
+  static const double radiusCard = 6;
+  static const double radiusControl = 8;
+  static const double radiusSheet = 16;
 
   static const double radiusPill = 999;
 

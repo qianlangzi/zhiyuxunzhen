@@ -5,20 +5,20 @@ import '../constants/app_colors.dart';
 import '../constants/app_dimens.dart';
 import '../constants/app_text_styles.dart';
 
-/// 临床玻璃舱 Material 3 主题
+/// Clinical ledger Material 3 theme.
 class AppTheme {
   AppTheme._();
 
   static ThemeData get light {
     final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.brand,
-      primary: AppColors.brand,
+      seedColor: AppColors.action,
+      primary: AppColors.action,
       onPrimary: Colors.white,
-      secondary: AppColors.aqua,
+      secondary: AppColors.success,
       onSecondary: Colors.white,
-      surface: Colors.white,
+      surface: AppColors.surface,
       onSurface: AppColors.ink,
-      error: AppColors.danger,
+      error: AppColors.risk,
       onError: Colors.white,
       brightness: Brightness.light,
     );
@@ -26,7 +26,7 @@ class AppTheme {
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.bg,
+      scaffoldBackgroundColor: AppColors.paper,
       splashFactory: InkSparkle.splashFactory,
       visualDensity: VisualDensity.adaptivePlatformDensity,
       textTheme: const TextTheme(
@@ -44,7 +44,7 @@ class AppTheme {
         labelSmall: AppTextStyles.kicker,
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.paper,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -55,23 +55,23 @@ class AppTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.card,
+        color: AppColors.surface,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-          side: const BorderSide(color: AppColors.line, width: 1),
+          side: const BorderSide(color: AppColors.rule, width: 1),
         ),
       ),
       dividerTheme: const DividerThemeData(
-        color: AppColors.line,
+        color: AppColors.rule,
         thickness: 1,
         space: 1,
       ),
       inputDecorationTheme: _buildInputTheme(),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.brand,
+          backgroundColor: AppColors.action,
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
           shape: RoundedRectangleBorder(
@@ -79,32 +79,32 @@ class AppTheme {
           ),
           textStyle: const TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid6),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.brandStrong,
+          foregroundColor: AppColors.action,
           minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppDimens.radiusControl),
           ),
-          side: const BorderSide(color: AppColors.lineStrong, width: 1),
+          side: const BorderSide(color: AppColors.ruleStrong, width: 1),
           textStyle: const TextStyle(
             fontSize: 15,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
           padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid6),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.brandStrong,
+          foregroundColor: AppColors.action,
           textStyle: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -113,15 +113,15 @@ class AppTheme {
         size: 22,
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.brandSoft,
+        backgroundColor: AppColors.surface,
         labelStyle: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: AppColors.brandStrong,
+          color: AppColors.graphite,
         ),
-        side: BorderSide.none,
+        side: const BorderSide(color: AppColors.rule, width: 1),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusPill),
+          borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
         ),
         padding: const EdgeInsets.symmetric(
             horizontal: AppDimens.grid2, vertical: AppDimens.grid),
@@ -130,23 +130,23 @@ class AppTheme {
         backgroundColor: Colors.white,
         elevation: 0,
         height: AppDimens.navBarHeight,
-        indicatorColor: AppColors.brandSoft,
+        indicatorColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>(
           (Set<WidgetState> states) => TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,
             color: states.contains(WidgetState.selected)
-                ? AppColors.brandStrong
-                : AppColors.soft,
+                ? AppColors.action
+                : AppColors.graphite,
           ),
         ),
         iconTheme: WidgetStateProperty.resolveWith<IconThemeData>(
           (Set<WidgetState> states) => IconThemeData(
             size: 24,
             color: states.contains(WidgetState.selected)
-                ? AppColors.brand
-                : AppColors.soft,
+                ? AppColors.action
+                : AppColors.graphite,
           ),
         ),
       ),
@@ -178,11 +178,11 @@ class AppTheme {
           ),
         ),
         showDragHandle: true,
-        dragHandleColor: AppColors.lineStrong,
+        dragHandleColor: AppColors.ruleStrong,
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.brand,
-        linearTrackColor: Color(0x1A0F766E),
+        color: AppColors.action,
+        linearTrackColor: AppColors.actionSoft,
         linearMinHeight: 6,
       ),
     );
@@ -204,25 +204,25 @@ class AppTheme {
         vertical: AppDimens.grid4,
       ),
       hintStyle: const TextStyle(
-        color: AppColors.soft,
+        color: AppColors.weak,
         fontSize: 15,
         fontWeight: FontWeight.w500,
       ),
       labelStyle: const TextStyle(
-        color: AppColors.muted,
+        color: AppColors.graphite,
         fontSize: 13,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
       ),
       floatingLabelStyle: const TextStyle(
-        color: AppColors.brandStrong,
+        color: AppColors.action,
         fontSize: 13,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
       ),
-      enabledBorder: buildBorder(AppColors.line),
-      border: buildBorder(AppColors.line),
-      focusedBorder: buildBorder(AppColors.brand, 1.5),
-      errorBorder: buildBorder(AppColors.danger),
-      focusedErrorBorder: buildBorder(AppColors.danger, 1.5),
+      enabledBorder: buildBorder(AppColors.rule),
+      border: buildBorder(AppColors.rule),
+      focusedBorder: buildBorder(AppColors.action, 1.5),
+      errorBorder: buildBorder(AppColors.risk),
+      focusedErrorBorder: buildBorder(AppColors.risk, 1.5),
     );
   }
 }

@@ -1,117 +1,98 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zhiyu/data/models.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../data/models/user_model.dart';
+import '../../../data/repositories/content_repository.dart';
 import '../../../features/auth/auth_controller.dart';
 import '../../../shared/widgets/widgets.dart';
 
-/// 教师个人中心：身份、教学概况、常用入口与免责
 class TeacherProfilePage extends ConsumerWidget {
   const TeacherProfilePage({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AuthState state = ref.watch(authControllerProvider);
-    final UserModel? user = state.user;
+    final UserModel? user = ref.watch(authControllerProvider).user;
+    final TeachingRepository teaching = ref.watch(teachingRepositoryProvider);
+    final CaseRepository cases = ref.watch(caseRepositoryProvider);
+    final int assignmentCount = teaching.assignments().length;
+    final int caseCount = cases.all().length;
+    final int pendingReviewCount = teaching
+        .reviewQueue()
+        .where((ReviewItem item) => item.status != '已复核')
+        .length;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: AppColors.paper,
       body: CustomScrollView(
         slivers: <Widget>[
-          SliverToBoxAdapter(child: _IdentityCard(user: user)),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid5)),
-          const SliverToBoxAdapter(child: _TeachingOverview()),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid6)),
-          const SliverToBoxAdapter(child: _MenuSection()),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid4)),
-          const SliverToBoxAdapter(child: _Disclaimer()),
-          const SliverToBoxAdapter(child: SizedBox(height: AppDimens.grid6)),
-          SliverToBoxAdapter(child: _LogoutButton(ref: ref)),
-          const SliverToBoxAdapter(
-              child:
-                  SizedBox(height: AppDimens.grid8 + AppDimens.navBarHeight)),
-        ],
-      ),
-    );
-  }
-}
-
-class _IdentityCard extends StatelessWidget {
-  const _IdentityCard({required this.user});
-
-  final UserModel? user;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-          AppDimens.pagePadding, AppDimens.grid8, AppDimens.pagePadding, 0),
-      child: Row(
-        children: <Widget>[
-          Image.asset(
-            'assets/images/brand-logo.png',
-            width: 56,
-            height: 56,
-            fit: BoxFit.contain,
-            semanticLabel: '知语寻真 Logo',
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(user?.displayName ?? '老师', style: AppTextStyles.h3),
-                const SizedBox(height: 4),
-                Text(user?.orgName ?? '附属一院心内科', style: AppTextStyles.caption),
-                const SizedBox(height: 4),
-                Row(
-                  children: <Widget>[
-                    const Icon(Icons.verified_rounded,
-                        size: 14, color: AppColors.brand),
-                    const SizedBox(width: 4),
-                    Text('教师',
-                        style: AppTextStyles.caption
-                            .copyWith(color: AppColors.brandStrong)),
-                    const SizedBox(width: 6),
-                    Text('·', style: AppTextStyles.caption),
-                    const SizedBox(width: 6),
-                    Text(user?.credentialStatus ?? '资质已认证',
-                        style: AppTextStyles.caption),
-                  ],
-                ),
-              ],
+          SliverToBoxAdapter(
+            child: ClinicalHeader(
+              productName: '智愈寻真',
+              title: '${user?.displayName ?? '老师'}的教学记录',
+              dateLabel:
+                  '${user?.orgName ?? '附属一院心内科'} · ${user?.credentialStatus ?? '资质已认证'}',
+              identityLabel: '教师',
             ),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TeachingOverview extends StatelessWidget {
-  const _TeachingOverview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          const ZySectionHeader(title: '教学概况'),
-          const SizedBox(height: AppDimens.grid3),
-          Row(
-            children: const <Widget>[
-              Expanded(child: _StatCell(label: '本月批阅', value: '126')),
-              _StatDivider(),
-              Expanded(child: _StatCell(label: '配置病例', value: '8')),
-              _StatDivider(),
-              Expanded(child: _StatCell(label: '活跃班级', value: '3')),
-            ],
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                AppDimens.grid2,
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+              ),
+              child: _TeachingSummary(
+                assignmentCount: assignmentCount,
+                caseCount: caseCount,
+                pendingReviewCount: pendingReviewCount,
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                0,
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+              ),
+              child: _TeachingRecords(
+                assignmentCount: assignmentCount,
+                caseCount: caseCount,
+                pendingReviewCount: pendingReviewCount,
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                0,
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+              ),
+              child: _TeachingNotice(),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppDimens.pagePadding,
+                0,
+                AppDimens.pagePadding,
+                AppDimens.grid6,
+              ),
+              child: _AccountSection(ref: ref),
+            ),
+          ),
+          const SliverToBoxAdapter(
+            child: SizedBox(height: AppDimens.navBarHeight + AppDimens.grid8),
           ),
         ],
       ),
@@ -119,127 +100,196 @@ class _TeachingOverview extends StatelessWidget {
   }
 }
 
-class _StatCell extends StatelessWidget {
-  const _StatCell({required this.label, required this.value});
+class _TeachingSummary extends StatelessWidget {
+  const _TeachingSummary({
+    required this.assignmentCount,
+    required this.caseCount,
+    required this.pendingReviewCount,
+  });
 
-  final String label;
-  final String value;
+  final int assignmentCount;
+  final int caseCount;
+  final int pendingReviewCount;
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        Text(value, style: AppTextStyles.h3.copyWith(color: AppColors.brand)),
-        const SizedBox(height: 4),
-        Text(label, style: AppTextStyles.caption),
+        const ClinicalSectionHeader(
+          title: '教学概况',
+          description: '数据来自当前本地教学仓库。',
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+          decoration: const BoxDecoration(
+            border: Border(
+              bottom: BorderSide(color: AppColors.rule, width: 1),
+            ),
+          ),
+          child: Row(
+            children: <Widget>[
+              Expanded(
+                child: _SummaryValue(label: '作业', value: assignmentCount),
+              ),
+              const _SummaryDivider(),
+              Expanded(
+                child: _SummaryValue(label: '病例', value: caseCount),
+              ),
+              const _SummaryDivider(),
+              Expanded(
+                child: _SummaryValue(
+                  label: '待处理',
+                  value: pendingReviewCount,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 }
 
-class _StatDivider extends StatelessWidget {
-  const _StatDivider();
+class _SummaryValue extends StatelessWidget {
+  const _SummaryValue({required this.label, required this.value});
+
+  final String label;
+  final int value;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 32,
-      color: AppColors.line,
-    );
-  }
-}
-
-class _MenuSection extends StatelessWidget {
-  const _MenuSection();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: Column(
-        children: <Widget>[
-          ZyListTile(
-            leading: const Icon(Icons.group_outlined,
-                size: 20, color: AppColors.brand),
-            title: '我的班级',
-            subtitle: '查看学生进度与作业',
-            onTap: () => context.go('/teacher/assignments'),
-          ),
-          ZyListTile(
-            leading: const Icon(Icons.layers_outlined,
-                size: 20, color: AppColors.brand),
-            title: '我的病例',
-            subtitle: '已配置和草稿病例',
-            onTap: () => context.go('/teacher/cases'),
-          ),
-          ZyListTile(
-            leading: const Icon(Icons.bar_chart_outlined,
-                size: 20, color: AppColors.brand),
-            title: '教学洞察',
-            subtitle: '班级薄弱点分析',
-            onTap: () => context.go('/teacher'),
-            showDivider: false,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Disclaimer extends StatelessWidget {
-  const _Disclaimer();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: Container(
-        padding: const EdgeInsets.all(AppDimens.grid4),
-        decoration: BoxDecoration(
-          color: AppColors.amberSoft,
-          borderRadius: BorderRadius.circular(AppDimens.radiusCard),
+    return Column(
+      children: <Widget>[
+        Text(
+          '$value',
+          style: AppTextStyles.h3.copyWith(color: AppColors.action),
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            const Icon(Icons.health_and_safety_outlined,
-                size: 18, color: AppColors.warning),
-            const SizedBox(width: AppDimens.grid2),
-            Expanded(
-              child: Text(
-                '本应用仅供医学教学训练使用，不能替代临床判断和真实医疗决策。',
-                style: AppTextStyles.caption.copyWith(color: AppColors.warning),
+        const SizedBox(height: AppDimens.grid),
+        Text(label, style: AppTextStyles.caption, textAlign: TextAlign.center),
+      ],
+    );
+  }
+}
+
+class _SummaryDivider extends StatelessWidget {
+  const _SummaryDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 36,
+      child: VerticalDivider(width: 1, color: AppColors.rule),
+    );
+  }
+}
+
+class _TeachingRecords extends StatelessWidget {
+  const _TeachingRecords({
+    required this.assignmentCount,
+    required this.caseCount,
+    required this.pendingReviewCount,
+  });
+
+  final int assignmentCount;
+  final int caseCount;
+  final int pendingReviewCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const ClinicalSectionHeader(title: '工作入口'),
+        ClinicalRecordRow(
+          leadingLabel: '班级',
+          title: '我的班级',
+          subtitle: '$assignmentCount 项作业正在登记',
+          statusLabel: '查看',
+          statusTone: ClinicalEvidenceTone.action,
+          onTap: () => context.go('/teacher/assignments'),
+        ),
+        ClinicalRecordRow(
+          leadingLabel: '病例',
+          title: '我的病例',
+          subtitle: '$caseCount 个病例可用于教学配置',
+          statusLabel: '查看',
+          statusTone: ClinicalEvidenceTone.action,
+          onTap: () => context.go('/teacher/cases'),
+        ),
+        ClinicalRecordRow(
+          leadingLabel: '概览',
+          title: '教学概览',
+          subtitle: '$pendingReviewCount 条批阅记录需要处理',
+          statusLabel: '查看',
+          statusTone: pendingReviewCount > 0
+              ? ClinicalEvidenceTone.risk
+              : ClinicalEvidenceTone.success,
+          onTap: () => context.go('/teacher'),
+        ),
+      ],
+    );
+  }
+}
+
+class _TeachingNotice extends StatelessWidget {
+  const _TeachingNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        const ClinicalSectionHeader(title: '使用说明'),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Icon(
+                Icons.health_and_safety_outlined,
+                size: 18,
+                color: AppColors.graphite,
               ),
-            ),
-          ],
+              const SizedBox(width: AppDimens.grid2),
+              Expanded(
+                child: Text(
+                  '本应用仅供医学教学训练使用，不能替代临床判断和真实医疗决策。',
+                  style: AppTextStyles.caption,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-class _LogoutButton extends StatelessWidget {
-  const _LogoutButton({required this.ref});
+class _AccountSection extends StatelessWidget {
+  const _AccountSection({required this.ref});
 
   final WidgetRef ref;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppDimens.pagePadding),
-      child: OutlinedButton.icon(
-        onPressed: () async {
-          await ref.read(authControllerProvider.notifier).logout();
-        },
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.danger,
-          side: const BorderSide(color: AppColors.dangerSoft, width: 1),
-          minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        const ClinicalSectionHeader(title: '账号'),
+        const SizedBox(height: AppDimens.grid4),
+        OutlinedButton.icon(
+          onPressed: () async {
+            await ref.read(authControllerProvider.notifier).logout();
+          },
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.risk,
+            side: const BorderSide(color: AppColors.risk, width: 1),
+          ),
+          icon: const Icon(Icons.logout_rounded, size: 20),
+          label: const Text('退出登录'),
         ),
-        icon: const Icon(Icons.logout_rounded, size: 20),
-        label: const Text('退出登录'),
-      ),
+      ],
     );
   }
 }
