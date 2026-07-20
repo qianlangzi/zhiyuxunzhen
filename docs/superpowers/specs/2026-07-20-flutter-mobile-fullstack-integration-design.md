@@ -1,7 +1,7 @@
 # 智愈寻真 Flutter Mobile 全链路联调设计
 
-日期：2026-07-20  
-范围：Flutter Mobile、Spring Boot、FastAPI、MySQL、Redis、Milvus 与 Docker 联调  
+日期：2026-07-20
+范围：Flutter Mobile、Spring Boot、FastAPI、MySQL、Redis、Milvus 与 Docker 联调
 不在范围：Vue Web 页面改造
 
 ## 1. 背景与目标
