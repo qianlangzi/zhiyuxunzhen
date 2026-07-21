@@ -422,6 +422,8 @@ public class AdminServiceImpl implements AdminService {
                 .username(user.getUsername())
                 .realName(user.getRealName())
                 .phone(maskPhone(user.getPhone()))
+                .certificateNo(user.getTeacherCertificateNo())
+                .department(user.getDepartment())
                 .auditStatus(user.getAuditStatus())
                 .createdAt(user.getCreatedAt())
                 .build();

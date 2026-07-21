@@ -21,6 +21,10 @@ public class TeacherAuditVO {
     /** 脱敏手机号 */
     private String phone;
 
+    private String certificateNo;
+
+    private String department;
+
     /** 教师认证状态：0未提交 1待审核 2通过 3驳回 */
     private Integer auditStatus;
 

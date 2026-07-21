@@ -15,15 +15,15 @@ class TeacherOverviewPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final TeachingRepository teachingRepo =
-        ref.watch(teachingRepositoryProvider);
-    final CaseRepository caseRepo = ref.watch(caseRepositoryProvider);
-
-    final List<AssignmentModel> assignments = teachingRepo.assignments();
-    final List<ReviewItem> reviewQueue =
-        _orderedReviewQueue(teachingRepo.reviewQueue());
-    final List<WeaknessItem> weakness = teachingRepo.weakness();
-    final List<CaseModel> cases = caseRepo.all();
+    final List<AssignmentModel> assignments =
+        ref.watch(teacherAssignmentListProvider).value ??
+            const <AssignmentModel>[];
+    final List<ReviewItem> reviewQueue = _orderedReviewQueue(
+        ref.watch(teacherReviewListProvider).value ?? const <ReviewItem>[]);
+    // 班级薄弱点需要聚合统计接口；未实现前保持空态，不再展示 mock 数值。
+    const List<WeaknessItem> weakness = <WeaknessItem>[];
+    final List<CaseModel> cases =
+        ref.watch(teacherCaseListProvider).value ?? const <CaseModel>[];
 
     final int pending =
         reviewQueue.where((ReviewItem item) => item.status == '待复核').length;

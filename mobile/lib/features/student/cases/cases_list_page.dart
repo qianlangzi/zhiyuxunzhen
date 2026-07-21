@@ -42,8 +42,7 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
     });
   }
 
-  List<CaseModel> get _visibleCases {
-    final List<CaseModel> all = ref.read(caseRepositoryProvider).all();
+  List<CaseModel> _visibleCases(List<CaseModel> all) {
     final String query = _query.trim().toLowerCase();
     return all.where((CaseModel item) {
       final bool departmentMatches =
@@ -58,7 +57,25 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<CaseModel> visibleCases = _visibleCases;
+    final AsyncValue<List<CaseModel>> cases = ref.watch(caseListProvider);
+    return cases.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (Object error, StackTrace stackTrace) => Scaffold(
+        body: ZyErrorState(
+          title: '病例加载失败',
+          message: error.toString(),
+          actionLabel: '重新加载',
+          onRetry: () => ref.invalidate(caseListProvider),
+        ),
+      ),
+      data: (List<CaseModel> all) => _buildCases(all),
+    );
+  }
+
+  Widget _buildCases(List<CaseModel> all) {
+    final List<CaseModel> visibleCases = _visibleCases(all);
 
     return Scaffold(
       body: CustomScrollView(
@@ -139,8 +156,11 @@ class _CasesListPageState extends ConsumerState<CasesListPage> {
                   return ClinicalRecordRow(
                     leadingLabel: item.id,
                     title: item.title,
-                    subtitle:
-                        '${item.department} · ${item.difficulty} · 预计 ${item.duration}\n${item.chief}',
+                    subtitle: <String>[
+                      item.department,
+                      item.difficulty,
+                      if (item.chief.isNotEmpty) item.chief,
+                    ].where((String value) => value.isNotEmpty).join(' · '),
                     statusLabel: item.certified ? '已认证' : '训练病例',
                     statusTone: item.certified
                         ? ClinicalEvidenceTone.success

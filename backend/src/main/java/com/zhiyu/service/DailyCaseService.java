@@ -4,6 +4,7 @@ import com.zhiyu.common.result.PageResult;
 import com.zhiyu.service.dto.DailyCaseAnswerDTO;
 import com.zhiyu.service.dto.DailyCaseScheduleDTO;
 import com.zhiyu.vo.DailyCaseVO;
+import com.zhiyu.vo.DailyCaseResultVO;
 
 /**
  * 每日一例服务（PRD 4.10 / 4.16 / 8.10）
@@ -30,5 +31,5 @@ public interface DailyCaseService {
      * 学生提交每日一例答案（PRD 4.10.2）
      * 调用 AI 中台评估，返回评估结果 JSON
      */
-    String submitAnswer(DailyCaseAnswerDTO dto);
+    DailyCaseResultVO submitAnswer(DailyCaseAnswerDTO dto);
 }

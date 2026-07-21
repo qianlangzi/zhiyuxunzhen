@@ -86,10 +86,12 @@ void main() {
         (WidgetTester tester) async {
       await pumpPage(tester, const CaseConfigPage(), size: phone360);
       await tester.enterText(find.byType(TextFormField).at(0), '胸痛三联鉴别');
+      await tester.enterText(find.byType(TextFormField).at(1), '心血管内科');
+      await tester.enterText(find.byType(TextFormField).at(4), '急性冠脉综合征');
       await tester.pump();
       await tester.tap(find.text('保存配置'));
       await tester.pumpAndSettle();
-      expect(find.text('演示配置已保存'), findsOneWidget);
+      expect(find.text('病例已保存为草稿'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -120,13 +122,13 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('assignment creation validates and adds a local row',
+    testWidgets('assignment creation validates and submits the form',
         (WidgetTester tester) async {
       await pumpPage(tester, const AssignmentsPage(), size: phone360);
       await tester.tap(find.text('新建作业'));
       await tester.pumpAndSettle();
       expect(find.text('作业名称'), findsOneWidget);
-      expect(find.text('班级'), findsOneWidget);
+      expect(find.text('目标班级'), findsOneWidget);
       expect(find.text('截止日期'), findsOneWidget);
       expect(find.text('创建作业'), findsOneWidget);
       // Submit empty → validation error
@@ -139,7 +141,6 @@ void main() {
       await tester.tap(find.text('创建作业'));
       await tester.pumpAndSettle();
       expect(find.text('作业已创建'), findsOneWidget);
-      expect(find.text('新训练作业'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -160,7 +161,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('review approve closes sheet and marks row reviewed',
+    testWidgets('review approve closes sheet and confirms submission',
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
       await _openFirstReview(tester);
@@ -173,11 +174,10 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('批阅详情'), findsNothing);
       expect(find.text('复核结果已提交'), findsOneWidget);
-      expect(find.text('已复核'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('review return closes sheet and marks row for revision',
+    testWidgets('review return explains that the endpoint is unavailable',
         (WidgetTester tester) async {
       await pumpPage(tester, const ReviewPage());
       await _openFirstReview(tester);
@@ -189,8 +189,7 @@ void main() {
       await tester.tap(find.text('退回修改'));
       await tester.pumpAndSettle();
       expect(find.text('批阅详情'), findsNothing);
-      expect(find.text('已退回修改'), findsOneWidget);
-      expect(find.text('待修改'), findsWidgets);
+      expect(find.text('退回修改接口尚未实现，本次未修改数据'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
@@ -258,7 +257,18 @@ void main() {
 
       await tester.tap(find.text('我的').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('退出登录'));
+      await tester.scrollUntilVisible(
+        find.text('退出登录'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.drag(
+        find.byType(CustomScrollView).last,
+        const Offset(0, -120),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(OutlinedButton, '退出登录'));
+      await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
       expect(find.text('智愈寻真'), findsOneWidget);
       expect(find.text('知语寻真'), findsNothing);

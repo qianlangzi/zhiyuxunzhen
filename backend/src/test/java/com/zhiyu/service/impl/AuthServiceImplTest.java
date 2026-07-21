@@ -5,8 +5,12 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.SysUserMapper;
+import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.RegisterRequest;
+import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
+import com.zhiyu.vo.RegistrationResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +41,9 @@ class AuthServiceImplTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private SmsCodeService smsCodeService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 
@@ -51,6 +58,94 @@ class AuthServiceImplTest {
         u.setStatus(0);
         u.setAuditStatus(0);
         return u;
+    }
+
+    @Test
+    @DisplayName("register 学生成功 -> 验证短信、BCrypt 加密并创建普通账号")
+    void should_register_student() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(passwordEncoder.encode("study2026")).thenReturn("encoded-password");
+        when(userMapper.insert(any(SysUser.class))).thenAnswer(invocation -> {
+            SysUser user = invocation.getArgument(0);
+            user.setId(21L);
+            return 1;
+        });
+
+        RegisterRequest req = registration(0);
+        RegistrationResponse response = authService.register(req);
+
+        verify(smsCodeService).verifyAndConsume("18500000003", "123456");
+        verify(userMapper).insert(argThat(user ->
+                user.getRole() == 0
+                        && user.getAuditStatus() == 0
+                        && "encoded-password".equals(user.getPasswordHash())
+                        && user.getTeacherCertificateNo() == null));
+        assertThat(response.getUserId()).isEqualTo(21L);
+        assertThat(response.getAuditStatus()).isZero();
+    }
+
+    @Test
+    @DisplayName("register 教师成功 -> 保存资质并进入待审核")
+    void should_register_teacher_as_pending() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(passwordEncoder.encode("study2026")).thenReturn("encoded-password");
+        when(userMapper.insert(any(SysUser.class))).thenAnswer(invocation -> {
+            SysUser user = invocation.getArgument(0);
+            user.setId(22L);
+            return 1;
+        });
+
+        RegisterRequest req = registration(1);
+        req.setCertificateNo("CERT-2026-001");
+        req.setDepartment("心内科");
+        RegistrationResponse response = authService.register(req);
+
+        verify(userMapper).insert(argThat(user ->
+                user.getRole() == 1
+                        && user.getAuditStatus() == 1
+                        && "CERT-2026-001".equals(user.getTeacherCertificateNo())
+                        && "心内科".equals(user.getDepartment())));
+        assertThat(response.getAuditStatus()).isEqualTo(1);
+        assertThat(response.getMessage()).contains("审核");
+    }
+
+    @Test
+    @DisplayName("register 重复账号 -> 拒绝且不消耗验证码")
+    void should_reject_duplicate_username_before_consuming_code() {
+        when(userMapper.selectCount(any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> authService.register(registration(0)))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.USERNAME_EXISTS.getCode()));
+
+        verify(smsCodeService, never()).verifyAndConsume(anyString(), anyString());
+        verify(userMapper, never()).insert(any());
+    }
+
+    @Test
+    @DisplayName("register 教师缺少资质 -> 拒绝且不消耗验证码")
+    void should_require_teacher_credentials() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        RegisterRequest req = registration(1);
+
+        assertThatThrownBy(() -> authService.register(req))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.VALIDATION_FAILED.getCode()));
+
+        verify(smsCodeService, never()).verifyAndConsume(anyString(), anyString());
+    }
+
+    private RegisterRequest registration(int role) {
+        RegisterRequest req = new RegisterRequest();
+        req.setUsername(role == 1 ? "teacher02" : "student02");
+        req.setPassword("study2026");
+        req.setRealName(role == 1 ? "李老师" : "李同学");
+        req.setPhone("18500000003");
+        req.setCode("123456");
+        req.setRole(role);
+        return req;
     }
 
     @Test
@@ -168,5 +263,93 @@ class AuthServiceImplTest {
         assertThat(resp.getToken()).isEqualTo("teacher-token");
         assertThat(resp.getRole()).isEqualTo(1);
         assertThat(resp.getAuditStatus()).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("login 待审核教师 -> 不签发 token")
+    void should_reject_pending_teacher_login() {
+        SysUser user = new SysUser();
+        user.setId(10L);
+        user.setUsername("teacher02");
+        user.setPasswordHash("$2a$10$hash");
+        user.setRole(1);
+        user.setStatus(0);
+        user.setAuditStatus(1);
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(passwordEncoder.matches("study2026", user.getPasswordHash())).thenReturn(true);
+
+        LoginRequest req = new LoginRequest();
+        req.setUsername("teacher02");
+        req.setPassword("study2026");
+
+        assertThatThrownBy(() -> authService.login(req))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.TEACHER_AUDIT_PENDING.getCode()));
+        verify(jwtUtils, never()).issueToken(anyLong(), anyString(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("login 管理员成功 -> 签发保留真实角色的 Web 管理 Token")
+    void should_allow_admin_login_for_web_console() {
+        SysUser user = new SysUser();
+        user.setId(30L);
+        user.setUsername("admin01");
+        user.setPasswordHash("$2a$10$hash");
+        user.setRole(4);
+        user.setStatus(0);
+        user.setAuditStatus(2);
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(passwordEncoder.matches("123456", user.getPasswordHash())).thenReturn(true);
+        when(userMapper.updateById(any())).thenReturn(1);
+        when(jwtUtils.issueToken(30L, "admin01", 4, 2)).thenReturn("admin-token");
+        when(jwtUtils.issueRefreshToken(30L)).thenReturn("admin-refresh");
+        when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
+
+        LoginRequest req = new LoginRequest();
+        req.setUsername("admin01");
+        req.setPassword("123456");
+
+        LoginResponse response = authService.login(req);
+
+        assertThat(response.getToken()).isEqualTo("admin-token");
+        assertThat(response.getRole()).isEqualTo(4);
+    }
+
+    @Test
+    @DisplayName("smsLogin 验证码正确 -> 按手机号返回真实用户角色")
+    void should_login_by_sms_code() {
+        SysUser user = studentUser();
+        user.setPhone("18500000002");
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(jwtUtils.issueToken(1L, "student01", 0, 0)).thenReturn("access-token");
+        when(jwtUtils.issueRefreshToken(1L)).thenReturn("refresh-token");
+        when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
+
+        SmsLoginRequest req = new SmsLoginRequest();
+        req.setPhone("18500000002");
+        req.setCode("123456");
+
+        LoginResponse resp = authService.smsLogin(req);
+
+        verify(smsCodeService).verifyAndConsume("18500000002", "123456");
+        assertThat(resp.getRole()).isZero();
+        assertThat(resp.getUsername()).isEqualTo("student01");
+    }
+
+    @Test
+    @DisplayName("smsLogin 未绑定手机号 -> 不签发 token")
+    void should_reject_unknown_phone() {
+        when(userMapper.selectOne(any())).thenReturn(null);
+        SmsLoginRequest req = new SmsLoginRequest();
+        req.setPhone("18500000999");
+        req.setCode("123456");
+
+        assertThatThrownBy(() -> authService.smsLogin(req))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.PHONE_OR_CODE_ERROR.getCode()));
+
+        verify(jwtUtils, never()).issueRefreshToken(anyLong());
     }
 }

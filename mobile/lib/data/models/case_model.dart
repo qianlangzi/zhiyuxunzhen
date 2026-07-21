@@ -19,6 +19,7 @@ class CaseModel {
     this.requiredExam,
     this.avoidExam,
     this.source,
+    this.scheduleId,
   });
 
   final String id;
@@ -38,12 +39,14 @@ class CaseModel {
   final String? requiredExam;
   final String? avoidExam;
   final String? source;
+  final int? scheduleId;
 }
 
 /// 病例广场条目
 @immutable
 class MarketCaseModel {
   const MarketCaseModel({
+    this.id = '',
     required this.title,
     required this.author,
     required this.department,
@@ -52,6 +55,8 @@ class MarketCaseModel {
     required this.rating,
     required this.certified,
   });
+
+  final String id;
 
   final String title;
   final String author;

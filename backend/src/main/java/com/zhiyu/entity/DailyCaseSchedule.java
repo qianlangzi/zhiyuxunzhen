@@ -20,6 +20,16 @@ public class DailyCaseSchedule extends BaseEntity {
 
     private String targetGrade;
 
+    private String question;
+
+    private String optionsJson;
+
+    private String standardAnswer;
+
+    private String answerExplanation;
+
+    private String textbookRef;
+
     /** 0草稿 1已排期 2已发布 */
     private Integer status;
 

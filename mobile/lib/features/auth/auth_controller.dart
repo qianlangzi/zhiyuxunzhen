@@ -36,9 +36,20 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController(this._repo) : super(AuthState(user: _repo.current()));
+  AuthController(this._repo) : super(AuthState(user: _repo.current())) {
+    Future<void>.microtask(_restoreSession);
+  }
 
   final AuthRepository _repo;
+
+  Future<void> _restoreSession() async {
+    try {
+      final UserModel? user = await _repo.restore();
+      state = AuthState(user: user);
+    } on AuthException catch (e) {
+      state = AuthState(error: e.message);
+    }
+  }
 
   Future<void> login({
     required String username,
@@ -56,9 +67,69 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  Future<RegistrationResult?> register({
+    required String username,
+    required String password,
+    required String realName,
+    required String phone,
+    required String code,
+    required int role,
+    String? certificateNo,
+    String? department,
+  }) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final RegistrationResult result = await _repo.register(
+        username: username,
+        password: password,
+        realName: realName,
+        phone: phone,
+        code: code,
+        role: role,
+        certificateNo: certificateNo,
+        department: department,
+      );
+      state = state.copyWith(loading: false, clearError: true);
+      return result;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return null;
+    } catch (e) {
+      state = state.copyWith(loading: false, error: '注册失败：$e');
+      return null;
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     state = const AuthState();
+  }
+
+  Future<String?> requestSmsCode(String phone) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      final String? devCode = await _repo.requestSmsCode(phone);
+      state = state.copyWith(loading: false, clearError: true);
+      return devCode;
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+      return null;
+    }
+  }
+
+  Future<void> loginWithSms({
+    required String phone,
+    required String code,
+  }) async {
+    state = state.copyWith(loading: true, clearError: true);
+    try {
+      await _repo.loginWithSms(phone: phone, code: code);
+      state = AuthState(user: _repo.current());
+    } on AuthException catch (e) {
+      state = state.copyWith(loading: false, error: e.message);
+    } catch (e) {
+      state = state.copyWith(loading: false, error: '登录失败：$e');
+    }
   }
 
   void clearError() {

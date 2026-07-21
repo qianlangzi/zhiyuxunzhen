@@ -4,6 +4,7 @@ import com.zhiyu.common.R;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.service.CaseMarketService;
 import com.zhiyu.vo.CaseMarketListVO;
+import com.zhiyu.vo.CaseMarketDetailVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,12 @@ public class CaseMarketController {
             @RequestParam(required = false) String sortBy,
             @RequestParam(required = false) String order) {
         return R.ok(caseMarketService.list(pageNum, pageSize, department, difficulty, sortBy, order));
+    }
+
+    @Operation(summary = "病例广场公开详情（不含隐藏答案）")
+    @GetMapping("/{id}")
+    public R<CaseMarketDetailVO> detail(@PathVariable Long id) {
+        return R.ok(caseMarketService.detail(id));
     }
 
     @Operation(summary = "引用病例（复制为独立副本，原病例引用量+1）")

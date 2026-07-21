@@ -20,7 +20,7 @@ void main() {
     expect(find.byType(FilledButton), findsOneWidget);
   });
 
-  testWidgets('assignment creation validates and adds a local record',
+  testWidgets('assignment creation validates and submits the form',
       (WidgetTester tester) async {
     await pumpPage(tester, const AssignmentsPage(), size: phone360);
 
@@ -30,15 +30,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('请输入作业名称'), findsOneWidget);
 
-    await tester.enterText(find.byType(TextFormField).at(0), '循环系统问诊训练');
-    await tester.enterText(find.byType(TextFormField).at(1), '临床 2203 班');
-    await tester.enterText(find.byType(TextFormField).at(2), '周五 18:00');
+    await tester.enterText(find.byType(TextFormField).first, '循环系统问诊训练');
     await tester.tap(find.text('创建作业'));
     await tester.pumpAndSettle();
 
     expect(find.text('作业已创建'), findsOneWidget);
-    expect(find.text('循环系统问诊训练'), findsOneWidget);
-    expect(find.byType(ClinicalRecordRow), findsNWidgets(4));
+    expect(find.byType(ClinicalRecordRow), findsNWidgets(3));
   });
 
   testWidgets('teacher profile uses real repository counts and no heatmap',

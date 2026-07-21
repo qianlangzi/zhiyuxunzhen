@@ -11,6 +11,12 @@ spring:
     active: ${SPRING_PROFILE:dev}
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+    validate-on-migrate: true
 
 # MyBatis Plus 全局配置（各 profile 可覆盖日志实现）
 mybatis-plus:
@@ -33,6 +39,8 @@ zhiyu:
   ai:
     base-url: ${AI_BASE_URL:http://ai:8000}
     internal-token: ${AI_INTERNAL_TOKEN:dev-internal-token}
+  sms:
+    provider: ${SMS_PROVIDER:}
   upload:
     max-file-size: 5MB
     allowed-types: jpg,jpeg,png,pdf

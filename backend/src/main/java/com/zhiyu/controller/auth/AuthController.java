@@ -3,9 +3,15 @@ package com.zhiyu.controller.auth;
 import com.zhiyu.common.R;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.service.AuthService;
+import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.RefreshTokenRequest;
+import com.zhiyu.service.dto.RegisterRequest;
+import com.zhiyu.service.dto.SmsCodeRequest;
+import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
+import com.zhiyu.vo.RegistrationResponse;
+import com.zhiyu.vo.SmsCodeResponse;
 import com.zhiyu.vo.UserInfoVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,11 +37,36 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final SmsCodeService smsCodeService;
+
+    @Operation(summary = "手机号验证注册学生或教师账号")
+    @PostMapping("/register")
+    public R<RegistrationResponse> register(@Valid @RequestBody RegisterRequest req) {
+        return R.ok(authService.register(req));
+    }
 
     @Operation(summary = "登录，返回 JWT")
     @PostMapping("/login")
     public R<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
         return R.ok(authService.login(req));
+    }
+
+    @Operation(summary = "账号密码登录（Mobile 明确路径）")
+    @PostMapping("/login/password")
+    public R<LoginResponse> passwordLogin(@Valid @RequestBody LoginRequest req) {
+        return R.ok(authService.login(req));
+    }
+
+    @Operation(summary = "获取手机登录验证码")
+    @PostMapping("/sms-code")
+    public R<SmsCodeResponse> smsCode(@Valid @RequestBody SmsCodeRequest req) {
+        return R.ok(smsCodeService.sendCode(req.getPhone()));
+    }
+
+    @Operation(summary = "手机号验证码登录")
+    @PostMapping("/login/sms")
+    public R<LoginResponse> smsLogin(@Valid @RequestBody SmsLoginRequest req) {
+        return R.ok(authService.smsLogin(req));
     }
 
     @Operation(summary = "刷新 token")

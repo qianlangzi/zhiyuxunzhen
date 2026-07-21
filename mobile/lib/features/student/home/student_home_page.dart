@@ -12,12 +12,36 @@ class StudentHomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final CaseRepository caseRepo = ref.watch(caseRepositoryProvider);
-    final LearningRepository learningRepo =
-        ref.watch(learningRepositoryProvider);
-    final CaseModel daily = caseRepo.daily();
-    final List<CaseModel> recommendedCases = caseRepo.all().take(2).toList();
-    final List<MistakeItem> mistakes = learningRepo.mistakes();
+    final AsyncValue<CaseModel?> dailyValue = ref.watch(dailyCaseProvider);
+    final AsyncValue<List<CaseModel>> casesValue = ref.watch(caseListProvider);
+    final AsyncValue<List<MistakeItem>> mistakesValue =
+        ref.watch(mistakeListProvider);
+    if (dailyValue.isLoading ||
+        casesValue.isLoading ||
+        mistakesValue.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    final Object? error =
+        dailyValue.error ?? casesValue.error ?? mistakesValue.error;
+    if (error != null) {
+      return Scaffold(
+        body: ZyErrorState(
+          title: '工作台加载失败',
+          message: error.toString(),
+          actionLabel: '重新加载',
+          onRetry: () {
+            ref.invalidate(dailyCaseProvider);
+            ref.invalidate(caseListProvider);
+            ref.invalidate(mistakeListProvider);
+          },
+        ),
+      );
+    }
+    final CaseModel? daily = dailyValue.asData?.value;
+    final List<CaseModel> recommendedCases =
+        (casesValue.asData?.value ?? const <CaseModel>[]).take(2).toList();
+    final List<MistakeItem> mistakes =
+        mistakesValue.asData?.value ?? const <MistakeItem>[];
     final DateTime today = DateTime.now();
 
     return Scaffold(
@@ -29,9 +53,25 @@ class StudentHomePage extends ConsumerWidget {
               title: '病例训练工作台',
               dateLabel: _dateLabel(today),
               identityLabel: '学生工作区',
+              action: IconButton(
+                tooltip: '我的作业',
+                icon: const Icon(Icons.assignment_outlined),
+                onPressed: () => context.push('/student/assignments'),
+              ),
             ),
           ),
-          SliverToBoxAdapter(child: _CurrentCaseSection(caseItem: daily)),
+          if (daily != null)
+            SliverToBoxAdapter(child: _CurrentCaseSection(caseItem: daily))
+          else
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(AppDimens.pagePadding),
+                child: ZyEmptyState(
+                  title: '今天还没有每日病例',
+                  detail: '教师或管理员完成排期后会显示在这里。',
+                ),
+              ),
+            ),
           SliverToBoxAdapter(child: _ReviewSection(mistakes: mistakes)),
           SliverToBoxAdapter(
             child: _RecommendedCasesSection(cases: recommendedCases),
@@ -71,7 +111,9 @@ class _CurrentCaseSection extends StatelessWidget {
                 '${caseItem.department} · ${caseItem.difficulty} · 预计 ${caseItem.duration}',
             statusLabel: '可开始',
             statusTone: ClinicalEvidenceTone.action,
-            onTap: () => context.push('/student/case/${caseItem.id}'),
+            onTap: () => context.push(
+              '/student/case/${caseItem.id}?scheduleId=${caseItem.scheduleId}',
+            ),
           ),
           const SizedBox(height: AppDimens.grid3),
           ClinicalEvidenceAxis(
@@ -105,7 +147,9 @@ class _CurrentCaseSection extends StatelessWidget {
           ),
           const SizedBox(height: AppDimens.grid4),
           FilledButton.icon(
-            onPressed: () => context.push('/student/case/${caseItem.id}'),
+            onPressed: () => context.push(
+              '/student/case/${caseItem.id}?scheduleId=${caseItem.scheduleId}',
+            ),
             icon: const Icon(Icons.arrow_forward_rounded),
             label: const Text('查看病例'),
           ),

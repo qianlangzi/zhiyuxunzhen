@@ -25,14 +25,7 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     '已初步批阅',
   ];
 
-  late List<ReviewItem> _queue;
   String _filter = '全部';
-
-  @override
-  void initState() {
-    super.initState();
-    _queue = ref.read(teachingRepositoryProvider).reviewQueue().toList();
-  }
 
   void _openDetail(ReviewItem item) {
     showModalBottomSheet<void>(
@@ -48,46 +41,44 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
     );
   }
 
-  void _handleApprove(ReviewItem item) {
-    Navigator.of(context).pop();
-    setState(() => _replaceStatus(item, '已复核'));
-    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      const SnackBar(content: Text('复核结果已提交')),
-    );
+  Future<void> _handleApprove(ReviewItem item) async {
+    try {
+      await ref.read(teachingRepositoryProvider).overrideReview(item, '');
+      ref.invalidate(teacherReviewListProvider);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        const SnackBar(content: Text('复核结果已提交')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('复核提交失败：$error')),
+      );
+    }
   }
 
   void _handleReturn(ReviewItem item) {
     Navigator.of(context).pop();
-    setState(() => _replaceStatus(item, '待修改'));
     final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
-      const SnackBar(content: Text('已退回修改')),
-    );
-  }
-
-  void _replaceStatus(ReviewItem item, String status) {
-    final int index = _queue.indexWhere((ReviewItem row) => row.id == item.id);
-    if (index < 0) return;
-    _queue[index] = ReviewItem(
-      id: item.id,
-      student: item.student,
-      assignment: item.assignment,
-      score: item.score,
-      issue: item.issue,
-      status: status,
+      const SnackBar(content: Text('退回修改接口尚未实现，本次未修改数据')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final AsyncValue<List<ReviewItem>> queueState =
+        ref.watch(teacherReviewListProvider);
+    final List<ReviewItem> queue = queueState.value ?? const <ReviewItem>[];
     final int pending =
-        _queue.where((ReviewItem item) => item.status == '待复核').length;
+        queue.where((ReviewItem item) => item.status == '待复核').length;
     final int disputed =
-        _queue.where((ReviewItem item) => item.status == '有争议项').length;
-    final List<ReviewItem> ordered = _orderedReviewQueue(_queue);
+        queue.where((ReviewItem item) => item.status == '有争议项').length;
+    final List<ReviewItem> ordered = _orderedReviewQueue(queue);
     final List<ReviewItem> visible = _filter == '全部'
         ? ordered
         : ordered
@@ -138,6 +129,14 @@ class _ReviewPageState extends ConsumerState<ReviewPage> {
                     title: '记录队列',
                     description: '争议项优先，同状态按原登记顺序',
                   ),
+                  if (queueState.isLoading)
+                    const LinearProgressIndicator(minHeight: 2),
+                  if (queueState.hasError)
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(vertical: AppDimens.grid4),
+                      child: Text('批阅队列加载失败：${queueState.error}'),
+                    ),
                   if (visible.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(

@@ -24,6 +24,7 @@ dependencies:
 
   # 本地存储
   shared_preferences: ^2.2.3
+  flutter_secure_storage: ^10.0.0
 
   # 图表（后续 OSCE 雷达图、学情曲线）
   fl_chart: ^0.68.0

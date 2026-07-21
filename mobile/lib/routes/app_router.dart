@@ -6,6 +6,7 @@ import '../core/config/app_config.dart';
 import '../core/theme/app_motion.dart';
 import '../features/auth/auth_controller.dart';
 import '../features/auth/login_page.dart';
+import '../features/auth/register_page.dart';
 import '../features/student/student_shell.dart';
 import '../features/student/home/student_home_page.dart';
 import '../features/student/cases/cases_list_page.dart';
@@ -14,6 +15,7 @@ import '../features/student/chat/chat_room_page.dart';
 import '../features/student/feedback/feedback_page.dart';
 import '../features/student/feedback/mistakes_page.dart';
 import '../features/student/profile/student_profile_page.dart';
+import '../features/student/assignments/student_assignments_page.dart';
 import '../features/teacher/teacher_shell.dart';
 import '../features/teacher/overview/teacher_overview_page.dart';
 import '../features/teacher/cases/case_config_page.dart';
@@ -35,15 +37,15 @@ class AppRouter {
       final bool loggedIn = ref.read(authControllerProvider).isLoggedIn;
       final int role = ref.read(currentRoleProvider);
       final String path = state.matchedLocation;
-      final bool onLogin = path == '/login';
+      final bool onAuth = path == '/login' || path == '/register';
 
       // 未登录 → 强制登录页
       if (!loggedIn) {
-        return onLogin ? null : '/login';
+        return onAuth ? null : '/login';
       }
 
       // 已登录访问登录页 → 跳到对应首页
-      if (onLogin) {
+      if (onAuth) {
         return role == AppConfig.roleTeacher ? '/teacher' : '/';
       }
 
@@ -67,8 +69,15 @@ class AppRouter {
     routes: <RouteBase>[
       GoRoute(
         path: '/login',
+        builder: (BuildContext context, GoRouterState state) => LoginPage(
+          initialUsername: state.uri.queryParameters['username'],
+          registrationMessage: state.uri.queryParameters['message'],
+        ),
+      ),
+      GoRoute(
+        path: '/register',
         builder: (BuildContext context, GoRouterState state) =>
-            const LoginPage(),
+            const RegisterPage(),
       ),
       // 学生 Shell：仅包裹 Tab 首页，详情/问诊室走全屏推送
       ShellRoute(
@@ -104,17 +113,36 @@ class AppRouter {
       ),
       // 学生：问诊室（全屏，自带输入栏，不显示底部 Tab）
       GoRoute(
+        path: '/student/assignments',
+        pageBuilder: (BuildContext context, GoRouterState state) =>
+            _detailPage(state, const StudentAssignmentsPage()),
+      ),
+      GoRoute(
         path: '/student/chat',
         pageBuilder: (BuildContext context, GoRouterState state) {
           final String caseId = state.uri.queryParameters['caseId'] ?? '';
-          return _detailPage(state, ChatRoomPage(caseId: caseId));
+          final int? assignmentInstanceId = int.tryParse(
+              state.uri.queryParameters['assignmentInstanceId'] ?? '');
+          return _detailPage(
+            state,
+            ChatRoomPage(
+              caseId: caseId,
+              assignmentInstanceId: assignmentInstanceId,
+            ),
+          );
         },
       ),
       // 学生：病例详情（全屏，底部带进入问诊室按钮）
       GoRoute(
         path: '/student/case/:id',
         pageBuilder: (BuildContext context, GoRouterState state) => _detailPage(
-            state, CaseDetailPage(caseId: state.pathParameters['id']!)),
+          state,
+          CaseDetailPage(
+            caseId: state.pathParameters['id']!,
+            scheduleId:
+                int.tryParse(state.uri.queryParameters['scheduleId'] ?? ''),
+          ),
+        ),
       ),
       // 教师 Shell
       ShellRoute(

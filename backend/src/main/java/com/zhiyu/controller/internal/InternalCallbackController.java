@@ -2,6 +2,8 @@ package com.zhiyu.controller.internal;
 
 import com.zhiyu.common.R;
 import com.zhiyu.service.InternalCallbackService;
+import com.zhiyu.service.AiSessionContextService;
+import com.zhiyu.service.dto.internal.SessionMessageAppendDTO;
 import com.zhiyu.service.dto.internal.MistakesSyncDTO;
 import com.zhiyu.service.dto.internal.ModelEventLogDTO;
 import com.zhiyu.service.dto.internal.ReviewCallbackDTO;
@@ -12,6 +14,10 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import com.zhiyu.vo.AiSessionContextVO;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,6 +33,24 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalCallbackController {
 
     private final InternalCallbackService internalCallbackService;
+    private final AiSessionContextService aiSessionContextService;
+
+    @Operation(summary = "获取经过归属校验的问诊病例上下文")
+    @GetMapping("/session/{sessionId}/context")
+    public R<AiSessionContextVO> sessionContext(
+            @PathVariable Long sessionId,
+            @RequestParam Long studentId) {
+        return R.ok(aiSessionContextService.getContext(sessionId, studentId));
+    }
+
+    @Operation(summary = "保存问诊消息")
+    @PostMapping("/session/{sessionId}/messages")
+    public R<Void> appendMessages(
+            @PathVariable Long sessionId,
+            @Valid @RequestBody SessionMessageAppendDTO dto) {
+        aiSessionContextService.appendMessages(sessionId, dto);
+        return R.ok();
+    }
 
     @Operation(summary = "归档问诊会话（更新状态、评分、报告、思维树）")
     @PostMapping("/session/archive")

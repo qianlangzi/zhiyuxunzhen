@@ -13,8 +13,8 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from fastapi import APIRouter
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, status
+from sse_starlette.sse import EventSourceResponse
 
 from app.agents.mentor_agent import update_tree as mentor_update
 from app.agents.sp_agent import sp_reply_stream
@@ -22,6 +22,9 @@ from app.core.logging import get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
 from app.models.chat import ChatRequest
 from app.services.rag_service import rag_service
+from app.services.backend_client import backend_client
+from app.core.security import require_mobile_student
+from app.core.config import settings
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -32,8 +35,8 @@ _SAFETY_KEYWORDS = (
 )
 
 
-def _sse(event: str, data: dict[str, Any]) -> str:
-    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+def _sse(event: str, data: dict[str, Any]) -> dict[str, str]:
+    return {"event": event, "data": json.dumps(data, ensure_ascii=False)}
 
 
 def _safety_check(text: str) -> bool:
@@ -41,15 +44,22 @@ def _safety_check(text: str) -> bool:
 
 
 def _build_history(messages: list) -> list[dict[str, str]]:
-    """把 ChatMessage 列表转为 LLM messages（role/content）"""
+    """把客户端模型或后端持久化消息统一转换为 LLM messages。"""
     out: list[dict[str, str]] = []
     for m in messages:
-        role = "assistant" if m.role in ("sp", "mentor", "system") else "user"
-        out.append({"role": role, "content": m.content})
+        if isinstance(m, dict):
+            sender = str(m.get("sender", m.get("role", "student"))).lower()
+            content = str(m.get("content", ""))
+        else:
+            sender = m.role.lower()
+            content = m.content
+        role = "assistant" if sender in ("sp", "mentor", "system") else "user"
+        if content:
+            out.append({"role": role, "content": content})
     return out
 
 
-async def _chat_stream(req: ChatRequest) -> AsyncIterator[str]:
+async def _chat_stream(req: ChatRequest, student_id: int) -> AsyncIterator[dict[str, str]]:
     trace_id = str(uuid.uuid4())
     set_context(trace_id=trace_id, session_id=str(req.session_id))
     log_event(logger, INFO, "chat_start",
@@ -57,6 +67,17 @@ async def _chat_stream(req: ChatRequest) -> AsyncIterator[str]:
               case_id=req.case_id, msgs=len(req.messages))
 
     try:
+        context = await backend_client.session_context(
+            req.session_id, student_id, trace_id=trace_id
+        )
+        if context is None or int(context.get("caseId", -1)) != req.case_id:
+            yield _sse("error", {
+                "code": "SESSION_FORBIDDEN",
+                "message": "问诊会话不存在、已结束或不属于当前学生。",
+            })
+            yield _sse("done", {"session_id": req.session_id, "ts": int(time.time())})
+            return
+
         # 1. 安全检查学生最新输入
         last_user = next(
             (m.content for m in reversed(req.messages) if m.role == "student"),
@@ -80,10 +101,30 @@ async def _chat_stream(req: ChatRequest) -> AsyncIterator[str]:
             })
 
         # 3. SP 流式回复（主流程）
-        history = _build_history(req.messages)
-        # 病例上下文：暂时使用学生最后 5 条消息拼装（生产应从 Spring Boot 拉取病例配置）
-        case_context = f"会话 {req.session_id} 的病例配置（生产环境应从业务中台拉取）：\n" + \
-                       " | ".join(m.content[:50] for m in req.messages[:3])
+        # 历史以 Spring Boot 中已经持久化的消息为准，客户端只提供本轮最新输入。
+        # 这样重装 App 或换设备后仍能继续同一会话，也不会信任客户端伪造历史。
+        history = _build_history(context.get("messages", []))
+        if last_user and (
+            not history
+            or history[-1]["role"] != "user"
+            or history[-1]["content"] != last_user
+        ):
+            history.append({"role": "user", "content": last_user})
+        case_context = json.dumps(
+            {
+                "title": context.get("title"),
+                "patientProfile": context.get("patientProfile"),
+                "hiddenDisease": context.get("hiddenDisease"),
+                "standardPath": context.get("standardPathJson"),
+                "presetExams": context.get("presetExams"),
+            },
+            ensure_ascii=False,
+        )
+        if not settings.llm_configured:
+            yield _sse("status", {
+                "degraded": True,
+                "message": "当前未配置大模型，问诊回复为规则降级结果。",
+            })
         sp_text_parts: list[str] = []
         async for delta in sp_reply_stream(case_context, history, trace_id=trace_id):
             sp_text_parts.append(delta)
@@ -92,6 +133,17 @@ async def _chat_stream(req: ChatRequest) -> AsyncIterator[str]:
         sp_text = "".join(sp_text_parts)
         log_event(logger, INFO, "sp_reply_done",
                   trace_id=trace_id, length=len(sp_text))
+
+        if last_user or sp_text:
+            await backend_client.append_session_messages(
+                req.session_id,
+                student_id,
+                [
+                    *([{"sender": "STUDENT", "content": last_user}] if last_user else []),
+                    *([{"sender": "SP", "content": sp_text}] if sp_text else []),
+                ],
+                trace_id=trace_id,
+            )
 
         # 4. Mentor 后台更新思维树（与主流程串行，避免 SSE 乱序）
         try:
@@ -121,13 +173,17 @@ async def _chat_stream(req: ChatRequest) -> AsyncIterator[str]:
 
 
 @router.post("/v1/ai/chat/stream")
-async def chat_stream(req: ChatRequest):
-    return StreamingResponse(
-        _chat_stream(req),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # 关闭 Nginx 缓冲
-            "Connection": "keep-alive",
-        },
+async def chat_stream(
+    req: ChatRequest,
+    student_id: int = Depends(require_mobile_student),
+):
+    if req.student_id is not None and req.student_id != student_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="studentId 与登录用户不一致",
+        )
+    return EventSourceResponse(
+        _chat_stream(req, student_id),
+        ping=15,
+        headers={"X-Accel-Buffering": "no"},
     )

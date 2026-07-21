@@ -2,7 +2,10 @@ package com.zhiyu.service;
 
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.RegisterRequest;
+import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
+import com.zhiyu.vo.RegistrationResponse;
 import com.zhiyu.vo.UserInfoVO;
 
 /**
@@ -14,6 +17,11 @@ public interface AuthService {
      * 登录：校验密码并签发 JWT（含 role、audit_status）
      */
     LoginResponse login(LoginRequest req);
+
+    RegistrationResponse register(RegisterRequest req);
+
+    /** 手机号和一次性验证码登录。 */
+    LoginResponse smsLogin(SmsLoginRequest req);
 
     /**
      * 刷新 token：用 refresh token 换新的 access token

@@ -6,6 +6,7 @@ import 'package:zhiyu/data/models.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/config/app_config.dart';
 import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
 
@@ -15,9 +16,35 @@ class FeedbackPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final LearningRepository repository = ref.watch(learningRepositoryProvider);
-    final List<AbilityScore> abilities = repository.abilities();
-    final List<LearningPathItem> path = repository.learningPath();
+    final AsyncValue<LearningOverview> overviewState =
+        ref.watch(learningOverviewProvider);
+    if (overviewState.isLoading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (overviewState.hasError) {
+      return Scaffold(
+        body: ZyErrorState(
+          title: '能力反馈加载失败',
+          message: overviewState.error.toString(),
+          actionLabel: '重试',
+          onRetry: () => ref.invalidate(learningOverviewProvider),
+        ),
+      );
+    }
+    final List<AbilityScore> abilities =
+        overviewState.value?.abilities ?? const <AbilityScore>[];
+    final AbilityScore? lowest = _weakestAbility(abilities);
+    final List<LearningPathItem> path = AppConfig.mockEnabled
+        ? ref.read(learningRepositoryProvider).learningPath()
+        : lowest == null
+            ? const <LearningPathItem>[]
+            : <LearningPathItem>[
+                LearningPathItem(
+                  title: '针对「${lowest.label}」继续病例训练',
+                  meta: '依据真实 OSCE 评分中的最低维度生成',
+                  progress: lowest.value,
+                ),
+              ];
     final int average = abilities.isEmpty
         ? 0
         : (abilities.fold<int>(

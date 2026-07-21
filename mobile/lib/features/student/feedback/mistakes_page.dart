@@ -24,8 +24,25 @@ class _MistakesPageState extends ConsumerState<MistakesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final LearningRepository repo = ref.watch(learningRepositoryProvider);
-    final List<MistakeItem> all = repo.mistakes();
+    final AsyncValue<List<MistakeItem>> mistakes =
+        ref.watch(mistakeListProvider);
+    return mistakes.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (Object error, StackTrace stackTrace) => Scaffold(
+        body: ZyErrorState(
+          title: '错题加载失败',
+          message: error.toString(),
+          actionLabel: '重新加载',
+          onRetry: () => ref.invalidate(mistakeListProvider),
+        ),
+      ),
+      data: _buildMistakes,
+    );
+  }
+
+  Widget _buildMistakes(List<MistakeItem> all) {
     final List<MistakeItem> filtered = switch (_filter) {
       MistakeFilter.pending =>
         all.where((MistakeItem m) => !m.reviewed).toList(),

@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
     status              TINYINT      NOT NULL DEFAULT 0  COMMENT '0正常 1冻结',
     phone               VARCHAR(20),
     id_card             VARCHAR(32),
+    teacher_certificate_no VARCHAR(100)                   COMMENT '教师资质编号',
+    department          VARCHAR(100)                      COMMENT '教师所属科室',
     avatar              VARCHAR(255),
     authorized_classes  JSON                              COMMENT '教师授权班级ID数组',
     last_login_at       DATETIME,
@@ -28,6 +30,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     UNIQUE KEY uk_username (username),
+    UNIQUE KEY uk_phone (phone),
     KEY idx_role (role),
     KEY idx_class (class_id),
     KEY idx_audit (audit_status)
@@ -94,6 +97,9 @@ CREATE TABLE IF NOT EXISTS assignment_instance (
     medical_record_text      LONGTEXT,
     format_check_result      JSON,
     submit_time              DATETIME,
+    ai_error_message         VARCHAR(500),
+    ai_retry_count           INT      NOT NULL DEFAULT 0,
+    ai_last_attempt_at       DATETIME,
     status                   TINYINT  NOT NULL DEFAULT 0  COMMENT '0未开始 1问诊中 2格式打回 3AI批阅中 4待复核 5已完成',
     is_deleted               TINYINT  NOT NULL DEFAULT 0,
     created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -197,6 +203,11 @@ CREATE TABLE IF NOT EXISTS daily_case_schedule (
     case_id       BIGINT      NOT NULL,
     publish_date  DATE        NOT NULL,
     target_grade  VARCHAR(20),
+    question      TEXT,
+    options_json  JSON,
+    standard_answer VARCHAR(255),
+    answer_explanation TEXT,
+    textbook_ref  VARCHAR(255),
     status        TINYINT     NOT NULL DEFAULT 0  COMMENT '0草稿 1已排期 2已发布',
     created_by    BIGINT,
     created_at    DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -235,3 +246,58 @@ CREATE TABLE IF NOT EXISTS audit_log (
     KEY idx_action (action),
     KEY idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='审计日志表';
+
+-- ---------- 13. teaching_class 教学班级 ----------
+CREATE TABLE IF NOT EXISTS teaching_class (
+    id          BIGINT       NOT NULL AUTO_INCREMENT,
+    name        VARCHAR(100) NOT NULL,
+    grade       VARCHAR(20),
+    status      TINYINT      NOT NULL DEFAULT 0 COMMENT '0正常 1停用',
+    is_deleted  TINYINT      NOT NULL DEFAULT 0,
+    created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_class_name_grade (name, grade),
+    KEY idx_class_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教学班级表';
+
+-- ---------- 14. teacher_class_authorization 教师班级授权 ----------
+CREATE TABLE IF NOT EXISTS teacher_class_authorization (
+    id          BIGINT   NOT NULL AUTO_INCREMENT,
+    teacher_id  BIGINT   NOT NULL,
+    class_id    BIGINT   NOT NULL,
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_teacher_class (teacher_id, class_id),
+    KEY idx_authorized_class (class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师班级授权表';
+
+-- ---------- 15. assignment_target_class 作业目标班级 ----------
+CREATE TABLE IF NOT EXISTS assignment_target_class (
+    id            BIGINT   NOT NULL AUTO_INCREMENT,
+    assignment_id BIGINT   NOT NULL,
+    class_id      BIGINT   NOT NULL,
+    created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_assignment_class (assignment_id, class_id),
+    KEY idx_target_class (class_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='作业目标班级表';
+
+-- ---------- 16. daily_case_submission 每日一例提交 ----------
+CREATE TABLE IF NOT EXISTS daily_case_submission (
+    id              BIGINT       NOT NULL AUTO_INCREMENT,
+    schedule_id     BIGINT       NOT NULL,
+    student_id      BIGINT       NOT NULL,
+    answer          VARCHAR(255) NOT NULL,
+    is_correct      TINYINT(1),
+    evaluation_json JSON,
+    submitted_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_daily_student (schedule_id, student_id),
+    KEY idx_daily_student (student_id),
+    KEY idx_daily_submitted (submitted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='每日一例提交表';

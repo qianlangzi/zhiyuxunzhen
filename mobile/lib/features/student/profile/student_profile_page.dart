@@ -25,8 +25,10 @@ class _StudentProfilePageState extends ConsumerState<StudentProfilePage> {
   @override
   Widget build(BuildContext context) {
     final UserModel? user = ref.watch(authControllerProvider).user;
+    final AsyncValue<LearningOverview> overviewState =
+        ref.watch(learningOverviewProvider);
     final List<HeatmapDay> days =
-        ref.watch(learningRepositoryProvider).heatmap();
+        overviewState.value?.activityDays ?? const <HeatmapDay>[];
     final DateTime now = DateTime.now();
     final TrainingActivitySummary summary =
         TrainingActivitySummary.fromDays(days, endDate: now);
@@ -354,6 +356,7 @@ class _AccountSection extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: () async {
             await ref.read(authControllerProvider.notifier).logout();
+            if (context.mounted) context.go('/login');
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.risk,

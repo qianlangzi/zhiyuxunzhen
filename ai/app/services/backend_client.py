@@ -43,6 +43,42 @@ class BackendClient:
                       trace_id=trace_id, path=path, error=type(e).__name__, msg=str(e))
             return False
 
+    async def session_context(
+        self,
+        session_id: int,
+        student_id: int,
+        trace_id: str = "-",
+    ) -> dict[str, Any] | None:
+        path = f"/api/internal/session/{session_id}/context"
+        url = f"{self._base_url}{path}"
+        try:
+            async with self._client() as client:
+                response = await client.get(url, params={"studentId": student_id})
+            body = response.json()
+            if response.status_code == 200 and body.get("code") == 0:
+                return body.get("data")
+            log_event(logger, WARNING, "session_context_rejected",
+                      trace_id=trace_id, status=response.status_code,
+                      code=body.get("code"))
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log_event(logger, WARNING, "session_context_error",
+                      trace_id=trace_id, error=type(exc).__name__, msg=str(exc))
+            return None
+
+    async def append_session_messages(
+        self,
+        session_id: int,
+        student_id: int,
+        messages: list[dict[str, Any]],
+        trace_id: str = "-",
+    ) -> bool:
+        return await self._post(
+            f"/api/internal/session/{session_id}/messages",
+            {"studentId": student_id, "messages": messages},
+            trace_id,
+        )
+
     # ---------- 1. 归档问诊会话 ----------
     async def archive_session(
         self,

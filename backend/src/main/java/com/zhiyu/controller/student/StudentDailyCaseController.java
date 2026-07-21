@@ -4,6 +4,7 @@ import com.zhiyu.common.R;
 import com.zhiyu.service.DailyCaseService;
 import com.zhiyu.service.dto.DailyCaseAnswerDTO;
 import com.zhiyu.vo.DailyCaseVO;
+import com.zhiyu.vo.DailyCaseResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -34,7 +35,7 @@ public class StudentDailyCaseController {
 
     @Operation(summary = "提交每日一例答案（同步调用 AI 评估，返回评估结果 JSON）")
     @PostMapping("/submit")
-    public R<String> submit(@Valid @RequestBody DailyCaseAnswerDTO dto) {
+    public R<DailyCaseResultVO> submit(@Valid @RequestBody DailyCaseAnswerDTO dto) {
         return R.ok(dailyCaseService.submitAnswer(dto));
     }
 }

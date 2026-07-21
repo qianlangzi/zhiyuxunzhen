@@ -12,6 +12,7 @@ import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.CaseMarketService;
 import com.zhiyu.vo.CaseMarketListVO;
+import com.zhiyu.vo.CaseMarketDetailVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -86,6 +87,28 @@ public class CaseMarketServiceImpl implements CaseMarketService {
                 .createdAt(c.getCreatedAt())
                 .build()).collect(Collectors.toList());
         return PageResult.of(page, list);
+    }
+
+    @Override
+    public CaseMarketDetailVO detail(Long caseId) {
+        SpCaseConfig c = caseMapper.selectById(caseId);
+        if (c == null || !Boolean.TRUE.equals(c.getIsPublic()) ||
+                c.getAdminAuditStatus() == null || c.getAdminAuditStatus() != 2 ||
+                c.getStatus() == null || c.getStatus() != 1) {
+            throw new BizException(ResultCode.CASE_NOT_FOUND);
+        }
+        SysUser creator = c.getCreatorId() == null ? null : userMapper.selectById(c.getCreatorId());
+        return CaseMarketDetailVO.builder()
+                .id(c.getId())
+                .title(c.getTitle())
+                .department(c.getDepartment())
+                .difficulty(c.getDifficulty())
+                .patientProfile(c.getPatientProfile())
+                .knowledgeTags(c.getKnowledgeTags())
+                .referenceCount(c.getReferenceCount())
+                .ratingAvg(c.getRatingAvg())
+                .creatorName(creator == null ? "" : creator.getRealName())
+                .build();
     }
 
     @Override

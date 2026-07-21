@@ -7,15 +7,22 @@ import '../../../core/constants/app_dimens.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/theme/app_motion.dart';
 import '../../../data/repositories/content_repository.dart';
+import '../../../data/repositories/chat_repository.dart';
+import '../../../data/sources/api_exception.dart';
 import '../../../shared/widgets/widgets.dart';
 
 enum ChatActionMode { question, examination, assessment }
 
 /// 问诊室：保留三种临床动作，并将对话整理为可扫描的问诊记录。
 class ChatRoomPage extends ConsumerStatefulWidget {
-  const ChatRoomPage({super.key, required this.caseId});
+  const ChatRoomPage({
+    super.key,
+    required this.caseId,
+    this.assignmentInstanceId,
+  });
 
   final String caseId;
+  final int? assignmentInstanceId;
 
   @override
   ConsumerState<ChatRoomPage> createState() => _ChatRoomPageState();
@@ -25,19 +32,20 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
   final TextEditingController _inputCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
 
-  late List<_UiMessage> _messages;
+  final List<_UiMessage> _messages = <_UiMessage>[];
   ChatActionMode _mode = ChatActionMode.question;
   bool _canSend = false;
+  int? _sessionId;
+  bool _starting = true;
+  bool _sending = false;
+  bool _finished = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    final LearningRepository repo = ref.read(learningRepositoryProvider);
-    _messages = repo
-        .chat()
-        .map((ChatMessage item) => _UiMessage.fromModel(item))
-        .toList();
     _inputCtrl.addListener(_updateCanSend);
+    Future<void>.microtask(_startSession);
   }
 
   @override
@@ -48,7 +56,11 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
   }
 
   void _updateCanSend() {
-    final bool next = _inputCtrl.text.trim().isNotEmpty;
+    final bool next = _inputCtrl.text.trim().isNotEmpty &&
+        !_starting &&
+        !_sending &&
+        !_finished &&
+        _sessionId != null;
     if (next != _canSend) setState(() => _canSend = next);
   }
 
@@ -68,22 +80,102 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
     if (shouldFollow) _scrollToBottom();
   }
 
-  void _sendMessage() {
+  Future<void> _startSession() async {
+    try {
+      final ChatSessionState state =
+          await ref.read(chatRepositoryProvider).start(
+                caseId: int.tryParse(widget.caseId) ?? 1,
+                assignmentInstanceId: widget.assignmentInstanceId,
+              );
+      if (!mounted) return;
+      setState(() {
+        _sessionId = state.sessionId;
+        _messages
+          ..clear()
+          ..addAll(state.messages.map(_UiMessage.fromModel));
+        _starting = false;
+        _error = null;
+      });
+      _updateCanSend();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _starting = false;
+        _error = error is ApiException ? error.message : error.toString();
+      });
+    }
+  }
+
+  Future<void> _sendMessage() async {
     final String text = _inputCtrl.text.trim();
-    if (text.isEmpty) return;
+    final int? sessionId = _sessionId;
+    if (text.isEmpty || sessionId == null || _sending) return;
     _appendMessage(_UiMessage(by: 'student', text: text, mode: _mode));
     _inputCtrl.clear();
-
-    // 模拟标准化病人回复；计时器只更新当前仍挂载的问诊页。
-    Future<void>.delayed(const Duration(milliseconds: 600), () {
-      if (!mounted) return;
-      _appendMessage(
-        const _UiMessage(
-          by: 'sp',
-          text: '好的，我尽量回答。具体是哪方面的问题？',
-        ),
-      );
+    setState(() {
+      _sending = true;
+      _error = null;
     });
+    _updateCanSend();
+    int? replyIndex;
+    try {
+      final List<ChatMessage> history = _messages
+          .map((item) => ChatMessage(by: item.by, text: item.text))
+          .toList();
+      await for (final ChatStreamEvent event
+          in ref.read(chatRepositoryProvider).send(
+                caseId: int.tryParse(widget.caseId) ?? 1,
+                sessionId: sessionId,
+                messages: history,
+              )) {
+        if (!mounted) return;
+        if (event.type == 'message') {
+          final String delta = event.data['delta']?.toString() ?? '';
+          setState(() {
+            if (replyIndex == null) {
+              _messages.add(_UiMessage(by: 'sp', text: delta));
+              replyIndex = _messages.length - 1;
+            } else {
+              final _UiMessage current = _messages[replyIndex!];
+              _messages[replyIndex!] =
+                  _UiMessage(by: current.by, text: current.text + delta);
+            }
+          });
+          _scrollToBottom();
+        } else if (event.type == 'socrates') {
+          final String hint = event.data['hint']?.toString() ?? '';
+          if (hint.isNotEmpty) {
+            _appendMessage(_UiMessage(by: 'mentor', text: hint));
+          }
+        } else if (event.type == 'error') {
+          throw ApiException(
+            message: event.data['message']?.toString() ?? '问诊服务返回错误',
+          );
+        }
+      }
+      if (_mode == ChatActionMode.assessment) {
+        await ref.read(chatRepositoryProvider).finish(sessionId);
+        if (mounted) {
+          setState(() => _finished = true);
+          _appendMessage(const _UiMessage(
+            by: 'system',
+            text: '本次问诊已结束。若这是作业，请返回“我的作业”提交大病历。',
+          ));
+          ref.invalidate(learningOverviewProvider);
+          ref.invalidate(studentAssignmentListProvider);
+        }
+      }
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error is ApiException ? error.message : error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _sending = false);
+        _updateCanSend();
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -121,19 +213,10 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
     );
   }
 
-  CaseModel? _resolveCase(CaseRepository repository) {
-    final CaseModel? listedCase = repository.byId(widget.caseId);
-    if (listedCase != null) return listedCase;
-
-    // 每日病例不在 all()/byId() 合同中，仅在展示层做兼容解析。
-    final CaseModel daily = repository.daily();
-    return daily.id == widget.caseId ? daily : null;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final CaseRepository caseRepository = ref.watch(caseRepositoryProvider);
-    final CaseModel? caseItem = _resolveCase(caseRepository);
+    final CaseModel? caseItem =
+        ref.watch(caseDetailProvider(widget.caseId)).value;
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -153,6 +236,23 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
         child: Column(
           children: <Widget>[
             if (caseItem != null) _PatientSummary(caseItem: caseItem),
+            if (_starting) const LinearProgressIndicator(minHeight: 2),
+            if (_error != null)
+              MaterialBanner(
+                content: Text(_error!),
+                actions: <Widget>[
+                  if (_sessionId == null)
+                    TextButton(
+                      onPressed: _startSession,
+                      child: const Text('重试'),
+                    )
+                  else
+                    TextButton(
+                      onPressed: () => setState(() => _error = null),
+                      child: const Text('知道了'),
+                    ),
+                ],
+              ),
             Expanded(
               child: _MessageList(
                 messages: _messages,
@@ -167,7 +267,7 @@ class _ChatRoomPageState extends ConsumerState<ChatRoomPage> {
               onModeChanged: (ChatActionMode mode) {
                 setState(() => _mode = mode);
               },
-              onSend: _sendMessage,
+              onSend: () => _sendMessage(),
             ),
           ],
         ),

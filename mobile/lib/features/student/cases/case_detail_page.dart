@@ -10,35 +10,49 @@ import '../../../data/repositories/content_repository.dart';
 import '../../../shared/widgets/widgets.dart';
 
 class CaseDetailPage extends ConsumerWidget {
-  const CaseDetailPage({super.key, required this.caseId});
+  const CaseDetailPage({
+    super.key,
+    required this.caseId,
+    this.scheduleId,
+  });
 
   final String caseId;
+  final int? scheduleId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final CaseRepository repository = ref.watch(caseRepositoryProvider);
-    final CaseModel daily = repository.daily();
-    final CaseModel? caseItem =
-        repository.byId(caseId) ?? (daily.id == caseId ? daily : null);
-
-    if (caseItem == null) {
-      return Scaffold(
+    final AsyncValue<CaseModel?> detail = scheduleId == null
+        ? ref.watch(caseDetailProvider(caseId))
+        : ref.watch(dailyCaseProvider);
+    return detail.when(
+      loading: () => const Scaffold(
+        appBar: ZyAppBar(title: '病例详情'),
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (Object error, StackTrace stackTrace) => Scaffold(
         appBar: const ZyAppBar(title: '病例详情'),
         body: ZyErrorState(
-          title: '病例不可用',
-          message: '病例不存在或已下架',
-          actionLabel: '返回病例列表',
-          onRetry: () {
-            if (context.canPop()) {
-              context.pop();
-              return;
-            }
-            context.go('/student/cases');
-          },
+          title: '病例加载失败',
+          message: error.toString(),
+          actionLabel: '重新加载',
+          onRetry: () => ref.invalidate(caseDetailProvider(caseId)),
         ),
-      );
-    }
+      ),
+      data: (CaseModel? caseItem) => caseItem == null
+          ? Scaffold(
+              appBar: const ZyAppBar(title: '病例详情'),
+              body: ZyErrorState(
+                title: '病例不可用',
+                message: '病例不存在或已下架',
+                actionLabel: '返回病例列表',
+                onRetry: () => context.go('/student/cases'),
+              ),
+            )
+          : _buildDetail(context, caseItem),
+    );
+  }
 
+  Widget _buildDetail(BuildContext context, CaseModel caseItem) {
     return Scaffold(
       appBar: const ZyAppBar(title: '病例详情'),
       body: ListView(
@@ -58,10 +72,12 @@ class CaseDetailPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 const ClinicalSectionHeader(title: '患者概况'),
-                _DetailRow(label: '主诉', value: caseItem.chief),
+                if (caseItem.chief.isNotEmpty)
+                  _DetailRow(label: '主诉', value: caseItem.chief),
                 _DetailRow(label: '科室', value: caseItem.department),
                 _DetailRow(label: '难度', value: caseItem.difficulty),
-                _DetailRow(label: '预计用时', value: caseItem.duration),
+                if (caseItem.duration.isNotEmpty)
+                  _DetailRow(label: '预计用时', value: caseItem.duration),
                 const SizedBox(height: AppDimens.grid6),
                 const ClinicalSectionHeader(title: '训练目标'),
                 Padding(
@@ -69,7 +85,9 @@ class CaseDetailPage extends ConsumerWidget {
                     vertical: AppDimens.grid4,
                   ),
                   child: Text(
-                    caseItem.tags.join('、'),
+                    caseItem.tags.isEmpty
+                        ? '进入问诊后逐步收集诊断依据'
+                        : caseItem.tags.join('、'),
                     style: AppTextStyles.body,
                   ),
                 ),
@@ -85,6 +103,8 @@ class CaseDetailPage extends ConsumerWidget {
                   if (caseItem.source != null)
                     _DetailRow(label: '资料来源', value: caseItem.source!),
                 ],
+                if (scheduleId != null && caseItem.options.isNotEmpty)
+                  _DailyAnswerSection(caseItem: caseItem),
                 const SizedBox(height: AppDimens.grid6),
                 const ClinicalSectionHeader(
                   title: '注意事项',
@@ -125,6 +145,80 @@ class CaseDetailPage extends ConsumerWidget {
           icon: const Icon(Icons.chat_bubble_outline_rounded),
           label: const Text('开始问诊'),
         ),
+      ),
+    );
+  }
+}
+
+class _DailyAnswerSection extends ConsumerStatefulWidget {
+  const _DailyAnswerSection({required this.caseItem});
+
+  final CaseModel caseItem;
+
+  @override
+  ConsumerState<_DailyAnswerSection> createState() =>
+      _DailyAnswerSectionState();
+}
+
+class _DailyAnswerSectionState extends ConsumerState<_DailyAnswerSection> {
+  String? _answer;
+  bool _submitting = false;
+  Map<String, dynamic>? _result;
+
+  Future<void> _submit() async {
+    if (_answer == null || widget.caseItem.scheduleId == null) return;
+    setState(() => _submitting = true);
+    try {
+      final result = await ref.read(caseRepositoryProvider).submitDaily(
+            scheduleId: widget.caseItem.scheduleId!,
+            answer: _answer!,
+          );
+      if (mounted) setState(() => _result = result);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('提交失败：$error')));
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: AppDimens.grid5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const ClinicalSectionHeader(
+            title: '每日一例答题',
+            description: '选择答案后提交，服务端会保存本次结果。',
+          ),
+          ...widget.caseItem.options.map((option) => RadioListTile<String>(
+                value: option,
+                groupValue: _answer,
+                title: Text(option),
+                onChanged: _result == null
+                    ? (value) => setState(() => _answer = value)
+                    : null,
+              )),
+          if (_result == null)
+            FilledButton(
+              onPressed: _answer == null || _submitting ? null : _submit,
+              child: Text(_submitting ? '提交中…' : '提交答案'),
+            )
+          else
+            ClinicalEvidenceAxis(nodes: <ClinicalEvidenceNode>[
+              ClinicalEvidenceNode(
+                label: _result!['correct'] == true ? '回答正确' : '已完成评估',
+                detail: _result!['explanation']?.toString() ?? '结果已保存',
+                statusLabel: _result!['degraded'] == true ? '降级评估' : '已评估',
+                tone: _result!['correct'] == true
+                    ? ClinicalEvidenceTone.success
+                    : ClinicalEvidenceTone.action,
+              ),
+            ]),
+        ],
       ),
     );
   }

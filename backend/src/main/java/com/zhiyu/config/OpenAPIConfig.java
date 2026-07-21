@@ -28,7 +28,7 @@ public class OpenAPIConfig {
                                 + "## 角色体系\n"
                                 + "- 0 学生 / 1 教师 / 2 教学秘书 / 3 教研室主任 / 4 管理员 / 5 运维\n\n"
                                 + "## 鉴权\n"
-                                + "除 /api/v1/auth/login、/api/v1/health、/api/internal/** 外，所有接口需在 Header 中携带 `Authorization: Bearer <JWT>`\n\n"
+                                + "除 /api/v1/auth/register、/api/v1/auth/login、/api/v1/auth/sms-code、/api/v1/health、/api/internal/** 外，所有接口需在 Header 中携带 `Authorization: Bearer <JWT>`\n\n"
                                 + "## 错误码\n"
                                 + "- 0 成功\n"
                                 + "- 1xxx 客户端错误（1001 未登录 / 1003 无权限 / 1422 参数校验失败）\n"

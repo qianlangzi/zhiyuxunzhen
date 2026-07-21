@@ -9,14 +9,22 @@ import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.entity.SysUser;
+import com.zhiyu.entity.TeachingClass;
+import com.zhiyu.entity.TeacherClassAuthorization;
+import com.zhiyu.entity.AssignmentTargetClass;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.SysUserMapper;
+import com.zhiyu.mapper.TeachingClassMapper;
+import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
+import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.service.TeacherAssignmentService;
 import com.zhiyu.service.dto.AssignmentCreateDTO;
 import com.zhiyu.vo.AssignmentProgressVO;
 import com.zhiyu.vo.StudentProgressVO;
+import com.zhiyu.vo.TeacherAssignmentListVO;
+import com.zhiyu.vo.TeachingClassVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +49,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final AssignmentInstanceMapper instanceMapper;
     private final SpCaseConfigMapper caseMapper;
     private final SysUserMapper userMapper;
+    private final TeachingClassMapper classMapper;
+    private final TeacherClassAuthorizationMapper authorizationMapper;
+    private final AssignmentTargetClassMapper targetClassMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -52,6 +63,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
         if (!teacherId.equals(c.getCreatorId())) {
             throw new BizException(ResultCode.FORBIDDEN, "只能使用本人创建的病例布置作业");
+        }
+
+        List<Long> authorizedClassIds = authorizationMapper.selectList(
+                        new LambdaQueryWrapper<TeacherClassAuthorization>()
+                                .eq(TeacherClassAuthorization::getTeacherId, teacherId))
+                .stream().map(TeacherClassAuthorization::getClassId).toList();
+        if (!authorizedClassIds.containsAll(req.getClassIds())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能向已授权班级布置作业");
         }
 
         Assignment a = new Assignment();
@@ -66,6 +85,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         a.setAllowLateSubmit(req.getAllowLateSubmit() == null ? Boolean.FALSE : req.getAllowLateSubmit());
         a.setStatus(1);
         assignmentMapper.insert(a);
+
+        List<AssignmentTargetClass> targets = req.getClassIds().stream().distinct().map(classId -> {
+            AssignmentTargetClass target = new AssignmentTargetClass();
+            target.setAssignmentId(a.getId());
+            target.setClassId(classId);
+            return target;
+        }).toList();
+        Db.saveBatch(targets);
 
         // 为所选班级的每个学生批量生成作业实例（避免逐条 insert 性能差）
         List<SysUser> students = userMapper.selectList(
@@ -87,6 +114,63 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
         log.info("教师{}创建作业{}，生成{}个学生实例", teacherId, a.getId(), students.size());
         return a.getId();
+    }
+
+    @Override
+    public List<TeacherAssignmentListVO> list() {
+        Long teacherId = UserContext.requireUserId();
+        List<Assignment> assignments = assignmentMapper.selectList(
+                new LambdaQueryWrapper<Assignment>()
+                        .eq(Assignment::getTeacherId, teacherId)
+                        .orderByDesc(Assignment::getCreatedAt));
+        if (assignments.isEmpty()) return List.of();
+        List<Long> ids = assignments.stream().map(Assignment::getId).toList();
+        List<AssignmentTargetClass> targets = targetClassMapper.selectList(
+                new LambdaQueryWrapper<AssignmentTargetClass>()
+                        .in(AssignmentTargetClass::getAssignmentId, ids));
+        Map<Long, TeachingClass> classMap = classMapper.selectBatchIds(
+                        targets.stream().map(AssignmentTargetClass::getClassId).distinct().toList())
+                .stream().collect(Collectors.toMap(TeachingClass::getId, item -> item));
+        Map<Long, List<AssignmentTargetClass>> targetsByAssignment = targets.stream()
+                .collect(Collectors.groupingBy(AssignmentTargetClass::getAssignmentId));
+        List<AssignmentInstance> instances = instanceMapper.selectList(
+                new LambdaQueryWrapper<AssignmentInstance>().in(AssignmentInstance::getAssignmentId, ids));
+        Map<Long, List<AssignmentInstance>> instancesByAssignment = instances.stream()
+                .collect(Collectors.groupingBy(AssignmentInstance::getAssignmentId));
+        Map<Long, SpCaseConfig> cases = caseMapper.selectBatchIds(
+                        assignments.stream().map(Assignment::getCaseId).distinct().toList())
+                .stream().collect(Collectors.toMap(SpCaseConfig::getId, item -> item));
+        return assignments.stream().map(a -> {
+            List<AssignmentInstance> rows = instancesByAssignment.getOrDefault(a.getId(), List.of());
+            long submitted = rows.stream().filter(item -> item.getStatus() != null && item.getStatus() >= 2).count();
+            List<String> classNames = targetsByAssignment.getOrDefault(a.getId(), List.of()).stream()
+                    .map(AssignmentTargetClass::getClassId).map(classMap::get).filter(Objects::nonNull)
+                    .map(TeachingClass::getName).toList();
+            SpCaseConfig c = cases.get(a.getCaseId());
+            return TeacherAssignmentListVO.builder()
+                    .id(a.getId()).title(a.getTitle()).caseId(a.getCaseId())
+                    .caseTitle(c == null ? "" : c.getTitle()).deadline(a.getDeadline())
+                    .status(a.getStatus()).requireMedicalRecord(a.getRequireMedicalRecord())
+                    .antiCheatVariables(a.getAntiCheatVariables()).classNames(classNames)
+                    .submittedCount(submitted).studentCount((long) rows.size()).build();
+        }).toList();
+    }
+
+    @Override
+    public List<TeachingClassVO> classes() {
+        Long teacherId = UserContext.requireUserId();
+        List<Long> ids = authorizationMapper.selectList(
+                        new LambdaQueryWrapper<TeacherClassAuthorization>()
+                                .eq(TeacherClassAuthorization::getTeacherId, teacherId))
+                .stream().map(TeacherClassAuthorization::getClassId).toList();
+        if (ids.isEmpty()) return List.of();
+        return classMapper.selectBatchIds(ids).stream()
+                .filter(item -> item.getStatus() != null && item.getStatus() == 0)
+                .map(item -> TeachingClassVO.builder().id(item.getId()).name(item.getName())
+                        .grade(item.getGrade()).studentCount(userMapper.selectCount(
+                                new LambdaQueryWrapper<SysUser>().eq(SysUser::getRole, 0)
+                                        .eq(SysUser::getClassId, item.getId()).eq(SysUser::getStatus, 0)))
+                        .build()).toList();
     }
 
     @Override

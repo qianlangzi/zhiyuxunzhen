@@ -14,29 +14,52 @@ class AssignmentsPage extends ConsumerStatefulWidget {
 }
 
 class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
-  late List<AssignmentModel> _assignments;
-
-  @override
-  void initState() {
-    super.initState();
-    _assignments = ref.read(teachingRepositoryProvider).assignments().toList();
-  }
-
-  void _showCreateSheet() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (BuildContext sheetContext) => _CreateAssignmentSheet(
-        onCreate: (AssignmentModel assignment) {
-          setState(() => _assignments.add(assignment));
-          Navigator.of(sheetContext).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('作业已创建')),
-          );
-        },
-      ),
-    );
+  Future<void> _showCreateSheet() async {
+    final TeachingRepository repository = ref.read(teachingRepositoryProvider);
+    try {
+      final List<dynamic> result = await Future.wait<dynamic>(<Future<dynamic>>[
+        repository.fetchClasses(),
+        ref.read(caseRepositoryProvider).fetchCases(),
+      ]);
+      if (!mounted) return;
+      final List<Map<String, dynamic>> classes =
+          result[0] as List<Map<String, dynamic>>;
+      final List<CaseModel> cases = result[1] as List<CaseModel>;
+      if (classes.isEmpty || cases.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('请先准备已授权班级和本人病例')),
+        );
+        return;
+      }
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (BuildContext sheetContext) => _CreateAssignmentSheet(
+          classes: classes,
+          cases: cases,
+          onCreate: (AssignmentModel assignment) async {
+            await repository.createAssignment(
+              caseId: assignment.caseId!,
+              classId: assignment.classId!,
+              title: assignment.title,
+              deadline: DateTime.parse(assignment.due),
+            );
+            ref.invalidate(teacherAssignmentListProvider);
+            if (!mounted || !sheetContext.mounted) return;
+            Navigator.of(sheetContext).pop();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('作业已创建')),
+            );
+          },
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('加载创建选项失败：$error')),
+      );
+    }
   }
 
   void _showRulesSheet() {
@@ -55,6 +78,10 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
     final List<FormatShieldRule> rules =
         ref.watch(teachingRepositoryProvider).formatRules();
 
+    final AsyncValue<List<AssignmentModel>> assignmentState =
+        ref.watch(teacherAssignmentListProvider);
+    final List<AssignmentModel> assignments =
+        assignmentState.value ?? const <AssignmentModel>[];
     return Scaffold(
       body: CustomScrollView(
         slivers: <Widget>[
@@ -90,7 +117,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
               ),
               child: ClinicalSectionHeader(
                 title: '班级任务',
-                description: '共 ${_assignments.length} 项，按截止时间与处理状态登记。',
+                description: '共 ${assignments.length} 项，按截止时间与处理状态登记。',
               ),
             ),
           ),
@@ -99,9 +126,9 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
               horizontal: AppDimens.pagePadding,
             ),
             sliver: SliverList.builder(
-              itemCount: _assignments.length,
+              itemCount: assignments.length,
               itemBuilder: (BuildContext context, int index) {
-                final AssignmentModel item = _assignments[index];
+                final AssignmentModel item = assignments[index];
                 return ClinicalRecordRow(
                   leadingLabel: item.due,
                   title: item.title,
@@ -113,6 +140,16 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
               },
             ),
           ),
+          if (assignmentState.isLoading)
+            const SliverToBoxAdapter(
+                child: LinearProgressIndicator(minHeight: 2)),
+          if (assignmentState.hasError)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(AppDimens.pagePadding),
+                child: Text('作业加载失败：${assignmentState.error}'),
+              ),
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(
@@ -247,9 +284,15 @@ class _FormatRulesSheet extends StatelessWidget {
 }
 
 class _CreateAssignmentSheet extends StatefulWidget {
-  const _CreateAssignmentSheet({required this.onCreate});
+  const _CreateAssignmentSheet({
+    required this.onCreate,
+    required this.classes,
+    required this.cases,
+  });
 
-  final ValueChanged<AssignmentModel> onCreate;
+  final Future<void> Function(AssignmentModel) onCreate;
+  final List<Map<String, dynamic>> classes;
+  final List<CaseModel> cases;
 
   @override
   State<_CreateAssignmentSheet> createState() => _CreateAssignmentSheetState();
@@ -258,35 +301,51 @@ class _CreateAssignmentSheet extends StatefulWidget {
 class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _classController = TextEditingController();
-  final TextEditingController _dueController = TextEditingController();
+  late int _classId;
+  late int _caseId;
+  late DateTime _deadline;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _classId = (widget.classes.first['id'] as num).toInt();
+    _caseId = int.tryParse(widget.cases.first.id) ?? 1;
+    _deadline = DateTime.now().add(const Duration(days: 7));
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
-    _classController.dispose();
-    _dueController.dispose();
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    widget.onCreate(
-      AssignmentModel(
+    setState(() => _submitting = true);
+    try {
+      await widget.onCreate(AssignmentModel(
+        caseId: _caseId,
+        classId: _classId,
         title: _titleController.text.trim(),
-        className: _classController.text.trim().isEmpty
-            ? '未指定班级'
-            : _classController.text.trim(),
+        className: widget.classes
+            .firstWhere(
+                (item) => (item['id'] as num).toInt() == _classId)['name']
+            .toString(),
         submitted: 0,
         total: 0,
-        due: _dueController.text.trim().isEmpty
-            ? '未设置'
-            : _dueController.text.trim(),
+        due: _deadline.toIso8601String(),
         status: '进行中',
-        requireRecord: false,
+        requireRecord: true,
         variable: '关闭',
-      ),
-    );
+      ));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('创建失败：$error')),
+      );
+      setState(() => _submitting = false);
+    }
   }
 
   @override
@@ -326,22 +385,58 @@ class _CreateAssignmentSheetState extends State<_CreateAssignmentSheet> {
                   },
                 ),
                 const SizedBox(height: AppDimens.grid3),
-                TextFormField(
-                  controller: _classController,
-                  textInputAction: TextInputAction.next,
-                  decoration: const InputDecoration(labelText: '班级'),
+                DropdownButtonFormField<int>(
+                  initialValue: _caseId,
+                  decoration: const InputDecoration(labelText: '训练病例'),
+                  items: widget.cases
+                      .asMap()
+                      .entries
+                      .map((entry) => DropdownMenuItem<int>(
+                            value:
+                                int.tryParse(entry.value.id) ?? entry.key + 1,
+                            child: Text(entry.value.title),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => _caseId = value!),
                 ),
                 const SizedBox(height: AppDimens.grid3),
-                TextFormField(
-                  controller: _dueController,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _submit(),
-                  decoration: const InputDecoration(labelText: '截止日期'),
+                DropdownButtonFormField<int>(
+                  initialValue: _classId,
+                  decoration: const InputDecoration(labelText: '目标班级'),
+                  items: widget.classes
+                      .map((item) => DropdownMenuItem<int>(
+                            value: (item['id'] as num).toInt(),
+                            child: Text(
+                                '${item['name']}（${item['studentCount']} 人）'),
+                          ))
+                      .toList(),
+                  onChanged: (value) => setState(() => _classId = value!),
+                ),
+                const SizedBox(height: AppDimens.grid3),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('截止日期'),
+                  subtitle: Text(
+                    '${_deadline.year}-${_deadline.month.toString().padLeft(2, '0')}-${_deadline.day.toString().padLeft(2, '0')}',
+                  ),
+                  trailing: const Icon(Icons.calendar_today_outlined),
+                  onTap: () async {
+                    final DateTime? picked = await showDatePicker(
+                      context: context,
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      initialDate: _deadline,
+                    );
+                    if (picked != null) {
+                      setState(() =>
+                          _deadline = picked.copyWith(hour: 23, minute: 59));
+                    }
+                  },
                 ),
                 const SizedBox(height: AppDimens.grid5),
                 FilledButton(
-                  onPressed: _submit,
-                  child: const Text('创建作业'),
+                  onPressed: _submitting ? null : _submit,
+                  child: Text(_submitting ? '创建中…' : '创建作业'),
                 ),
               ],
             ),

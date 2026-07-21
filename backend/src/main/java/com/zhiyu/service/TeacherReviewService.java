@@ -2,11 +2,15 @@ package com.zhiyu.service;
 
 import com.zhiyu.service.dto.ReviewOverrideDTO;
 import com.zhiyu.vo.TeacherReviewVO;
+import com.zhiyu.vo.TeacherReviewQueueVO;
+import java.util.List;
 
 /**
  * 教师复核 AI 批阅服务（PRD 4.4.4 / 5.3 第 7 步）
  */
 public interface TeacherReviewService {
+
+    List<TeacherReviewQueueVO> list();
 
     /**
      * 查询某作业实例最新的批阅记录（优先返回教师覆盖记录，否则返回 AI 批阅）

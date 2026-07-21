@@ -191,7 +191,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('approve and return update the local queue state',
+    testWidgets('approve submits while return reports the missing endpoint',
         (WidgetTester tester) async {
       await pumpPage(
         tester,
@@ -211,12 +211,12 @@ void main() {
       await tester.tap(find.text('通过'));
       await tester.pumpAndSettle();
 
-      ClinicalRecordRow approved = tester
+      final ClinicalRecordRow approved = tester
           .widgetList<ClinicalRecordRow>(find.byType(ClinicalRecordRow))
           .singleWhere(
             (ClinicalRecordRow row) => row.title == '孙同学 · 诊断推理训练',
           );
-      expect(approved.statusLabel, '已复核');
+      expect(approved.statusLabel, '有争议项');
       expect(find.text('复核结果已提交'), findsOneWidget);
 
       final Finder pendingRow = find.byWidgetPredicate(
@@ -239,8 +239,8 @@ void main() {
           .singleWhere(
             (ClinicalRecordRow row) => row.title == '钱同学 · 胸痛问诊训练',
           );
-      expect(returned.statusLabel, '待修改');
-      expect(find.text('已退回修改'), findsOneWidget);
+      expect(returned.statusLabel, '待复核');
+      expect(find.text('退回修改接口尚未实现，本次未修改数据'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

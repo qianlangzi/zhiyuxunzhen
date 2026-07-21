@@ -8,13 +8,16 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.MedicalRecordReview;
+import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.MedicalRecordReviewMapper;
+import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.TeacherReviewService;
 import com.zhiyu.service.dto.ReviewOverrideDTO;
 import com.zhiyu.vo.TeacherReviewVO;
+import com.zhiyu.vo.TeacherReviewQueueVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 教师复核 AI 批阅服务实现（PRD 4.4.4 / 5.3 第 7 步）
@@ -39,6 +45,46 @@ public class TeacherReviewServiceImpl implements TeacherReviewService {
     private final AssignmentMapper assignmentMapper;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+    private final SysUserMapper userMapper;
+
+    @Override
+    public List<TeacherReviewQueueVO> list() {
+        Long teacherId = UserContext.requireUserId();
+        List<Assignment> assignments = assignmentMapper.selectList(
+                new LambdaQueryWrapper<Assignment>().eq(Assignment::getTeacherId, teacherId));
+        if (assignments.isEmpty()) return List.of();
+        Map<Long, Assignment> assignmentMap = assignments.stream()
+                .collect(Collectors.toMap(Assignment::getId, Function.identity()));
+        List<AssignmentInstance> instances = instanceMapper.selectList(
+                new LambdaQueryWrapper<AssignmentInstance>()
+                        .in(AssignmentInstance::getAssignmentId, assignmentMap.keySet())
+                        .ge(AssignmentInstance::getStatus, 3)
+                        .orderByDesc(AssignmentInstance::getUpdatedAt));
+        if (instances.isEmpty()) return List.of();
+        Map<Long, String> studentNames = userMapper.selectBatchIds(
+                        instances.stream().map(AssignmentInstance::getStudentId).filter(Objects::nonNull).distinct().toList())
+                .stream().collect(Collectors.toMap(SysUser::getId, SysUser::getRealName));
+        List<MedicalRecordReview> reviews = reviewMapper.selectList(
+                new LambdaQueryWrapper<MedicalRecordReview>()
+                        .in(MedicalRecordReview::getInstanceId,
+                                instances.stream().map(AssignmentInstance::getId).toList())
+                        .orderByDesc(MedicalRecordReview::getCreatedAt));
+        Map<Long, MedicalRecordReview> latest = new HashMap<>();
+        reviews.forEach(review -> latest.putIfAbsent(review.getInstanceId(), review));
+        return instances.stream().map(instance -> {
+            Assignment assignment = assignmentMap.get(instance.getAssignmentId());
+            MedicalRecordReview review = latest.get(instance.getId());
+            return TeacherReviewQueueVO.builder()
+                    .instanceId(instance.getId())
+                    .studentName(studentNames.getOrDefault(instance.getStudentId(), ""))
+                    .assignmentTitle(assignment == null ? "" : assignment.getTitle())
+                    .score(review == null ? null : review.getTotalScore())
+                    .issue(review == null ? "等待 AI 批阅结果" : review.getReviewComment())
+                    .instanceStatus(instance.getStatus())
+                    .latestReviewId(review == null ? null : review.getId())
+                    .build();
+        }).toList();
+    }
 
     @Override
     public TeacherReviewVO getReview(Long instanceId) {

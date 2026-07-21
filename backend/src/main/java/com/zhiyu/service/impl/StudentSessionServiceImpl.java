@@ -5,19 +5,28 @@ import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.ChatSession;
+import com.zhiyu.entity.ChatMessageLog;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.DailyCaseSchedule;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
+import com.zhiyu.mapper.ChatMessageLogMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.DailyCaseScheduleMapper;
 import com.zhiyu.service.StudentSessionService;
 import com.zhiyu.service.dto.SessionStartDTO;
 import com.zhiyu.vo.SessionStartVO;
+import com.zhiyu.vo.StudentSessionDetailVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 /**
  * 学生问诊会话服务实现（PRD 5.2 第 1 步）
@@ -34,6 +43,8 @@ public class StudentSessionServiceImpl implements StudentSessionService {
     private final ChatSessionMapper sessionMapper;
     private final SpCaseConfigMapper caseMapper;
     private final AssignmentInstanceMapper instanceMapper;
+    private final ChatMessageLogMapper messageMapper;
+    private final DailyCaseScheduleMapper dailyCaseScheduleMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -63,6 +74,18 @@ public class StudentSessionServiceImpl implements StudentSessionService {
             // 已提交大病历(2/3/4/5)不允许再启动问诊
             if (instStatus >= 2) {
                 throw new BizException(ResultCode.BAD_REQUEST, "作业实例已进入批阅流程，无法启动问诊");
+            }
+        } else {
+            boolean publicCase = Boolean.TRUE.equals(c.getIsPublic())
+                    && Integer.valueOf(2).equals(c.getAdminAuditStatus())
+                    && Integer.valueOf(1).equals(c.getStatus());
+            boolean todayDailyCase = dailyCaseScheduleMapper.selectCount(
+                    new LambdaQueryWrapper<DailyCaseSchedule>()
+                            .eq(DailyCaseSchedule::getCaseId, req.getCaseId())
+                            .eq(DailyCaseSchedule::getPublishDate, LocalDate.now())
+                            .eq(DailyCaseSchedule::getStatus, 2)) > 0;
+            if (!publicCase && !todayDailyCase) {
+                throw new BizException(ResultCode.FORBIDDEN, "该病例未公开且未分配给当前学生");
             }
         }
 
@@ -96,5 +119,48 @@ public class StudentSessionServiceImpl implements StudentSessionService {
                 .status(0)
                 .createdAt(session.getCreatedAt())
                 .build();
+    }
+
+    @Override
+    public StudentSessionDetailVO detail(Long sessionId) {
+        Long studentId = UserContext.requireUserId();
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
+        }
+        if (!studentId.equals(session.getStudentId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "问诊会话不属于当前学生");
+        }
+        List<StudentSessionDetailVO.Message> messages = messageMapper.selectList(
+                        new LambdaQueryWrapper<ChatMessageLog>()
+                                .eq(ChatMessageLog::getSessionId, sessionId)
+                                .orderByAsc(ChatMessageLog::getCreatedAt))
+                .stream()
+                .map(item -> StudentSessionDetailVO.Message.builder()
+                        .sender(item.getSender())
+                        .content(item.getContent())
+                        .createdAt(item.getCreatedAt())
+                        .build())
+                .toList();
+        return StudentSessionDetailVO.builder()
+                .sessionId(session.getId())
+                .caseId(session.getCaseId())
+                .status(session.getStatus())
+                .createdAt(session.getCreatedAt())
+                .messages(messages)
+                .build();
+    }
+
+    @Override
+    public void finish(Long sessionId) {
+        Long studentId = UserContext.requireUserId();
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null) throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
+        if (!studentId.equals(session.getStudentId())) throw new BizException(ResultCode.FORBIDDEN);
+        if (Integer.valueOf(0).equals(session.getStatus())) {
+            session.setStatus(1);
+            session.setEndedAt(LocalDateTime.now());
+            sessionMapper.updateById(session);
+        }
     }
 }

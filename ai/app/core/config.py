@@ -54,6 +54,9 @@ class Settings(BaseSettings):
     # ---------- 业务中台回调地址 ----------
     backend_callback_url: str = "http://backend:8080"
 
+    # ---------- Mobile JWT（与 Spring Boot JWT_SECRET 一致） ----------
+    jwt_secret: str = "dev-only-secret-key-32chars-minimum-aaaa"
+
     # ---------- 降级开关 ----------
     enable_llm_fallback: bool = True  # LLM 不可用时返回规则文案
     enable_milvus_fallback: bool = True  # Milvus 不可用时用内存索引

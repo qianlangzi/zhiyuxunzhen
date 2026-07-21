@@ -17,8 +17,9 @@ void main() {
     expect(find.text('智愈寻真'), findsOneWidget);
     expect(find.text('知语寻真'), findsNothing);
     expect(find.byType(ZySegmentedControl<String>), findsOneWidget);
-    expect(find.text('学生'), findsOneWidget);
-    expect(find.text('教师'), findsOneWidget);
+    expect(find.text('账号密码'), findsOneWidget);
+    expect(find.text('手机验证码'), findsOneWidget);
+    expect(find.textContaining('真实身份进入学生端或教师端'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(2));
     expect(find.text('账号'), findsOneWidget);
     expect(find.text('密码'), findsOneWidget);
@@ -31,21 +32,23 @@ void main() {
 
     final List<TextFormField> fields =
         tester.widgetList<TextFormField>(find.byType(TextFormField)).toList();
-    expect(fields[0].controller?.text, 'teacher01');
+    expect(fields[0].controller?.text, 'student01');
     expect(fields[1].controller?.text, '123456');
   });
 
-  testWidgets('switches demo identity without creating separate role cards',
+  testWidgets('switches to SMS login without exposing a role selector',
       (WidgetTester tester) async {
     await pumpPage(tester, const LoginPage());
 
-    await tester.tap(find.text('学生'));
+    await tester.tap(find.text('手机验证码'));
     await tester.pump();
 
     final List<TextFormField> fields =
         tester.widgetList<TextFormField>(find.byType(TextFormField)).toList();
-    expect(fields[0].controller?.text, 'student01');
-    expect(fields[1].controller?.text, '123456');
+    expect(fields[0].controller?.text, '18500000002');
+    expect(find.text('获取验证码'), findsOneWidget);
+    expect(find.text('学生'), findsNothing);
+    expect(find.text('教师'), findsNothing);
     expect(find.byType(Card), findsNothing);
   });
 
@@ -88,7 +91,6 @@ void main() {
     await tester.enterText(find.byType(TextFormField).at(1), 'wrongpass');
     await tester.tap(find.text('登录'));
     await tester.pump(); // 登录已开始，loading=true，600ms 未到
-    expect(find.text('正在登录'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     final FilledButton button =
         tester.widget<FilledButton>(find.byType(FilledButton));

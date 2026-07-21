@@ -17,14 +17,17 @@ class TeacherProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final UserModel? user = ref.watch(authControllerProvider).user;
-    final TeachingRepository teaching = ref.watch(teachingRepositoryProvider);
-    final CaseRepository cases = ref.watch(caseRepositoryProvider);
-    final int assignmentCount = teaching.assignments().length;
-    final int caseCount = cases.all().length;
-    final int pendingReviewCount = teaching
-        .reviewQueue()
-        .where((ReviewItem item) => item.status != '已复核')
-        .length;
+    final List<AssignmentModel> assignments =
+        ref.watch(teacherAssignmentListProvider).value ??
+            const <AssignmentModel>[];
+    final List<CaseModel> cases =
+        ref.watch(teacherCaseListProvider).value ?? const <CaseModel>[];
+    final List<ReviewItem> reviews =
+        ref.watch(teacherReviewListProvider).value ?? const <ReviewItem>[];
+    final int assignmentCount = assignments.length;
+    final int caseCount = cases.length;
+    final int pendingReviewCount =
+        reviews.where((ReviewItem item) => item.status != '已复核').length;
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -118,7 +121,7 @@ class _TeachingSummary extends StatelessWidget {
       children: <Widget>[
         const ClinicalSectionHeader(
           title: '教学概况',
-          description: '数据来自当前本地教学仓库。',
+          description: '数据来自当前登录教师的后端记录。',
         ),
         Container(
           padding: const EdgeInsets.symmetric(vertical: AppDimens.grid4),
@@ -281,6 +284,7 @@ class _AccountSection extends StatelessWidget {
         OutlinedButton.icon(
           onPressed: () async {
             await ref.read(authControllerProvider.notifier).logout();
+            if (context.mounted) context.go('/login');
           },
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.risk,

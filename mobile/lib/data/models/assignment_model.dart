@@ -4,6 +4,9 @@ import 'package:flutter/foundation.dart';
 @immutable
 class AssignmentModel {
   const AssignmentModel({
+    this.id,
+    this.caseId,
+    this.classId,
     required this.title,
     required this.className,
     required this.submitted,
@@ -13,6 +16,10 @@ class AssignmentModel {
     required this.requireRecord,
     required this.variable,
   });
+
+  final int? id;
+  final int? caseId;
+  final int? classId;
 
   final String title;
   final String className;
@@ -38,9 +45,11 @@ class ReviewItem {
     required this.score,
     required this.issue,
     required this.status,
+    this.reviewId,
   });
 
   final int id;
+  final int? reviewId;
   final String student;
   final String assignment;
   final int score;

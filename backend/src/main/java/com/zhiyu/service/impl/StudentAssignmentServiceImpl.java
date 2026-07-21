@@ -153,12 +153,17 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
         if (Boolean.TRUE.equals(checkResult.getPassed())) {
             final Long instanceIdRef = instanceId;
             final String medicalText = req.getMedicalRecordText();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    triggerAiReview(instanceIdRef, medicalText);
-                }
-            });
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        triggerAiReview(instanceIdRef, medicalText);
+                    }
+                });
+            } else {
+                // 单元测试或非代理调用没有事务同步上下文时，直接触发，避免注册同步抛异常。
+                triggerAiReview(instanceIdRef, medicalText);
+            }
         }
 
         return SubmitRecordResultVO.builder()

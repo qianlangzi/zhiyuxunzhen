@@ -146,6 +146,7 @@ services:
       # 内部 token（必须与 Java 后端 zhiyu.ai.internal-token 一致）
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-dev-internal-token}
       BACKEND_CALLBACK_URL: http://backend:8080
+      JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-random-32-char-string}
       ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-true}
       ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-true}
 

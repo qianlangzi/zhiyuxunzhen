@@ -20,3 +20,7 @@ httpx==0.27.0
 
 # ===== 重试 =====
 tenacity==8.2.3
+
+# ===== Mobile JWT / 标准 SSE =====
+PyJWT==2.10.1
+sse-starlette==2.1.3

@@ -62,6 +62,8 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
         before.put("auditStatus", current);
 
         user.setAuditStatus(1);
+        user.setTeacherCertificateNo(dto.getCertificateNo().trim());
+        user.setDepartment(dto.getDepartment() == null ? null : dto.getDepartment().trim());
         userMapper.updateById(user);
 
         // 资质材料 JSON（管理员审核时查询）

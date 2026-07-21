@@ -8,13 +8,16 @@ import com.zhiyu.common.context.UserContext;
 import com.zhiyu.entity.AuditLog;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.DailyCaseSubmission;
 import com.zhiyu.mapper.AuditLogMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.DailyCaseSubmissionMapper;
 import com.zhiyu.service.StudentReportService;
 import com.zhiyu.service.dto.ExportReportDTO;
 import com.zhiyu.vo.ReportSessionVO;
 import com.zhiyu.vo.ReviewReportVO;
+import com.zhiyu.vo.StudentLearningOverviewVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 /**
  * 学生复盘报告服务实现（PRD 4.11 / 9.3）
@@ -47,6 +52,55 @@ public class StudentReportServiceImpl implements StudentReportService {
     private final AuditLogMapper auditLogMapper;
     private final ObjectMapper objectMapper;
     private final AiPlatformClient aiPlatformClient;
+    private final DailyCaseSubmissionMapper dailySubmissionMapper;
+
+    @Override
+    public StudentLearningOverviewVO overview() {
+        Long studentId = UserContext.requireUserId();
+        LocalDate start = LocalDate.now().minusDays(89);
+        List<ChatSession> sessions = sessionMapper.selectList(
+                new LambdaQueryWrapper<ChatSession>()
+                        .eq(ChatSession::getStudentId, studentId)
+                        .ge(ChatSession::getCreatedAt, start.atStartOfDay())
+                        .orderByAsc(ChatSession::getCreatedAt));
+        List<DailyCaseSubmission> daily = dailySubmissionMapper.selectList(
+                new LambdaQueryWrapper<DailyCaseSubmission>()
+                        .eq(DailyCaseSubmission::getStudentId, studentId)
+                        .ge(DailyCaseSubmission::getSubmittedAt, start.atStartOfDay()));
+
+        Map<LocalDate, Integer> counts = new HashMap<>();
+        sessions.forEach(item -> counts.merge(item.getCreatedAt().toLocalDate(), 1, Integer::sum));
+        daily.forEach(item -> counts.merge(item.getSubmittedAt().toLocalDate(), 1, Integer::sum));
+        List<StudentLearningOverviewVO.ActivityDay> activity = counts.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> StudentLearningOverviewVO.ActivityDay.builder()
+                        .date(entry.getKey()).completedCount(entry.getValue()).build())
+                .toList();
+
+        Map<String, Integer> sums = new LinkedHashMap<>();
+        Map<String, Integer> samples = new HashMap<>();
+        for (ChatSession session : sessions) {
+            if (session.getOsceScoreJson() == null || session.getOsceScoreJson().isBlank()) continue;
+            try {
+                Map<?, ?> scores = objectMapper.readValue(session.getOsceScoreJson(), Map.class);
+                for (Map.Entry<?, ?> entry : scores.entrySet()) {
+                    if (entry.getValue() instanceof Number number) {
+                        String key = entry.getKey().toString();
+                        sums.merge(key, number.intValue(), Integer::sum);
+                        samples.merge(key, 1, Integer::sum);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("忽略无法解析的 OSCE 评分: sessionId={}", session.getId());
+            }
+        }
+        Map<String, Integer> averages = new LinkedHashMap<>();
+        sums.forEach((key, sum) -> averages.put(key, Math.round((float) sum / samples.get(key))));
+        int completed = (int) sessions.stream().filter(item -> Integer.valueOf(1).equals(item.getStatus())).count();
+        return StudentLearningOverviewVO.builder()
+                .abilityScores(averages).activityDays(activity)
+                .completedSessionCount(completed).build();
+    }
 
     @Override
     @Transactional(rollbackFor = Exception.class)

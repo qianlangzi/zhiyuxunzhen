@@ -18,8 +18,6 @@ void main() {
       (WidgetTester tester) async {
     await pumpZhiyuApp(tester);
 
-    await tester.tap(find.text('学生'));
-    await tester.pump();
     await tester.tap(find.widgetWithText(FilledButton, '登录'));
     await tester.pumpAndSettle();
 
@@ -32,6 +30,7 @@ void main() {
       (WidgetTester tester) async {
     await pumpZhiyuApp(tester);
 
+    await tester.enterText(find.byType(TextFormField).at(0), 'teacher01');
     await tester.tap(find.widgetWithText(FilledButton, '登录'));
     await tester.pumpAndSettle();
 

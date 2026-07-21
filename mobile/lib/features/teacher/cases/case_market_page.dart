@@ -45,17 +45,25 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
     });
   }
 
-  void _reference(MarketCaseModel item) {
+  Future<void> _reference(MarketCaseModel item) async {
     if (_referenced.contains(item.title)) return;
-    setState(() => _referenced.add(item.title));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('病例已加入你的病例库')),
-    );
+    try {
+      await ref.read(caseRepositoryProvider).quoteCase(item.id);
+      if (!mounted) return;
+      setState(() => _referenced.add(item.title));
+      ref.invalidate(teacherCaseListProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('病例已加入你的病例库')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('引用失败：$error')),
+      );
+    }
   }
 
-  List<MarketCaseModel> get _visible {
-    final CaseRepository repo = ref.read(caseRepositoryProvider);
-    final List<MarketCaseModel> all = repo.market();
+  List<MarketCaseModel> _visible(List<MarketCaseModel> all) {
     final String query = _query.trim().toLowerCase();
     return all.where((MarketCaseModel item) {
       final bool departmentMatches =
@@ -70,7 +78,10 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
 
   @override
   Widget build(BuildContext context) {
-    final List<MarketCaseModel> visible = _visible;
+    final AsyncValue<List<MarketCaseModel>> marketState =
+        ref.watch(caseMarketListProvider);
+    final List<MarketCaseModel> visible =
+        _visible(marketState.value ?? const <MarketCaseModel>[]);
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -131,6 +142,16 @@ class _CaseMarketPageState extends ConsumerState<CaseMarketPage> {
               ),
             ),
           ),
+          if (marketState.isLoading)
+            const SliverToBoxAdapter(
+                child: LinearProgressIndicator(minHeight: 2)),
+          if (marketState.hasError)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(AppDimens.pagePadding),
+                child: Text('病例广场加载失败：${marketState.error}'),
+              ),
+            ),
           if (visible.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,

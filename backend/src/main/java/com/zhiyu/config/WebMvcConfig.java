@@ -27,6 +27,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
     /** 不需要 JWT 鉴权的路径 */
     private static final String[] JWT_EXCLUDE = {
             "/api/v1/auth/login",
+            "/api/v1/auth/login/**",
+            "/api/v1/auth/register",
+            "/api/v1/auth/sms-code",
             "/api/v1/auth/refresh",
             "/api/v1/health",
             "/api/internal/**",

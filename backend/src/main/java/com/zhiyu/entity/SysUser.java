@@ -39,6 +39,10 @@ public class SysUser extends BaseEntity {
 
     private String idCard;
 
+    private String teacherCertificateNo;
+
+    private String department;
+
     private String avatar;
 
     /** 教师授权班级（JSON 数组，如 [1,2,3]） */

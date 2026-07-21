@@ -71,3 +71,16 @@ class HeatmapDay {
 
   DateTime get parsedDate => DateTime.parse(date);
 }
+
+@immutable
+class LearningOverview {
+  const LearningOverview({
+    required this.abilities,
+    required this.activityDays,
+    required this.completedSessionCount,
+  });
+
+  final List<AbilityScore> abilities;
+  final List<HeatmapDay> activityDays;
+  final int completedSessionCount;
+}

@@ -4,6 +4,8 @@ import com.zhiyu.common.R;
 import com.zhiyu.service.TeacherReviewService;
 import com.zhiyu.service.dto.ReviewOverrideDTO;
 import com.zhiyu.vo.TeacherReviewVO;
+import com.zhiyu.vo.TeacherReviewQueueVO;
+import java.util.List;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,6 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class TeacherReviewController {
 
     private final TeacherReviewService teacherReviewService;
+
+    @Operation(summary = "我的批阅队列")
+    @GetMapping
+    public R<List<TeacherReviewQueueVO>> list() {
+        return R.ok(teacherReviewService.list());
+    }
 
     @Operation(summary = "查询作业实例的最新批阅记录（教师覆盖优先，否则 AI 批阅）")
     @GetMapping("/{instanceId}")

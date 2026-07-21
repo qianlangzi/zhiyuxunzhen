@@ -6,15 +6,22 @@ import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.AuthService;
+import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.RegisterRequest;
+import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
+import com.zhiyu.vo.RegistrationResponse;
 import com.zhiyu.vo.UserInfoVO;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 
@@ -29,6 +36,74 @@ public class AuthServiceImpl implements AuthService {
     private final SysUserMapper userMapper;
     private final JwtUtils jwtUtils;
     private final PasswordEncoder passwordEncoder;
+    private final SmsCodeService smsCodeService;
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RegistrationResponse register(RegisterRequest req) {
+        String username = req.getUsername().trim();
+        String phone = req.getPhone().trim();
+        String realName = req.getRealName().trim();
+        if (realName.length() < 2) {
+            throw new BizException(ResultCode.VALIDATION_FAILED, "姓名长度须为 2-50 位");
+        }
+        ensureRegistrationAvailable(username, phone);
+
+        boolean teacher = req.getRole() == 1;
+        if (teacher && (!StringUtils.hasText(req.getCertificateNo())
+                || !StringUtils.hasText(req.getDepartment()))) {
+            throw new BizException(ResultCode.VALIDATION_FAILED, "教师注册必须填写资质编号和所属科室");
+        }
+
+        smsCodeService.verifyAndConsume(phone, req.getCode());
+
+        SysUser user = new SysUser();
+        user.setUsername(username);
+        user.setPasswordHash(passwordEncoder.encode(req.getPassword()));
+        user.setRealName(realName);
+        user.setPhone(phone);
+        user.setRole(req.getRole());
+        user.setAuditStatus(teacher ? 1 : 0);
+        user.setStatus(0);
+        user.setIsDeleted(0);
+        if (teacher) {
+            user.setTeacherCertificateNo(req.getCertificateNo().trim());
+            user.setDepartment(req.getDepartment().trim());
+        }
+
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException e) {
+            ensureRegistrationAvailable(username, phone);
+            throw e;
+        }
+
+        log.info("用户注册成功: {} (role={})", username, req.getRole());
+        return RegistrationResponse.builder()
+                .userId(user.getId())
+                .username(username)
+                .role(req.getRole())
+                .auditStatus(user.getAuditStatus())
+                .message(teacher
+                        ? "教师注册申请已提交，请等待管理员审核后登录"
+                        : "注册成功，请使用新账号登录")
+                .build();
+    }
+
+    private void ensureRegistrationAvailable(String username, String phone) {
+        Long usernameCount = userMapper.selectCount(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getUsername, username));
+        if (usernameCount != null && usernameCount > 0) {
+            throw new BizException(ResultCode.USERNAME_EXISTS);
+        }
+        Long phoneCount = userMapper.selectCount(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getPhone, phone));
+        if (phoneCount != null && phoneCount > 0) {
+            throw new BizException(ResultCode.PHONE_EXISTS);
+        }
+    }
 
     @Override
     public LoginResponse login(LoginRequest req) {
@@ -43,13 +118,34 @@ public class AuthServiceImpl implements AuthService {
             log.warn("登录失败，密码错误: {}", req.getUsername());
             throw new BizException(ResultCode.USERNAME_OR_PASSWORD_ERROR);
         }
+        return issueLogin(user);
+    }
+
+    @Override
+    public LoginResponse smsLogin(SmsLoginRequest req) {
+        smsCodeService.verifyAndConsume(req.getPhone(), req.getCode());
+        SysUser user = userMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getPhone, req.getPhone()));
+        if (user == null) {
+            log.warn("短信登录失败，手机号未绑定用户: {}", maskPhone(req.getPhone()));
+            throw new BizException(ResultCode.PHONE_OR_CODE_ERROR);
+        }
+        return issueLogin(user);
+    }
+
+    private LoginResponse issueLogin(SysUser user) {
         if (user.getStatus() != null && user.getStatus() == 1) {
             throw new BizException(ResultCode.ACCOUNT_FROZEN);
         }
-        // 管理端角色(2-5)不允许从 App 登录
-        if (user.getRole() != null && user.getRole() >= 2) {
-            log.info("管理端用户尝试 App 登录: {}", req.getUsername());
-            throw new BizException(ResultCode.FORBIDDEN, "请使用 Web 管理端登录");
+        if (user.getRole() != null && user.getRole() == 1) {
+            int auditStatus = user.getAuditStatus() == null ? 0 : user.getAuditStatus();
+            if (auditStatus == 1) {
+                throw new BizException(ResultCode.TEACHER_AUDIT_PENDING);
+            }
+            if (auditStatus == 3) {
+                throw new BizException(ResultCode.TEACHER_AUDIT_REJECTED);
+            }
         }
 
         updateLastLogin(user.getId());

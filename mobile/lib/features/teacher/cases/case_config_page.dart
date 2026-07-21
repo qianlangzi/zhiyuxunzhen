@@ -20,6 +20,7 @@ class CaseConfigPage extends ConsumerStatefulWidget {
 class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleCtrl = TextEditingController();
+  final TextEditingController _departmentCtrl = TextEditingController();
   final TextEditingController _ageCtrl = TextEditingController();
   final TextEditingController _chiefCtrl = TextEditingController();
   final TextEditingController _diagnosisCtrl = TextEditingController();
@@ -34,6 +35,7 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
   @override
   void dispose() {
     _titleCtrl.dispose();
+    _departmentCtrl.dispose();
     _ageCtrl.dispose();
     _chiefCtrl.dispose();
     _diagnosisCtrl.dispose();
@@ -49,19 +51,70 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     FocusScope.of(context).unfocus();
     setState(() => _saving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    if (!mounted) return;
-    setState(() => _saving = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('演示配置已保存')),
-    );
+    try {
+      final int difficulty = switch (_difficultyCtrl.text.trim()) {
+        '基础' || '简单' => 1,
+        '进阶' || '高阶' || '困难' => 3,
+        _ => 2,
+      };
+      await ref.read(caseRepositoryProvider).createTeacherCase(
+            title: _titleCtrl.text.trim(),
+            department: _departmentCtrl.text.trim(),
+            difficulty: difficulty,
+            patientProfile: <String, dynamic>{
+              'age': _ageCtrl.text.trim(),
+              'chiefComplaint': _chiefCtrl.text.trim(),
+              'communication': _communicationCtrl.text.trim(),
+              'cooperation': _cooperationCtrl.text.trim(),
+              'studentPreview': _previewCtrl.text.trim(),
+            },
+            hiddenDisease: _diagnosisCtrl.text.trim(),
+            standardPath: <String>[
+              '围绕主诉进行病史采集',
+              '完成必要的鉴别诊断',
+              '提出初步诊断：${_diagnosisCtrl.text.trim()}',
+            ],
+            tags: _tagsCtrl.text
+                .split(RegExp(r'[,，]'))
+                .map((item) => item.trim())
+                .where((item) => item.isNotEmpty)
+                .toList(),
+          );
+      ref.invalidate(teacherCaseListProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('病例已保存为草稿')),
+      );
+      _formKey.currentState?.reset();
+      for (final controller in <TextEditingController>[
+        _titleCtrl,
+        _departmentCtrl,
+        _ageCtrl,
+        _chiefCtrl,
+        _diagnosisCtrl,
+        _communicationCtrl,
+        _cooperationCtrl,
+        _tagsCtrl,
+        _difficultyCtrl,
+        _previewCtrl,
+      ]) {
+        controller.clear();
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('保存失败：$error')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final CaseRepository repo = ref.watch(caseRepositoryProvider);
-    final List<CaseModel> cases = repo.all();
+    final AsyncValue<List<CaseModel>> casesState =
+        ref.watch(teacherCaseListProvider);
+    final List<CaseModel> cases = casesState.value ?? const <CaseModel>[];
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -92,6 +145,12 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                         validatorMsg: '请输入病例标题',
                       ),
                       _LabeledField(
+                        label: '所属科室',
+                        controller: _departmentCtrl,
+                        hint: '例如：心血管内科',
+                        validatorMsg: '请输入所属科室',
+                      ),
+                      _LabeledField(
                         label: '患者年龄',
                         controller: _ageCtrl,
                         hint: '例如：55 岁',
@@ -104,7 +163,8 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                       _LabeledField(
                         label: '初步诊断',
                         controller: _diagnosisCtrl,
-                        hint: '可选',
+                        hint: '该字段只在教师端和 AI 内部可见',
+                        validatorMsg: '请输入隐藏诊断',
                       ),
                     ],
                   ),
@@ -153,6 +213,13 @@ class _CaseConfigPageState extends ConsumerState<CaseConfigPage> {
                     ],
                   ),
                   _ConfiguredCases(cases: cases),
+                  if (casesState.isLoading)
+                    const LinearProgressIndicator(minHeight: 2),
+                  if (casesState.hasError)
+                    Padding(
+                      padding: const EdgeInsets.all(AppDimens.pagePadding),
+                      child: Text('病例加载失败：${casesState.error}'),
+                    ),
                 ],
               ),
             ),

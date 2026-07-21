@@ -90,10 +90,12 @@ void main() {
         find.byKey(const ValueKey<String>('case-config-title')),
         '胸痛三联鉴别',
       );
+      await tester.enterText(find.byType(TextFormField).at(1), '心血管内科');
+      await tester.enterText(find.byType(TextFormField).at(4), '急性冠脉综合征');
       await tester.tap(find.widgetWithText(FilledButton, '保存配置'));
       await tester.pumpAndSettle();
 
-      expect(find.text('演示配置已保存'), findsOneWidget);
+      expect(find.text('病例已保存为草稿'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
