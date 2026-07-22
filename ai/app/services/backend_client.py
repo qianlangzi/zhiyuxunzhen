@@ -1,6 +1,7 @@
 """业务中台回调客户端（PRD 9.4）
 
 封装 5 个回调接口，所有回调失败静默（不阻塞 AI 主流程），仅记录日志。
+优先复用 lifecycle 中创建的共享 httpx.AsyncClient，避免每次请求临时创建连接池。
 """
 import json
 from typing import Any
@@ -21,15 +22,29 @@ class BackendClient:
         self._base_url = settings.backend_callback_url.rstrip("/")
         self._timeout = httpx.Timeout(10.0, connect=5.0)
         self._headers = {"X-Internal-Token": settings.internal_token.get_secret_value()}
+        # 共享 HTTP client，由 lifecycle 注入；为 None 时临时创建
+        self._shared_client: httpx.AsyncClient | None = None
+
+    def set_shared_client(self, client: httpx.AsyncClient | None) -> None:
+        """注入共享 HTTP client（由 lifecycle 在启动时调用）"""
+        self._shared_client = client
 
     def _client(self) -> httpx.AsyncClient:
+        """获取 HTTP client：优先复用共享实例，否则临时创建"""
+        if self._shared_client is not None:
+            return self._shared_client
         return httpx.AsyncClient(timeout=self._timeout, headers=self._headers)
+
+    async def _close_if_temporary(self, client: httpx.AsyncClient) -> None:
+        """临时 client 用完后关闭；共享 client 不关闭"""
+        if self._shared_client is None:
+            await client.aclose()
 
     async def _post(self, path: str, body: dict[str, Any], trace_id: str = "-") -> bool:
         url = f"{self._base_url}{path}"
+        client = self._client()
         try:
-            async with self._client() as c:
-                resp = await c.post(url, json=body)
+            resp = await client.post(url, json=body, headers=self._headers)
             ok = 200 <= resp.status_code < 300
             log_event(
                 logger,
@@ -42,6 +57,8 @@ class BackendClient:
             log_event(logger, WARNING, "backend_callback_error",
                       trace_id=trace_id, path=path, error=type(e).__name__, msg=str(e))
             return False
+        finally:
+            await self._close_if_temporary(client)
 
     async def session_context(
         self,
@@ -51,9 +68,9 @@ class BackendClient:
     ) -> dict[str, Any] | None:
         path = f"/api/internal/session/{session_id}/context"
         url = f"{self._base_url}{path}"
+        client = self._client()
         try:
-            async with self._client() as client:
-                response = await client.get(url, params={"studentId": student_id})
+            response = await client.get(url, params={"studentId": student_id}, headers=self._headers)
             body = response.json()
             if response.status_code == 200 and body.get("code") == 0:
                 return body.get("data")
@@ -65,13 +82,15 @@ class BackendClient:
             log_event(logger, WARNING, "session_context_error",
                       trace_id=trace_id, error=type(exc).__name__, msg=str(exc))
             return None
+        finally:
+            await self._close_if_temporary(client)
 
     async def report_context(self, session_id: int, trace_id: str = "-") -> dict[str, Any] | None:
         path = f"/api/internal/session/{session_id}/report-context"
         url = f"{self._base_url}{path}"
+        client = self._client()
         try:
-            async with self._client() as client:
-                response = await client.get(url)
+            response = await client.get(url, headers=self._headers)
             body = response.json()
             if response.status_code == 200 and body.get("code") == 0:
                 return body.get("data")
@@ -80,6 +99,8 @@ class BackendClient:
         except Exception as exc:  # noqa: BLE001
             log_event(logger, WARNING, "report_context_error", trace_id=trace_id, error=type(exc).__name__)
             return None
+        finally:
+            await self._close_if_temporary(client)
 
     async def append_session_messages(
         self,

@@ -15,20 +15,17 @@ from app.agents.sp_agent import sp_reply_stream
 from app.core.config import settings
 from app.core.errors import RetrievalUnavailableError
 from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.domain.policies.safety_policy import safety_policy
+from app.domain.policies.output_policy import output_policy
 from app.models.chat import ChatRequest
 from app.services.backend_client import backend_client
 from app.services.rag_service import rag_service
 
 logger = get_logger(__name__)
-_SAFETY_KEYWORDS = ("自杀", "自残", "杀", "毒品", "制毒", "配方", "剂量")
 
 
 def sse(event: str, data: dict[str, Any]) -> dict[str, str]:
     return {"event": event, "data": json.dumps(data, ensure_ascii=False)}
-
-
-def safety_blocked(text: str) -> bool:
-    return any(keyword in text for keyword in _SAFETY_KEYWORDS)
 
 
 def build_history(messages: list[Any]) -> list[dict[str, str]]:
@@ -58,11 +55,15 @@ class ChatWorkflow:
                 return
 
             last_user = next((m.content for m in reversed(req.messages) if m.role == "student"), "")
-            if safety_blocked(last_user):
-                yield sse("safety", {"blocked": True, "reason": "检测到敏感内容，已按安全策略拦截。"})
+            safety = safety_policy.check_input(last_user)
+            if safety.is_blocked:
+                yield sse("safety", {"blocked": True, "reason": safety.reason})
                 yield sse("done", {"session_id": req.session_id, "ts": int(time.time())})
-                log_event(logger, WARNING, "chat_safety_blocked", trace_id=trace_id, session_id=req.session_id)
+                log_event(logger, WARNING, "chat_safety_blocked",
+                          trace_id=trace_id, session_id=req.session_id, reason=safety.reason)
                 return
+            if safety.is_deflect:
+                yield sse("status", {"deflect": True, "message": safety.reason})
 
             try:
                 citations = await rag_service.search(last_user, top_k=3, trace_id=trace_id)
@@ -91,6 +92,20 @@ class ChatWorkflow:
                 parts.append(delta)
                 yield sse("message", {"delta": delta})
             reply = "".join(parts)
+
+            # SP 输出校验（防泄露隐藏疾病/医学术语/超长等）
+            output_check = output_policy.validate_sp_reply(
+                reply, hidden_disease=context.get("hiddenDisease")
+            )
+            if not output_check.passed:
+                log_event(logger, WARNING, "sp_output_rejected",
+                          trace_id=trace_id, reason=output_check.reason,
+                          action=output_check.action)
+                if output_check.action == "BLOCK":
+                    # 安全拒答：不保存原始回复，用安全文案替代
+                    reply = "抱歉，我无法回答这个问题。"
+                    yield sse("safety", {"blocked": True, "reason": output_check.reason})
+
             await backend_client.append_session_messages(req.session_id, student_id, [
                 *([{"sender": "STUDENT", "content": last_user}] if last_user else []),
                 *([{"sender": "SP", "content": reply}] if reply else []),

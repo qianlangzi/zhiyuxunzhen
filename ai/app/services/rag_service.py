@@ -4,7 +4,7 @@
 1. 调用 Embedding 服务把文本转向量（OpenAI 兼容协议）
 2. 调用 Milvus 做相似度检索
 3. 把检索结果封装为 Citation 列表
-4. 凭证未配置时返回空溯源，不阻塞主流程
+4. 凭证未配置时抛出 RetrievalUnavailableError，不伪造零向量结果
 """
 from openai import AsyncOpenAI, APIError
 
@@ -16,9 +16,6 @@ from app.services.milvus_service import milvus_service
 from app.core.errors import RetrievalUnavailableError
 
 logger = get_logger(__name__)
-
-# Embedding 不可用时，返回与配置维度相同的零向量，使 Milvus 检索仍可执行（结果为空）
-_ZERO_VEC: list[float] | None = None
 
 
 class RagService:
@@ -38,10 +35,8 @@ class RagService:
         return self._embed_client is not None
 
     async def embed(self, text: str, trace_id: str = "-") -> list[float]:
-        """文本转向量；不可用时返回零向量"""
+        """文本转向量；不可用时抛出 RetrievalUnavailableError"""
         if not self.available:
-            if settings.enable_milvus_fallback:
-                return _zero_vector()
             raise RetrievalUnavailableError("Embedding 服务未配置", trace_id)
         try:
             resp = await self._embed_client.embeddings.create(
@@ -51,19 +46,15 @@ class RagService:
         except APIError as e:
             log_event(logger, WARNING, "embed_error",
                       trace_id=trace_id, error=type(e).__name__, msg=str(e))
-            if settings.enable_milvus_fallback:
-                return _zero_vector()
             raise RetrievalUnavailableError("Embedding 服务调用失败", trace_id) from e
 
     async def embed_batch(
-        self, texts: list[str], trace_id: str = "-"
+        self, texts: list[str], trace_id: str = "-",
     ) -> list[list[float]]:
-        """批量 embedding，单条失败不影响整体"""
+        """批量 embedding"""
         if not texts:
             return []
         if not self.available:
-            if settings.enable_milvus_fallback:
-                return [_zero_vector() for _ in texts]
             raise RetrievalUnavailableError("Embedding 服务未配置", trace_id)
         try:
             resp = await self._embed_client.embeddings.create(
@@ -74,8 +65,6 @@ class RagService:
         except APIError as e:
             log_event(logger, WARNING, "embed_batch_error",
                       trace_id=trace_id, error=type(e).__name__, msg=str(e))
-            if settings.enable_milvus_fallback:
-                return [_zero_vector() for _ in texts]
             raise RetrievalUnavailableError("Embedding 服务调用失败", trace_id) from e
 
     async def search(
@@ -103,13 +92,6 @@ class RagService:
         log_event(logger, INFO, "rag_search",
                   trace_id=trace_id, query_len=len(query), hits=len(citations))
         return citations
-
-
-def _zero_vector() -> list[float]:
-    global _ZERO_VEC
-    if _ZERO_VEC is None:
-        _ZERO_VEC = [0.0] * settings.milvus_vector_dim
-    return _ZERO_VEC
 
 
 rag_service = RagService()

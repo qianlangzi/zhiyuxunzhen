@@ -86,7 +86,10 @@ class ResourceRegistry:
         else:
             logger.info("Redis not configured, skipping initialization")
 
-        # 3-6: 以下资源在后续 Phase 创建后接入
+        # 3. 将共享 HTTP client 注入到 backend_client，避免每次回调临时创建连接池
+        backend_client.set_shared_client(self.http_client)
+
+        # 4-6: 以下资源在后续 Phase 创建后接入
         # Optional Langfuse is initialized only when its deployment is configured.
 
         logger.info("Resource initialization complete")

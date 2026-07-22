@@ -4,9 +4,9 @@
 1. 优先调用真实 LLM（星火/通义/DeepSeek/本地 vLLM 等任意 OpenAI 兼容服务）
 2. 凭证未配置或调用失败时，按 enable_llm_fallback 决定是否走规则降级
 3. 所有调用记录 latency、token、状态，便于审计
+4. JSON 解析使用 StructuredOutputService，不再用"找首个 { 和最后 }"的 hack
 """
 import asyncio
-import json
 import time
 from collections.abc import AsyncIterator
 from logging import INFO as _INFO
@@ -17,6 +17,7 @@ from openai import AsyncOpenAI, APIError, APITimeoutError, RateLimitError
 
 from app.core.config import settings
 from app.core.logging import get_logger, log_event
+from app.services.structured_output import structured_output
 
 logger = get_logger(__name__)
 
@@ -135,9 +136,9 @@ class LlmClient:
         model: str | None = None,
         trace_id: str = "-",
     ) -> dict[str, Any]:
-        """对话并解析为 JSON；LLM 不可用时由调用方提供 fallback"""
+        """对话并解析为 JSON；解析失败时抛出 OutputSchemaInvalidError"""
         text = await self.chat(messages, model=model, trace_id=trace_id)
-        return _safe_json_load(text)
+        return await structured_output.parse_to_dict(text, trace_id=trace_id)
 
     # ------------------- 降级实现 -------------------
     async def _fallback_chat(
@@ -183,25 +184,6 @@ class LlmClient:
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("model_event 上报失败: %s", e)
-
-
-def _safe_json_load(text: str) -> dict[str, Any]:
-    """容错 JSON 解析：剥离 ```json 包裹、提取首个 {...}"""
-    s = text.strip()
-    if s.startswith("```"):
-        s = s.strip("`")
-        if s.lower().startswith("json"):
-            s = s[4:]
-        s = s.strip()
-    # 找首个 { 与最后 }
-    start = s.find("{")
-    end = s.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        s = s[start : end + 1]
-    try:
-        return json.loads(s)
-    except json.JSONDecodeError:
-        return {"_raw": text}
 
 
 # 模块级单例
