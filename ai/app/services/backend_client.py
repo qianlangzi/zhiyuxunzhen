@@ -20,7 +20,7 @@ class BackendClient:
     def __init__(self) -> None:
         self._base_url = settings.backend_callback_url.rstrip("/")
         self._timeout = httpx.Timeout(10.0, connect=5.0)
-        self._headers = {"X-Internal-Token": settings.internal_token}
+        self._headers = {"X-Internal-Token": settings.internal_token.get_secret_value()}
 
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=self._timeout, headers=self._headers)
@@ -64,6 +64,21 @@ class BackendClient:
         except Exception as exc:  # noqa: BLE001
             log_event(logger, WARNING, "session_context_error",
                       trace_id=trace_id, error=type(exc).__name__, msg=str(exc))
+            return None
+
+    async def report_context(self, session_id: int, trace_id: str = "-") -> dict[str, Any] | None:
+        path = f"/api/internal/session/{session_id}/report-context"
+        url = f"{self._base_url}{path}"
+        try:
+            async with self._client() as client:
+                response = await client.get(url)
+            body = response.json()
+            if response.status_code == 200 and body.get("code") == 0:
+                return body.get("data")
+            log_event(logger, WARNING, "report_context_rejected", trace_id=trace_id, status=response.status_code)
+            return None
+        except Exception as exc:  # noqa: BLE001
+            log_event(logger, WARNING, "report_context_error", trace_id=trace_id, error=type(exc).__name__)
             return None
 
     async def append_session_messages(

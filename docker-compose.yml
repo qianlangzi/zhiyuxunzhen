@@ -130,6 +130,7 @@ services:
       VISION_BASE_URL: ${VISION_BASE_URL:-}
       VISION_API_KEY: ${VISION_API_KEY:-}
       VISION_MODEL: ${VISION_MODEL:-4.0VImage}
+      VISION_ALLOWED_HOSTS: ${VISION_ALLOWED_HOSTS:-[]}
       # Embedding
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
@@ -145,10 +146,34 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       # 内部 token（必须与 Java 后端 zhiyu.ai.internal-token 一致）
       AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-dev-internal-token}
+      OPS_TOKEN: ${OPS_TOKEN:-dev-ops-token}
+      OBJECT_STORAGE_ROOT: ${OBJECT_STORAGE_ROOT:-/app/data/objects}
+      OBJECT_STORAGE_MAX_BYTES: ${OBJECT_STORAGE_MAX_BYTES:-52428800}
       BACKEND_CALLBACK_URL: http://backend:8080
       JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-random-32-char-string}
-      ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-true}
-      ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-true}
+      # 生产环境必须显式配置为 false；开发环境可在 .env 中打开规则降级。
+      ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-false}
+      ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-false}
+    volumes:
+      - ./data/objects:/app/data/objects:ro
+
+  ai-worker:
+    build:
+      context: ./ai
+      dockerfile: Dockerfile
+    container_name: zhiyu-ai-worker
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - milvus
+      - redis
+    environment: &ai-env
+      <<: *ai-env
+      AI_WORKER_TYPES: ${AI_WORKER_TYPES:-review,report,knowledge_ingest}
+      AI_WORKER_POLL_SECONDS: ${AI_WORKER_POLL_SECONDS:-1}
+    volumes:
+      - ./data/objects:/app/data/objects:ro
+    command: ["python", "-m", "app.workers.runner"]
 
   front:
     build:

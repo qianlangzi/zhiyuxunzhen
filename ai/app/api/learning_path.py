@@ -17,6 +17,8 @@ from app.models.review import LearningPathRequest, LearningPathResult
 from app.prompts.templates import learning_path_prompt
 from app.services.llm_client import llm_client
 from app.services.rag_service import rag_service
+from app.core.errors import ModelUnavailableError, OutputSchemaInvalidError
+from app.core.errors import ApiError
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -40,12 +42,15 @@ async def generate_learning_path(
             {"role": "system", "content": learning_path_prompt()},
             {"role": "user", "content": user_msg},
         ]
-        result: dict[str, Any] = await llm_client.chat_json(messages, trace_id=trace_id)
+        try:
+            result: dict[str, Any] = await llm_client.chat_json(messages, trace_id=trace_id)
+        except Exception as exc:  # noqa: BLE001
+            raise ModelUnavailableError(trace_id=trace_id) from exc
 
         if not isinstance(result, dict) or "recommendedSteps" not in result:
             log_event(logger, WARNING, "learning_path_invalid",
                       trace_id=trace_id, raw=str(result)[:200])
-            result = _fallback_path(req.studentId)
+            raise OutputSchemaInvalidError(trace_id=trace_id) from None
 
         # 用 RAG 补充教材溯源
         query = "、".join(result.get("weakKnowledgeTags", [])[:3]) or "内科常见薄弱点"
@@ -63,23 +68,12 @@ async def generate_learning_path(
                   trace_id=trace_id, student_id=req.studentId,
                   steps=len(path.recommendedSteps))
         return R(data=path.model_dump())
+    except ApiError as e:
+        log_event(logger, WARNING, "learning_path_unavailable", trace_id=trace_id, code=e.code)
+        return R(code=e.http_status, message=e.message, data=None)
     except Exception as e:  # noqa: BLE001
         log_event(logger, WARNING, "learning_path_failed",
                   trace_id=trace_id, error=type(e).__name__, msg=str(e))
         return R(code=500, message=f"学习路径生成失败：{e}", data=None)
     finally:
         reset_context()
-
-
-def _fallback_path(student_id: int) -> dict[str, Any]:
-    return {
-        "weakKnowledgeTags": ["心电图判读", "鉴别诊断", "病史采集"],
-        "recommendedSteps": [
-            "复习《诊断学》心电图章节",
-            "完成 1 个简单心血管病例",
-            "完成 1 个标准胸痛病例",
-            "完成 1 个综合疑难病例",
-        ],
-        "recommendedCases": [],
-        "citations": [],
-    }

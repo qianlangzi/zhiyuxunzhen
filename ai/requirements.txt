@@ -24,3 +24,9 @@ tenacity==8.2.3
 # ===== Mobile JWT / 标准 SSE =====
 PyJWT==2.10.1
 sse-starlette==2.1.3
+
+# ===== Redis (异步任务队列/幂等/checkpoint) =====
+redis>=5.0.0
+
+# ===== LangGraph (SP Agent 状态编排) =====
+langgraph>=0.2.0

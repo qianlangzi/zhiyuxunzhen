@@ -1,74 +1,41 @@
-"""Evaluator Agent：OSCE 四维评分 + 错题生成（PRD 4.9）"""
+"""OSCE evaluator. Missing model output is an unavailable evaluation, not a score."""
 from typing import Any
+from logging import INFO
 
+from app.adapters.model_gateway import model_gateway
+from app.core.errors import ModelUnavailableError, OutputSchemaInvalidError
 from app.core.logging import get_logger, log_event
-from logging import INFO, WARNING
 from app.prompts.templates import evaluator_agent_prompt
-from app.services.llm_client import llm_client
+from app.services.llm_client import LlmFallbackError
 
 logger = get_logger(__name__)
+_DIMENSIONS = ("history", "logic", "communication", "humanity")
 
 
-async def evaluate(
-    case_context: str,
-    history: list[dict[str, str]],
-    trace_id: str = "-",
-) -> dict[str, Any]:
-    """问诊结束后评分
-
-    返回字段：
-        scores: {history, logic, communication, humanity}
-        comments: 同上 4 维评语
-        strengths: list[str]
-        improvements: list[str]
-        final_report: str
-        mistakes: list[dict]
-    """
-    user_msg = (
-        f"病例配置：\n{case_context}\n\n"
-        f"完整对话历史：\n{history}\n\n"
-        "请按 schema 输出评分 JSON。"
-    )
+async def evaluate(case_context: str, history: list[dict[str, str]], trace_id: str = "-") -> dict[str, Any]:
     messages = [
         {"role": "system", "content": evaluator_agent_prompt()},
-        {"role": "user", "content": user_msg},
+        {"role": "user", "content": f"病例配置：\n{case_context}\n\n完整对话历史：\n{history}\n\n请按 schema 输出评分 JSON。"},
     ]
-    result = await llm_client.chat_json(messages, trace_id=trace_id)
-    if not isinstance(result, dict) or "scores" not in result:
-        log_event(logger, WARNING, "evaluator_invalid",
-                  trace_id=trace_id, raw=str(result)[:200])
-        return _fallback_eval()
-    # 规范化 4 维分数
-    scores = result.get("scores", {})
-    for k in ("history", "logic", "communication", "humanity"):
-        v = scores.get(k, 0)
+    try:
+        result = await model_gateway.chat_json(messages, trace_id=trace_id)
+    except LlmFallbackError as exc:
+        raise ModelUnavailableError(trace_id=trace_id) from exc
+    if not isinstance(result, dict) or not isinstance(result.get("scores"), dict):
+        raise OutputSchemaInvalidError(trace_id=trace_id)
+    scores = result["scores"]
+    for dimension in _DIMENSIONS:
+        if dimension not in scores:
+            raise OutputSchemaInvalidError(f"评分结果缺少维度: {dimension}", trace_id=trace_id)
         try:
-            scores[k] = max(0, min(25, float(v)))
-        except (TypeError, ValueError):
-            scores[k] = 0
+            scores[dimension] = max(0.0, min(25.0, float(scores[dimension])))
+        except (TypeError, ValueError) as exc:
+            raise OutputSchemaInvalidError(f"评分维度 {dimension} 不是有效数字", trace_id=trace_id) from exc
     result["scores"] = scores
     result.setdefault("comments", {})
     result.setdefault("strengths", [])
     result.setdefault("improvements", [])
     result.setdefault("final_report", "")
     result.setdefault("mistakes", [])
-    log_event(logger, INFO, "evaluator_done",
-              trace_id=trace_id, total=sum(scores.values()))
+    log_event(logger, INFO, "evaluator_done", trace_id=trace_id, total=sum(scores.values()))
     return result
-
-
-def _fallback_eval() -> dict[str, Any]:
-    """LLM 不可用时的兜底评分"""
-    return {
-        "scores": {"history": 15, "logic": 12, "communication": 18, "humanity": 18},
-        "comments": {
-            "history": "（降级模式）未能精确分析病史采集完整性",
-            "logic": "（降级模式）未能精确分析诊断逻辑",
-            "communication": "（降级模式）默认中等偏上",
-            "humanity": "（降级模式）默认中等偏上",
-        },
-        "strengths": ["完成了一次完整问诊训练"],
-        "improvements": ["配置真实 LLM 后可获得详细改进建议"],
-        "final_report": "本次评分基于降级模式，仅作联调验证用。",
-        "mistakes": [],
-    }

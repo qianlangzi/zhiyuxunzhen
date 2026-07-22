@@ -1,0 +1,47 @@
+[project]
+name = "zhiyu-ai"
+version = "1.0.0"
+requires-python = ">=3.11"
+description = "智愈寻真 - AI 中台，负责大模型调度、RAG、智能体编排与 SSE 流式输出"
+
+# ============================================================
+# Ruff: 代码质量 lint + format
+# 规则集：pyflakes(F) / pylint(PL) / isort(I) / pyupgrade(UP)
+# ============================================================
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["F", "PL", "I", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+# ============================================================
+# Mypy: 渐进式类型检查（strict=false，逐步收紧）
+# ============================================================
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_unused_configs = true
+ignore_missing_imports = true
+
+# ============================================================
+# Pytest: 测试配置
+# ============================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+# ============================================================
+# Coverage: 覆盖率
+# ============================================================
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60

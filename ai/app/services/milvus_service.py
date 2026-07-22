@@ -12,6 +12,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.logging import get_logger, log_event
 from logging import INFO, WARNING
+from app.core.errors import RetrievalUnavailableError
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,7 @@ class MilvusService:
     async def _ensure_connected(self) -> bool:
         """首次使用时尝试连接 Milvus；失败则切到内存模式"""
         if self._connected:
-            return not self._use_memory
+            return self._client is not None and not self._use_memory
         if self._use_memory:
             return False
         try:
@@ -131,6 +132,8 @@ class MilvusService:
         if not records:
             return 0
         use_milvus = await self._ensure_connected()
+        if not use_milvus and not settings.enable_milvus_fallback:
+            raise RetrievalUnavailableError("Milvus 服务不可用", trace_id)
         if use_milvus and self._client:
             try:
                 self._client.upsert(
@@ -143,7 +146,7 @@ class MilvusService:
                 log_event(logger, WARNING, "milvus_upsert_error",
                           trace_id=trace_id, error=type(e).__name__, msg=str(e))
                 if not settings.enable_milvus_fallback:
-                    return 0
+                    raise RetrievalUnavailableError("Milvus 写入失败", trace_id) from e
                 self._use_memory = True
         # 内存 fallback
         return self._memory.upsert(records)
@@ -156,6 +159,8 @@ class MilvusService:
     ) -> list[dict[str, Any]]:
         """向量相似度检索，返回 top_k 条带 score 的记录"""
         use_milvus = await self._ensure_connected()
+        if not use_milvus and not settings.enable_milvus_fallback:
+            raise RetrievalUnavailableError("Milvus 服务不可用", trace_id)
         if use_milvus and self._client:
             try:
                 results = self._client.search(
@@ -182,18 +187,21 @@ class MilvusService:
                 log_event(logger, WARNING, "milvus_search_error",
                           trace_id=trace_id, error=type(e).__name__, msg=str(e))
                 if not settings.enable_milvus_fallback:
-                    return []
+                    raise RetrievalUnavailableError("Milvus 检索失败", trace_id) from e
                 self._use_memory = True
         return self._memory.search(query_vec, top_k)
 
     async def count(self, trace_id: str = "-") -> int:
         use_milvus = await self._ensure_connected()
+        if not use_milvus and not settings.enable_milvus_fallback:
+            raise RetrievalUnavailableError("Milvus 服务不可用", trace_id)
         if use_milvus and self._client:
             try:
                 stats = self._client.get_collection_stats(settings.milvus_collection)
                 return int(stats.get("row_count", 0))
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                if not settings.enable_milvus_fallback:
+                    raise RetrievalUnavailableError("Milvus 状态读取失败", trace_id) from exc
         return self._memory.count()
 
 

@@ -13,6 +13,7 @@ from app.core.logging import get_logger, log_event
 from logging import INFO, WARNING
 from app.models.common import Citation
 from app.services.milvus_service import milvus_service
+from app.core.errors import RetrievalUnavailableError
 
 logger = get_logger(__name__)
 
@@ -28,7 +29,7 @@ class RagService:
         if settings.embedding_configured:
             self._embed_client = AsyncOpenAI(
                 base_url=settings.embedding_base_url,
-                api_key=settings.embedding_api_key,
+                api_key=settings.embedding_api_key.get_secret_value(),
                 timeout=30.0,
             )
 
@@ -39,7 +40,9 @@ class RagService:
     async def embed(self, text: str, trace_id: str = "-") -> list[float]:
         """文本转向量；不可用时返回零向量"""
         if not self.available:
-            return _zero_vector()
+            if settings.enable_milvus_fallback:
+                return _zero_vector()
+            raise RetrievalUnavailableError("Embedding 服务未配置", trace_id)
         try:
             resp = await self._embed_client.embeddings.create(
                 model=settings.embedding_model, input=text
@@ -48,7 +51,9 @@ class RagService:
         except APIError as e:
             log_event(logger, WARNING, "embed_error",
                       trace_id=trace_id, error=type(e).__name__, msg=str(e))
-            return _zero_vector()
+            if settings.enable_milvus_fallback:
+                return _zero_vector()
+            raise RetrievalUnavailableError("Embedding 服务调用失败", trace_id) from e
 
     async def embed_batch(
         self, texts: list[str], trace_id: str = "-"
@@ -57,7 +62,9 @@ class RagService:
         if not texts:
             return []
         if not self.available:
-            return [_zero_vector() for _ in texts]
+            if settings.enable_milvus_fallback:
+                return [_zero_vector() for _ in texts]
+            raise RetrievalUnavailableError("Embedding 服务未配置", trace_id)
         try:
             resp = await self._embed_client.embeddings.create(
                 model=settings.embedding_model, input=texts
@@ -67,7 +74,9 @@ class RagService:
         except APIError as e:
             log_event(logger, WARNING, "embed_batch_error",
                       trace_id=trace_id, error=type(e).__name__, msg=str(e))
-            return [_zero_vector() for _ in texts]
+            if settings.enable_milvus_fallback:
+                return [_zero_vector() for _ in texts]
+            raise RetrievalUnavailableError("Embedding 服务调用失败", trace_id) from e
 
     async def search(
         self,

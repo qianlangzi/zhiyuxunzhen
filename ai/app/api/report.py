@@ -6,7 +6,7 @@ POST /report/generate_review_pdf
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from app.core.logging import get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
@@ -15,9 +15,32 @@ from app.models.common import R
 from app.models.embed import ReportRequest, ReportResult
 from app.prompts.templates import report_agent_prompt
 from app.services.llm_client import llm_client
+from app.core.errors import ModelUnavailableError, OutputSchemaInvalidError
+from app.core.errors import ApiError
+from app.services.backend_client import backend_client
+from app.core.errors import BackendDependencyError
+from app.domain.enums import TaskType
+from app.workers.task_models import TaskEnvelope
+from app.workers.task_queue import TaskQueue
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+@router.post("/report/generate_review_pdf/async", response_model=R)
+async def enqueue_review_report(
+    req: ReportRequest,
+    request: Request,
+    _token: None = Depends(require_internal_token),
+):
+    task = await TaskQueue(getattr(request.app.state, "redis_client", None)).enqueue(
+        TaskEnvelope(
+            idempotency_key=f"report:{req.sessionId}",
+            task_type=TaskType.REPORT,
+            payload={"sessionId": req.sessionId},
+        )
+    )
+    return R(data={"taskId": task.task_id, "status": task.status.value})
 
 
 @router.post("/report/generate_review_pdf", response_model=R)
@@ -28,22 +51,27 @@ async def generate_review_pdf(
     trace_id = str(uuid.uuid4())
     set_context(trace_id=trace_id, session_id=str(req.sessionId))
     try:
-        # 生产环境应从业务中台拉取会话历史、错题、评分作为输入
+        context = await backend_client.report_context(req.sessionId, trace_id=trace_id)
+        if context is None:
+            raise BackendDependencyError("无法获取报告会话事实", trace_id)
         user_msg = (
-            f"会话 ID：{req.sessionId}\n"
-            "请基于一次典型内科问诊训练，生成结构化复盘报告 JSON。"
-            "训练概览应包含：病例主题、问诊时长（估算）、错题数、四维评分。"
+            "请严格基于以下 Spring Boot 会话事实生成结构化复盘报告 JSON，"
+            "禁止补造问诊时长、错题、评分或教材来源：\n"
+            f"{context}"
         )
         messages = [
             {"role": "system", "content": report_agent_prompt()},
             {"role": "user", "content": user_msg},
         ]
-        result: dict[str, Any] = await llm_client.chat_json(messages, trace_id=trace_id)
+        try:
+            result: dict[str, Any] = await llm_client.chat_json(messages, trace_id=trace_id)
+        except Exception as exc:  # noqa: BLE001
+            raise ModelUnavailableError(trace_id=trace_id) from exc
 
         if not isinstance(result, dict) or "title" not in result:
             log_event(logger, WARNING, "report_invalid",
                       trace_id=trace_id, raw=str(result)[:200])
-            result = _fallback_report(req.sessionId)
+            raise OutputSchemaInvalidError(trace_id=trace_id) from None
 
         report = ReportResult(
             sessionId=req.sessionId,
@@ -58,20 +86,12 @@ async def generate_review_pdf(
                   trace_id=trace_id, session_id=req.sessionId,
                   mistakes=len(report.typicalMistakes))
         return R(data=report.model_dump())
+    except ApiError as e:
+        log_event(logger, WARNING, "report_unavailable", trace_id=trace_id, code=e.code)
+        return R(code=e.http_status, message=e.message, data=None)
     except Exception as e:  # noqa: BLE001
         log_event(logger, WARNING, "report_failed",
                   trace_id=trace_id, error=type(e).__name__, msg=str(e))
         return R(code=500, message=f"复盘报告生成失败：{e}", data=None)
     finally:
         reset_context()
-
-
-def _fallback_report(session_id: int) -> dict[str, Any]:
-    return {
-        "title": f"会话 {session_id} 复盘报告（降级模式）",
-        "overview": "本次复盘基于降级模式生成，仅作联调验证用。",
-        "typicalMistakes": ["请配置真实 LLM 后重新生成报告以获得详细错题"],
-        "standardPath": [],
-        "textbookRefs": [],
-        "nextSteps": ["配置 LLM_BASE_URL / LLM_API_KEY 后重新生成"],
-    }

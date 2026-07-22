@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 
 from app.core.logging import get_logger
 from app.prompts.templates import sp_agent_prompt
-from app.services.llm_client import llm_client
+from app.adapters.model_gateway import model_gateway
 
 logger = get_logger(__name__)
 
@@ -29,5 +29,5 @@ async def sp_reply_stream(
 ) -> AsyncIterator[str]:
     """流式返回 SP 回复"""
     messages = build_sp_messages(case_context, history)
-    async for delta in llm_client.stream(messages, trace_id=trace_id):
+    async for delta in model_gateway.stream(messages, trace_id=trace_id):
         yield delta

@@ -17,6 +17,7 @@ from app.models.common import R
 from app.models.embed import DailyCaseEvaluateRequest, DailyCaseEvaluation
 from app.prompts.templates import daily_case_prompt
 from app.services.llm_client import llm_client
+from app.core.errors import ApiError, OutputSchemaInvalidError
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -63,7 +64,7 @@ async def evaluate_daily_case(
             if not isinstance(result_dict, dict) or "correct" not in result_dict:
                 log_event(logger, WARNING, "daily_case_invalid",
                           trace_id=trace_id, raw=str(result_dict)[:200])
-                result_dict = _fallback_eval(req.answer)
+                raise OutputSchemaInvalidError(trace_id=trace_id) from None
 
         result = DailyCaseEvaluation(
             studentId=req.studentId,
@@ -77,18 +78,12 @@ async def evaluate_daily_case(
                   trace_id=trace_id, student_id=req.studentId,
                   case_id=req.caseId, correct=result.correct)
         return R(data=result.model_dump())
+    except ApiError as e:
+        log_event(logger, WARNING, "daily_case_unavailable", trace_id=trace_id, code=e.code)
+        return R(code=e.http_status, message=e.message, data=None)
     except Exception as e:  # noqa: BLE001
         log_event(logger, WARNING, "daily_case_failed",
                   trace_id=trace_id, error=type(e).__name__, msg=str(e))
         return R(code=500, message=f"判题失败：{e}", data=None)
     finally:
         reset_context()
-
-
-def _fallback_eval(answer: str) -> dict[str, Any]:
-    return {
-        "correct": False,
-        "correctAnswer": "（降级模式）未配置 LLM，无法精确判题",
-        "explanation": "请配置真实 LLM 后重新判题。学生答案已记录。",
-        "textbookRef": None,
-    }

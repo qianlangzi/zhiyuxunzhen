@@ -12,6 +12,7 @@ import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.service.AiSessionContextService;
 import com.zhiyu.service.dto.internal.SessionMessageAppendDTO;
 import com.zhiyu.vo.AiSessionContextVO;
+import com.zhiyu.vo.AiReportContextVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +75,36 @@ public class AiSessionContextServiceImpl implements AiSessionContextService {
             log.setCitations(item.getCitations());
             messageMapper.insert(log);
         }
+    }
+
+    @Override
+    public AiReportContextVO getReportContext(Long sessionId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null) throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
+        SpCaseConfig c = caseMapper.selectById(session.getCaseId());
+        if (c == null) throw new BizException(ResultCode.CASE_NOT_FOUND);
+        List<AiSessionContextVO.Message> messages = messageMapper.selectList(
+                        new LambdaQueryWrapper<ChatMessageLog>()
+                                .eq(ChatMessageLog::getSessionId, sessionId)
+                                .orderByAsc(ChatMessageLog::getCreatedAt))
+                .stream()
+                .map(item -> AiSessionContextVO.Message.builder()
+                        .sender(item.getSender())
+                        .content(item.getContent())
+                        .citations(item.getCitations())
+                        .build())
+                .toList();
+        return AiReportContextVO.builder()
+                .sessionId(session.getId())
+                .studentId(session.getStudentId())
+                .caseId(session.getCaseId())
+                .caseTitle(c.getTitle())
+                .status(session.getStatus())
+                .osceScoreJson(session.getOsceScoreJson())
+                .finalReport(session.getFinalReport())
+                .totalExamCost(session.getTotalExamCost())
+                .messages(messages)
+                .build();
     }
 
     private ChatSession requireOwnedSession(Long sessionId, Long studentId) {

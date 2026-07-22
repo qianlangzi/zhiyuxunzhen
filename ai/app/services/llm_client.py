@@ -33,7 +33,7 @@ class LlmClient:
         if settings.llm_configured:
             self._client = AsyncOpenAI(
                 base_url=settings.llm_base_url,
-                api_key=settings.llm_api_key,
+                api_key=settings.llm_api_key.get_secret_value(),
                 timeout=settings.llm_timeout_seconds,
             )
 

@@ -8,7 +8,7 @@ from typing import Any
 from app.core.logging import get_logger, log_event
 from logging import INFO, WARNING
 from app.prompts.templates import mentor_agent_prompt
-from app.services.llm_client import llm_client
+from app.adapters.model_gateway import model_gateway
 
 logger = get_logger(__name__)
 
@@ -38,7 +38,7 @@ async def update_tree(
         {"role": "system", "content": mentor_agent_prompt()},
         {"role": "user", "content": user_msg},
     ]
-    result = await llm_client.chat_json(messages, trace_id=trace_id)
+    result = await model_gateway.chat_json(messages, trace_id=trace_id)
     # 兜底：LLM 不可用或返回异常时返回空树
     if not isinstance(result, dict) or "nodes" not in result:
         log_event(logger, WARNING, "mentor_tree_invalid",

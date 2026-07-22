@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import com.zhiyu.vo.AiSessionContextVO;
+import com.zhiyu.vo.AiReportContextVO;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -41,6 +42,12 @@ public class InternalCallbackController {
             @PathVariable Long sessionId,
             @RequestParam Long studentId) {
         return R.ok(aiSessionContextService.getContext(sessionId, studentId));
+    }
+
+    @Operation(summary = "获取报告生成所需的会话事实")
+    @GetMapping("/session/{sessionId}/report-context")
+    public R<AiReportContextVO> reportContext(@PathVariable Long sessionId) {
+        return R.ok(aiSessionContextService.getReportContext(sessionId));
     }
 
     @Operation(summary = "保存问诊消息")
