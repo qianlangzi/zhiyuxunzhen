@@ -1,13 +1,5 @@
 allprojects {
     repositories {
-        exclusiveContent {
-            forRepository {
-                maven { url = uri("https://storage.flutter-io.cn/download.flutter.io") }
-            }
-            filter { includeGroup("io.flutter") }
-        }
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
         google()
         mavenCentral()
     }

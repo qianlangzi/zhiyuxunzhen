@@ -1,0 +1,2085 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智愈寻真 · 学生端原型</title>
+<link rel="stylesheet" href="css/design-system.css">
+<style>
+  /* ========== 原型外壳 ========== */
+  body {
+    background: #2a2e2a;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(45,74,62,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(184,65,46,0.08) 0%, transparent 50%);
+    min-height: 100vh;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  /* 顶部导航条 */
+  .proto-topbar {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: #d8d4c8;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+  }
+  .proto-topbar .brand {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .proto-topbar .brand-mark {
+    width: 28px; height: 28px;
+    border: 1px solid #6b7270;
+    display: flex; align-items: center; justify-content: center;
+    color: #d8e0d3;
+    font-family: var(--font-display);
+    font-weight: 600;
+  }
+  .proto-topbar .brand-text {
+    font-family: var(--font-display);
+    font-size: 16px;
+    color: #f5f1e8;
+    letter-spacing: 0.02em;
+  }
+  .proto-topbar .meta {
+    display: flex; gap: 24px; color: #9aa09d;
+  }
+
+  /* 屏幕切换标签栏 */
+  .screen-tabs {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(245,241,232,0.04);
+    border: 1px solid rgba(245,241,232,0.08);
+    border-radius: 8px;
+  }
+  .screen-tab {
+    padding: 8px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #9aa09d;
+    border-radius: 4px;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .screen-tab:hover { color: #d8d4c8; background: rgba(245,241,232,0.05); }
+  .screen-tab.active {
+    background: #d8e0d3;
+    color: #1a1f1c;
+    font-weight: 500;
+  }
+
+  /* 手机外壳 */
+  .phone-stage {
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .phone {
+    width: 390px;
+    height: 844px;
+    background: var(--paper);
+    border-radius: 44px;
+    border: 11px solid #1a1f1c;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+    overflow: hidden;
+    position: relative;
+  }
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 120px; height: 28px;
+    background: #1a1f1c;
+    border-radius: 0 0 18px 18px;
+    z-index: 100;
+  }
+
+  /* 屏幕容器 */
+  .screen {
+    width: 100%; height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    background: var(--paper);
+    position: relative;
+    display: none;
+  }
+  .screen.active { display: block; }
+
+  /* 状态栏 */
+  .statusbar {
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px 0 24px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    position: sticky;
+    top: 0;
+    background: var(--paper);
+    z-index: 50;
+  }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; }
+
+  /* App 顶栏 */
+  .appbar {
+    padding: 8px 20px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    position: sticky;
+    top: 44px;
+    z-index: 40;
+  }
+  .appbar-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .appbar-back {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink);
+  }
+
+  /* 底部 Tab Bar */
+  .tabbar {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 78px;
+    background: var(--paper);
+    border-top: 1px solid var(--rule);
+    display: flex;
+    align-items: flex-start;
+    padding-top: 8px;
+    z-index: 50;
+  }
+  .tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--ink-4);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .tab-item.active { color: var(--moss); }
+  .tab-item svg { width: 22px; height: 22px; }
+
+  /* 内容区 */
+  .content {
+    padding: 16px 20px 100px;
+  }
+
+  /* ========== 首页 ========== */
+  .greet-row {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .greet-name {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  .greet-sub {
+    font-size: 12px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+    margin-top: 4px;
+  }
+  .greet-streak {
+    text-align: right;
+  }
+  .streak-num {
+    font-family: var(--font-display);
+    font-size: 32px;
+    font-weight: 600;
+    color: var(--moss);
+    line-height: 1;
+  }
+  .streak-label {
+    font-size: 10px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* 学习热力图 */
+  .heatmap-wrap {
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--r-md);
+    padding: 16px;
+    position: relative;
+  }
+  .heatmap-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .heatmap-title {
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(26, 1fr);
+    gap: 3px;
+  }
+  .heatmap-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    background: var(--paper-2);
+  }
+  .heatmap-cell.l1 { background: #c8d4c0; }
+  .heatmap-cell.l2 { background: #8fa787; }
+  .heatmap-cell.l3 { background: #5a7a6b; }
+  .heatmap-cell.l4 { background: #2d4a3e; }
+  .heatmap-legend {
+    display: flex; align-items: center; gap: 6px;
+    margin-top: 10px;
+    font-size: 10px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    justify-content: flex-end;
+  }
+  .heatmap-legend .cells { display: flex; gap: 3px; }
+  .heatmap-legend .cells span {
+    width: 10px; height: 10px; border-radius: 2px;
+  }
+
+  /* 每日一例卡 */
+  .daily-card {
+    background: var(--moss);
+    color: var(--paper);
+    border-radius: var(--r-md);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+  .daily-card::before {
+    content: '07.21';
+    position: absolute;
+    top: 14px; right: 16px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(245,241,232,0.5);
+  }
+  .daily-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #b8c9b8;
+    margin-bottom: 8px;
+  }
+  .daily-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.25;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .daily-meta {
+    display: flex; gap: 12px;
+    font-size: 11px;
+    color: #b8c9b8;
+    font-family: var(--font-mono);
+    margin-bottom: 16px;
+  }
+  .daily-meta span { display: flex; align-items: center; gap: 4px; }
+  .daily-cta {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--paper);
+    color: var(--moss);
+    padding: 8px 14px;
+    border-radius: var(--r-sm);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* 区块标题 */
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 24px 0 12px;
+  }
+  .section-head .title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .section-head .title .no {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-4);
+    letter-spacing: 0.08em;
+  }
+  .section-head .more {
+    font-size: 12px;
+    color: var(--moss);
+    font-family: var(--font-mono);
+  }
+
+  /* 待办作业列表 */
+  .todo-item {
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--r-md);
+    padding: 14px 16px;
+    margin-bottom: 8px;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .todo-tag {
+    width: 4px; align-self: stretch;
+    background: var(--vermilion);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .todo-tag.amber { background: var(--amber); }
+  .todo-tag.moss { background: var(--moss); }
+  .todo-body { flex: 1; min-width: 0; }
+  .todo-title {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .todo-meta {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+  }
+  .todo-deadline-urgent { color: var(--vermilion); }
+
+  /* 薄弱知识点 */
+  .weak-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .weak-row:last-child { border-bottom: 0; }
+  .weak-name { flex: 0 0 100px; font-size: 13px; }
+  .weak-bar { flex: 1; height: 6px; background: var(--paper-3); border-radius: 3px; overflow: hidden; }
+  .weak-bar-fill { height: 100%; background: var(--vermilion); border-radius: 3px; }
+  .weak-bar-fill.warn { background: var(--amber); }
+  .weak-bar-fill.ok { background: var(--moss); }
+  .weak-score {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-2);
+    width: 36px; text-align: right;
+  }
+
+  /* ========== AI 问诊室 ========== */
+  .chat-screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--paper);
+  }
+  .chat-header {
+    padding: 12px 16px 10px;
+    background: var(--card);
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .patient-avatar {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--moss-soft);
+    border: 1px solid var(--moss-3);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: var(--moss);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .patient-info { flex: 1; min-width: 0; }
+  .patient-name {
+    font-family: var(--font-display);
+    font-size: 15px;
+    font-weight: 600;
+  }
+  .patient-sub {
+    font-size: 11px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+    margin-top: 1px;
+  }
+  .chat-actions { display: flex; gap: 6px; }
+  .chat-action-btn {
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-3);
+    border-radius: var(--r-sm);
+  }
+  .chat-action-btn:hover { background: var(--paper-2); color: var(--ink); }
+
+  /* 思维树切换条 */
+  .tree-toggle {
+    padding: 8px 16px;
+    background: var(--moss-tint);
+    border-bottom: 1px solid var(--moss-soft);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px;
+    color: var(--moss);
+  }
+  .tree-toggle .label {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .tree-toggle .stats {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    display: flex; gap: 10px;
+  }
+  .tree-toggle .stats .cost { color: var(--amber); font-weight: 500; }
+
+  /* 对话区 */
+  .chat-stream {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .msg {
+    max-width: 80%;
+    animation: fade-up 0.3s ease-out;
+  }
+  .msg-patient {
+    align-self: flex-start;
+  }
+  .msg-student {
+    align-self: flex-end;
+  }
+  .msg-mentor {
+    align-self: center;
+    max-width: 88%;
+  }
+  .msg-bubble {
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.55;
+    border-radius: 14px;
+    position: relative;
+  }
+  .msg-patient .msg-bubble {
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-top-left-radius: 4px;
+    color: var(--ink);
+  }
+  .msg-student .msg-bubble {
+    background: var(--moss);
+    color: var(--paper);
+    border-top-right-radius: 4px;
+  }
+  .msg-mentor .msg-bubble {
+    background: var(--amber-soft);
+    border: 1px solid #e3cfa0;
+    border-radius: var(--r-sm);
+    color: var(--ink);
+    font-size: 12.5px;
+    padding: 10px 12px;
+  }
+  .msg-mentor .msg-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 4px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .msg-meta {
+    font-size: 10px;
+    color: var(--ink-4);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+    padding: 0 4px;
+  }
+  .msg-patient .msg-meta { text-align: left; }
+  .msg-student .msg-meta { text-align: right; }
+  .citation {
+    display: inline-flex; align-items: center; gap: 3px;
+    margin-top: 6px;
+    padding: 2px 6px;
+    background: var(--moss-tint);
+    border: 1px solid var(--moss-soft);
+    border-radius: var(--r-xs);
+    font-size: 10px;
+    color: var(--moss);
+    font-family: var(--font-mono);
+  }
+
+  /* 输入区 */
+  .chat-input-wrap {
+    padding: 10px 12px 14px;
+    background: var(--card);
+    border-top: 1px solid var(--rule);
+  }
+  .chat-quick-row {
+    display: flex; gap: 6px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+  .chat-quick {
+    flex-shrink: 0;
+    padding: 5px 10px;
+    font-size: 12px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .chat-quick:hover { background: var(--moss-tint); border-color: var(--moss-3); color: var(--moss); }
+  .chat-input-row {
+    display: flex; gap: 8px; align-items: flex-end;
+  }
+  .chat-input-tools { display: flex; gap: 4px; }
+  .chat-input-tool {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-3);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--rule);
+    background: var(--paper);
+  }
+  .chat-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: var(--r-md);
+    font-size: 14px;
+    min-height: 36px;
+    max-height: 100px;
+    resize: none;
+    outline: none;
+  }
+  .chat-send {
+    width: 36px; height: 36px;
+    background: var(--moss);
+    color: var(--paper);
+    border-radius: var(--r-md);
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* 思维树侧滑面板 */
+  .tree-panel {
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 100%;
+    background: var(--paper);
+    z-index: 60;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+  }
+  .tree-panel.open { transform: translateX(0); }
+  .tree-panel-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--card);
+  }
+  .tree-panel-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .tree-cost-card {
+    margin: 12px 16px;
+    padding: 12px 14px;
+    background: var(--amber-soft);
+    border: 1px solid #e3cfa0;
+    border-radius: var(--r-md);
+  }
+  .tree-cost-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .tree-cost-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .tree-cost-val {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .tree-cost-bar {
+    height: 4px;
+    background: rgba(184,130,30,0.2);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .tree-cost-bar-fill { height: 100%; background: var(--amber); width: 68%; }
+  .tree-cost-hint {
+    font-size: 11px;
+    color: var(--ink-3);
+    margin-top: 6px;
+    font-family: var(--font-mono);
+  }
+
+  .tree-section {
+    padding: 0 16px 8px;
+  }
+  .tree-section-title {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 12px 0 8px;
+    border-bottom: 1px solid var(--rule);
+    margin-bottom: 8px;
+    display: flex; justify-content: space-between;
+  }
+  .tree-node {
+    padding: 8px 10px;
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-left: 3px solid var(--moss);
+    border-radius: var(--r-sm);
+    margin-bottom: 6px;
+    font-size: 12.5px;
+  }
+  .tree-node.miss { border-left-color: var(--vermilion); background: var(--vermilion-soft); }
+  .tree-node.warn { border-left-color: var(--amber); background: var(--amber-soft); }
+  .tree-node-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 3px;
+  }
+  .tree-node-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .tree-node-status {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    padding: 1px 5px;
+    border-radius: 2px;
+  }
+  .status-ok { background: var(--moss-tint); color: var(--moss); }
+  .status-miss { background: var(--vermilion-soft); color: var(--vermilion); }
+  .status-warn { background: var(--amber-soft); color: var(--amber); }
+  .tree-node-text { color: var(--ink-2); line-height: 1.4; }
+  .tree-node-meta {
+    font-size: 10px;
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    margin-top: 4px;
+  }
+
+  /* ========== OSCE 雷达图结果页 ========== */
+  .result-hero {
+    padding: 24px 20px 20px;
+    background: var(--moss);
+    color: var(--paper);
+    text-align: center;
+    position: relative;
+  }
+  .result-hero::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 8px;
+    background: var(--paper);
+    border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  }
+  .result-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #b8c9b8;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .result-score {
+    font-family: var(--font-display);
+    font-size: 64px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .result-score .max {
+    font-size: 24px;
+    color: #b8c9b8;
+    font-weight: 400;
+  }
+  .result-grade {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: #d8e0d3;
+    margin-top: 6px;
+    font-style: italic;
+  }
+
+  .radar-wrap {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .radar-svg {
+    width: 280px;
+    height: 280px;
+  }
+  .radar-legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 16px;
+    width: 100%;
+    margin-top: 16px;
+  }
+  .radar-leg-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px;
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--r-sm);
+  }
+  .radar-leg-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .radar-leg-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .radar-leg-score {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .feedback-block {
+    margin: 16px 20px;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--r-md);
+  }
+  .feedback-head {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--moss);
+    margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .feedback-head.vermilion { color: var(--vermilion); }
+  .feedback-list { padding-left: 18px; }
+  .feedback-list li {
+    font-size: 13px;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin-bottom: 6px;
+    position: relative;
+    padding-left: 4px;
+  }
+  .feedback-list li::marker { color: var(--moss); }
+  .feedback-list.vermilion li::marker { color: var(--vermilion); }
+
+  /* ========== 错题本 ========== */
+  .filter-bar {
+    display: flex; gap: 6px;
+    padding: 12px 20px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+    position: sticky;
+    top: 92px;
+    z-index: 30;
+  }
+  .filter-chip {
+    padding: 6px 12px;
+    font-size: 12px;
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 14px;
+    color: var(--ink-2);
+    white-space: nowrap;
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+  }
+  .filter-chip.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  .mistake-card {
+    margin: 10px 20px;
+    padding: 14px 16px;
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: var(--r-md);
+    position: relative;
+  }
+  .mistake-card.unresolved {
+    border-left: 3px solid var(--vermilion);
+  }
+  .mistake-card.resolved {
+    border-left: 3px solid var(--moss);
+    opacity: 0.7;
+  }
+  .mistake-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .mistake-type {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--vermilion);
+    padding: 2px 6px;
+    background: var(--vermilion-soft);
+    border-radius: 2px;
+  }
+  .mistake-type.resolved { color: var(--moss); background: var(--moss-tint); }
+  .mistake-date {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-4);
+  }
+  .mistake-title {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .mistake-evidence {
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.5;
+    padding: 8px 10px;
+    background: var(--paper);
+    border-radius: var(--r-sm);
+    border-left: 2px solid var(--rule);
+    margin: 6px 0;
+  }
+  .mistake-tags {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶部导航 -->
+<div class="proto-topbar">
+  <div class="brand">
+    <div class="brand-mark">愈</div>
+    <div>
+      <div class="brand-text">智愈寻真</div>
+      <div style="font-size:10px;color:#9aa09d;letter-spacing:0.1em;">ZHIYU XUNZHEN · STUDENT</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span>v2.1 PROTO</span>
+    <span>2026.07.21</span>
+    <span><a href="index.html" style="color:#d8e0d3;">← 返回总览</a></span>
+  </div>
+</div>
+
+<!-- 屏幕切换 -->
+<div class="screen-tabs">
+  <div class="screen-tab active" data-screen="home">首页 · 学习中心</div>
+  <div class="screen-tab" data-screen="chat">AI 问诊室</div>
+  <div class="screen-tab" data-screen="tree">临床思维树</div>
+  <div class="screen-tab" data-screen="result">OSCE 雷达图</div>
+  <div class="screen-tab" data-screen="mistakes">错题本</div>
+  <div class="screen-tab" data-screen="report">AI 复盘报告</div>
+  <div class="screen-tab" data-screen="daily">每日一例</div>
+</div>
+
+<!-- 手机舞台 -->
+<div class="phone-stage">
+  <div class="phone">
+
+    <!-- ============ 屏幕 1：首页 ============ -->
+    <section class="screen active" id="screen-home">
+      <div class="statusbar">
+        <span>9:08</span>
+        <span class="right">
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M1 7h2v2H1zM4 5h2v4H4zM7 3h2v6H7zM10 1h2v8h-2z"/></svg>
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M1 4c2-2 5-3 6-3s4 1 6 3M3 6c1-1 3-2 4-2s3 1 4 2M5 8c1-1 1-1 2-1s1 0 2 1"/></svg>
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/><rect x="17" y="3" width="2" height="4" rx="0.5" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <div>
+          <div class="header-tag">内科教研 · 学生端</div>
+          <div class="appbar-title">学习中心</div>
+        </div>
+        <button class="btn-icon" style="color:var(--ink-2);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5"/><path d="M9 17a3 3 0 006 0"/></svg>
+        </button>
+      </div>
+
+      <div class="content">
+        <!-- 问候 -->
+        <div class="greet-row">
+          <div>
+            <div class="greet-name">陈思远</div>
+            <div class="greet-sub">临床医学 · 大四 · 内科学</div>
+          </div>
+          <div class="greet-streak">
+            <div class="streak-num">23</div>
+            <div class="streak-label">连续训练天数</div>
+          </div>
+        </div>
+
+        <!-- 学习热力图 -->
+        <div class="heatmap-wrap">
+          <div class="heatmap-head">
+            <div class="heatmap-title">学习热力</div>
+            <div class="t-meta">近半年 182 天 · 完成 <span style="color:var(--moss);font-weight:600;">142</span> 次训练</div>
+          </div>
+          <div class="heatmap-grid" id="heatmap"></div>
+          <div class="heatmap-legend">
+            <span>少</span>
+            <div class="cells">
+              <span style="background:var(--paper-2);"></span>
+              <span style="background:#c8d4c0;"></span>
+              <span style="background:#8fa787;"></span>
+              <span style="background:#5a7a6b;"></span>
+              <span style="background:#2d4a3e;"></span>
+            </div>
+            <span>多</span>
+          </div>
+        </div>
+
+        <!-- 每日一例 -->
+        <div class="daily-card">
+          <div class="daily-eyebrow">每日一例 · No.213</div>
+          <div class="daily-title">胸痛 2 小时伴大汗<br>会是急性冠脉综合征吗？</div>
+          <div class="daily-meta">
+            <span>● 心血管</span>
+            <span>● 5 分钟</span>
+            <span>● 标准</span>
+          </div>
+          <button class="daily-cta">
+            开始训练
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+
+        <!-- 待办作业 -->
+        <div class="section-head">
+          <div class="title"><span class="no">01</span>待办作业</div>
+          <div class="more">全部 3 →</div>
+        </div>
+
+        <div class="todo-item">
+          <div class="todo-tag"></div>
+          <div class="todo-body">
+            <div class="todo-title">心绞痛病例问诊 · 大病历</div>
+            <div class="todo-meta">
+              <span>王老师</span>
+              <span>· 心血管内科</span>
+              <span class="todo-deadline-urgent">· 截止 07.22 23:59</span>
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <div class="todo-item">
+          <div class="todo-tag amber"></div>
+          <div class="todo-body">
+            <div class="todo-title">慢阻肺急性加重 · 鉴别诊断</div>
+            <div class="todo-meta">
+              <span>李老师</span>
+              <span>· 呼吸内科</span>
+              <span>· 截止 07.25 23:59</span>
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <div class="todo-item">
+          <div class="todo-tag moss"></div>
+          <div class="todo-body">
+            <div class="todo-title">肝硬化腹水 · 自主训练</div>
+            <div class="todo-meta">
+              <span>· 消化内科</span>
+              <span>· 已完成问诊，待提交病历</span>
+            </div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-3)" stroke-width="1.5"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+
+        <!-- 薄弱知识点 -->
+        <div class="section-head">
+          <div class="title"><span class="no">02</span>薄弱知识点</div>
+          <div class="more">补救路径 →</div>
+        </div>
+
+        <div class="paper" style="padding: 4px 14px;">
+          <div class="weak-row">
+            <div class="weak-name">急性冠脉综合征</div>
+            <div class="weak-bar"><div class="weak-bar-fill" style="width:42%;"></div></div>
+            <div class="weak-score">0.42</div>
+          </div>
+          <div class="weak-row">
+            <div class="weak-name">肺栓塞鉴别</div>
+            <div class="weak-bar"><div class="weak-bar-fill warn" style="width:55%;"></div></div>
+            <div class="weak-score">0.55</div>
+          </div>
+          <div class="weak-row">
+            <div class="weak-name">慢性心衰分级</div>
+            <div class="weak-bar"><div class="weak-bar-fill warn" style="width:61%;"></div></div>
+            <div class="weak-score">0.61</div>
+          </div>
+          <div class="weak-row">
+            <div class="weak-name">消化道出血</div>
+            <div class="weak-bar"><div class="weak-bar-fill ok" style="width:78%;"></div></div>
+            <div class="weak-score">0.78</div>
+          </div>
+        </div>
+
+        <!-- 免责声明 -->
+        <div style="margin-top:24px;padding:10px 12px;background:var(--paper-2);border:1px dashed var(--rule);border-radius:var(--r-sm);font-size:10.5px;color:var(--ink-3);line-height:1.5;text-align:center;font-family:var(--font-mono);">
+          系统提供内容仅供医学思维训练<br>不具备真实临床诊疗效力
+        </div>
+      </div>
+
+      <!-- 底部 Tab -->
+      <div class="tabbar">
+        <div class="tab-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1V11z"/></svg>
+          学习
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z"/></svg>
+          问诊
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+          错题
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
+          我的
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 2：AI 问诊室 ============ -->
+    <section class="screen" id="screen-chat">
+      <div class="statusbar">
+        <span>9:14</span>
+        <span class="right">
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M1 7h2v2H1zM4 5h2v4H4zM7 3h2v6H7zM10 1h2v8h-2z"/></svg>
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="chat-screen">
+        <!-- 病人信息头 -->
+        <div class="chat-header">
+          <button class="chat-action-btn" onclick="switchScreen('home')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <div class="patient-avatar">张</div>
+          <div class="patient-info">
+            <div class="patient-name">张建国 · 58 岁 男</div>
+            <div class="patient-sub">建筑工人 · 主诉：胸痛 2 小时</div>
+          </div>
+          <div class="chat-actions">
+            <button class="chat-action-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+            </button>
+            <button class="chat-action-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 思维树切换条 -->
+        <div class="tree-toggle" onclick="toggleTree()">
+          <div class="label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v3M12 10l-5 7M12 10l5 7"/></svg>
+            临床思维树
+          </div>
+          <div class="stats">
+            <span>已问 8</span>
+            <span>已排除 2</span>
+            <span class="cost">¥ 680</span>
+          </div>
+        </div>
+
+        <!-- 对话流 -->
+        <div class="chat-stream">
+          <!-- 系统 -->
+          <div class="msg msg-mentor">
+            <div class="msg-label">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+              AI 导师提示
+            </div>
+            <div class="msg-bubble">
+              本病例训练重点：<strong>胸痛的鉴别诊断</strong>。注意询问疼痛性质、放射、诱因、伴随症状，并合理选择检查。
+            </div>
+          </div>
+
+          <!-- 病人开场 -->
+          <div class="msg msg-patient">
+            <div class="msg-bubble">医生……我胸口疼得厉害，出冷汗，刚才干活的时候突然开始的……</div>
+            <div class="msg-meta">患者 · 09:14</div>
+          </div>
+
+          <!-- 学生 -->
+          <div class="msg msg-student">
+            <div class="msg-bubble">张师傅您好，我先了解一下。胸痛具体在哪个位置？能指给我看吗？</div>
+            <div class="msg-meta">09:15</div>
+          </div>
+
+          <!-- 病人 -->
+          <div class="msg msg-patient">
+            <div class="msg-bubble">就这里，胸骨后面，（指着胸口）一片都疼，闷闷的压着，像有石头压上来。</div>
+            <div class="msg-meta">患者 · 09:15</div>
+          </div>
+
+          <!-- 学生 -->
+          <div class="msg msg-student">
+            <div class="msg-bubble">疼痛有没有放射到其他地方？比如左肩、下颌或后背？</div>
+            <div class="msg-meta">09:16</div>
+          </div>
+
+          <!-- 病人 -->
+          <div class="msg msg-patient">
+            <div class="msg-bubble">好像串到左肩膀去了，左手也有点麻。出了一身汗，有点恶心。</div>
+            <div class="msg-meta">患者 · 09:16</div>
+          </div>
+
+          <!-- 学生开检查 -->
+          <div class="msg msg-student">
+            <div class="msg-bubble">我先给您做个心电图，再查一下心肌酶和肌钙蛋白。</div>
+            <div class="msg-meta">09:18 · 已开检查</div>
+          </div>
+
+          <!-- 系统返回检查结果 -->
+          <div class="msg msg-mentor">
+            <div class="msg-label">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 7h7l-5.5 4 2 7L12 16l-6.5 4 2-7L2 9h7z"/></svg>
+              检查结果返回
+            </div>
+            <div class="msg-bubble">
+              <div style="margin-bottom:6px;"><strong>心电图（18 导联）</strong> · ¥120</div>
+              <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);background:var(--paper);padding:6px 8px;border-radius:3px;margin-bottom:8px;">
+                II、III、aVF 导联 ST 段抬高 0.2-0.4 mV<br>
+                V3R-V5R ST 段抬高 0.15 mV
+              </div>
+              <div style="margin-bottom:6px;"><strong>肌钙蛋白 I</strong> · ¥280</div>
+              <div style="font-family:var(--font-mono);font-size:11.5px;color:var(--vermilion);background:var(--paper);padding:6px 8px;border-radius:3px;">
+                cTnI 3.8 ng/mL ↑（参考 &lt; 0.04）
+              </div>
+              <div class="citation" style="margin-top:8px;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+                《内科学》第9版 · P247
+              </div>
+            </div>
+          </div>
+
+          <!-- 流式响应（模拟打字机） -->
+          <div class="msg msg-patient">
+            <div class="msg-bubble cursor-blink">医生，我这病严重吗？我还要养家</div>
+            <div class="msg-meta">患者 · 输入中</div>
+          </div>
+        </div>
+
+        <!-- 快捷问诊 -->
+        <div class="chat-input-wrap">
+          <div class="chat-quick-row">
+            <div class="chat-quick">疼痛性质？</div>
+            <div class="chat-quick">持续多久？</div>
+            <div class="chat-quick">既往史</div>
+            <div class="chat-quick">用药史</div>
+            <div class="chat-quick">+ 开检查</div>
+            <div class="chat-quick">+ 上传影像</div>
+          </div>
+          <div class="chat-input-row">
+            <div class="chat-input-tools">
+              <button class="chat-input-tool" title="上传影像">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              </button>
+            </div>
+            <textarea class="chat-input" placeholder="输入问诊内容…" rows="1"></textarea>
+            <button class="chat-send">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 思维树侧滑面板 -->
+      <div class="tree-panel" id="treePanel">
+        <div class="tree-panel-head">
+          <div class="tree-panel-title">临床思维树</div>
+          <button class="chat-action-btn" onclick="toggleTree()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;">
+          <!-- 卫生经济学 -->
+          <div class="tree-cost-card">
+            <div class="tree-cost-row">
+              <div>
+                <div class="tree-cost-label">检查累计费用</div>
+                <div class="tree-cost-val">¥ 680</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="t-meta" style="color:var(--ink-3);">阈值 ¥1,000</div>
+                <div style="font-size:11px;color:var(--amber);font-family:var(--font-mono);margin-top:2px;">68% 已用</div>
+              </div>
+            </div>
+            <div class="tree-cost-bar"><div class="tree-cost-bar-fill"></div></div>
+            <div class="tree-cost-hint">已开 3 项检查 · 心电图 / 心肌酶 / 肌钙蛋白</div>
+          </div>
+
+          <!-- 症状节点 -->
+          <div class="tree-section">
+            <div class="tree-section-title">
+              <span>症状 / Symptom</span>
+              <span style="color:var(--moss);">3 已问</span>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">胸部</span>
+                <span class="tree-node-status status-ok">已询问</span>
+              </div>
+              <div class="tree-node-text">胸骨后压榨样疼痛 2h，放射至左肩</div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">伴随</span>
+                <span class="tree-node-status status-ok">已询问</span>
+              </div>
+              <div class="tree-node-text">大汗、恶心、左手麻木</div>
+            </div>
+            <div class="tree-node miss">
+              <div class="tree-node-head">
+                <span class="tree-node-type">诱因</span>
+                <span class="tree-node-status status-miss">关键遗漏</span>
+              </div>
+              <div class="tree-node-text">未询问体力活动、情绪、饱餐等诱因</div>
+              <div class="tree-node-meta">⚠ 高危遗漏 · 影响鉴别诊断</div>
+            </div>
+          </div>
+
+          <!-- 病史 -->
+          <div class="tree-section">
+            <div class="tree-section-title">
+              <span>病史 / History</span>
+              <span style="color:var(--vermilion);">1 遗漏</span>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">既往</span>
+                <span class="tree-node-status status-ok">已采集</span>
+              </div>
+              <div class="tree-node-text">高血压 8 年，未规律服药</div>
+            </div>
+            <div class="tree-node miss">
+              <div class="tree-node-head">
+                <span class="tree-node-type">过敏史</span>
+                <span class="tree-node-status status-miss">未采集</span>
+              </div>
+              <div class="tree-node-text">未询问药物过敏史</div>
+            </div>
+          </div>
+
+          <!-- 检查 -->
+          <div class="tree-section">
+            <div class="tree-section-title">
+              <span>检查 / Exam</span>
+              <span style="color:var(--amber);">1 过度</span>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">心电图</span>
+                <span class="tree-node-status status-ok">关键 · 已开</span>
+              </div>
+              <div class="tree-node-text">18 导联 · ¥120</div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">肌钙蛋白</span>
+                <span class="tree-node-status status-ok">关键 · 已开</span>
+              </div>
+              <div class="tree-node-text">cTnI · ¥280</div>
+            </div>
+            <div class="tree-node warn">
+              <div class="tree-node-head">
+                <span class="tree-node-type">心肌酶谱</span>
+                <span class="tree-node-status status-warn">建议复查</span>
+              </div>
+              <div class="tree-node-text">¥280 · 与肌钙蛋白重复，可优化</div>
+            </div>
+          </div>
+
+          <!-- 诊断 -->
+          <div class="tree-section">
+            <div class="tree-section-title">
+              <span>诊断 / Diagnosis</span>
+              <span style="color:var(--ink-3);">待鉴别</span>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">ACS</span>
+                <span class="tree-node-status status-ok">高度怀疑</span>
+              </div>
+              <div class="tree-node-text">急性下壁+右室心梗可能</div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">主动脉夹层</span>
+                <span class="tree-node-status status-warn">待排除</span>
+              </div>
+              <div class="tree-node-text">需 D-二聚体 / 胸主动脉 CTA 排除</div>
+            </div>
+            <div class="tree-node">
+              <div class="tree-node-head">
+                <span class="tree-node-type">肺栓塞</span>
+                <span class="tree-node-status status-ok">可能性低</span>
+              </div>
+              <div class="tree-node-text">无危险因素，待 Wells 评估</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 3：思维树（独立全屏） ============ -->
+    <section class="screen" id="screen-tree">
+      <div class="statusbar">
+        <span>9:22</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('chat')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">临床思维树</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </button>
+      </div>
+
+      <div style="padding: 16px 20px 100px;">
+        <!-- 卫生经济学 -->
+        <div class="tree-cost-card">
+          <div class="tree-cost-row">
+            <div>
+              <div class="tree-cost-label">检查累计费用</div>
+              <div class="tree-cost-val">¥ 680</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="t-meta">阈值 ¥1,000</div>
+              <div style="font-size:11px;color:var(--amber);font-family:var(--font-mono);margin-top:2px;">68% 已用</div>
+            </div>
+          </div>
+          <div class="tree-cost-bar"><div class="tree-cost-bar-fill"></div></div>
+          <div class="tree-cost-hint">已开 3 项 · 距超支 ¥320</div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <div class="tree-section-title" style="padding: 0 0 8px;">
+            <span>症状 / Symptom</span>
+            <span style="color:var(--vermilion);">1 关键遗漏</span>
+          </div>
+          <div class="tree-node">
+            <div class="tree-node-head">
+              <span class="tree-node-type">胸部</span>
+              <span class="tree-node-status status-ok">已询问</span>
+            </div>
+            <div class="tree-node-text">胸骨后压榨样疼痛 2h，放射至左肩</div>
+          </div>
+          <div class="tree-node">
+            <div class="tree-node-head">
+              <span class="tree-node-type">伴随</span>
+              <span class="tree-node-status status-ok">已询问</span>
+            </div>
+            <div class="tree-node-text">大汗、恶心、左手麻木</div>
+          </div>
+          <div class="tree-node miss">
+            <div class="tree-node-head">
+              <span class="tree-node-type">诱因</span>
+              <span class="tree-node-status status-miss">关键遗漏</span>
+            </div>
+            <div class="tree-node-text">未询问体力活动、情绪、饱餐等诱因</div>
+            <div class="tree-node-meta">⚠ 高危遗漏 · 影响鉴别诊断</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <div class="tree-section-title" style="padding: 0 0 8px;">
+            <span>诊断推理 / Reasoning</span>
+            <span style="color:var(--ink-3);">3 节点</span>
+          </div>
+          <div class="tree-node">
+            <div class="tree-node-head">
+              <span class="tree-node-type">ACS</span>
+              <span class="tree-node-status status-ok">高度怀疑</span>
+            </div>
+            <div class="tree-node-text">急性下壁+右室心梗可能</div>
+          </div>
+          <div class="tree-node">
+            <div class="tree-node-head">
+              <span class="tree-node-type">主动脉夹层</span>
+              <span class="tree-node-status status-warn">待排除</span>
+            </div>
+            <div class="tree-node-text">需 D-二聚体 / 胸主动脉 CTA 排除</div>
+          </div>
+          <div class="tree-node">
+            <div class="tree-node-head">
+              <span class="tree-node-type">肺栓塞</span>
+              <span class="tree-node-status status-ok">可能性低</span>
+            </div>
+            <div class="tree-node-text">无危险因素，待 Wells 评估</div>
+          </div>
+        </div>
+
+        <!-- 苏格拉底提示 -->
+        <div style="margin-top:20px;padding:14px 16px;background:var(--amber-soft);border:1px solid #e3cfa0;border-radius:var(--r-md);">
+          <div style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--amber);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21h6v-1H9v1zm3-19A7 7 0 005 9c0 2.4 1.2 4.5 3 5.7V17h8v-2.3c1.8-1.2 3-3.3 3-5.7a7 7 0 00-7-7z"/></svg>
+            苏格拉底式提示（轻度）
+          </div>
+          <div style="font-size:13.5px;color:var(--ink);line-height:1.55;font-style:italic;">
+            "你已经识别出 ST 段抬高和肌钙蛋白升高——但患者胸痛的<strong>诱因</strong>你还没问。是否需要确认疼痛与体力活动的关系，再来判断这是 ACS 还是其他疾病？"
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 4：OSCE 雷达图 ============ -->
+    <section class="screen" id="screen-result">
+      <div class="statusbar" style="background: var(--moss); color: var(--paper);">
+        <span>10:02</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div style="overflow-y:auto;height:calc(100% - 44px);">
+        <!-- Hero -->
+        <div class="result-hero">
+          <div class="result-eyebrow">问诊结束 · OSCE 临床考核</div>
+          <div class="result-score">82<span class="max"> /100</span></div>
+          <div class="result-grade">良好 — 接近优秀水平</div>
+        </div>
+
+        <!-- 雷达图 -->
+        <div class="radar-wrap">
+          <svg class="radar-svg" viewBox="0 0 280 280">
+            <!-- 网格 -->
+            <g stroke="var(--rule)" fill="none" stroke-width="0.8">
+              <polygon points="140,30 240,90 240,190 140,250 40,190 40,90"/>
+              <polygon points="140,57 215,103 215,177 140,223 65,177 65,103"/>
+              <polygon points="140,84 190,115 190,165 140,196 90,165 90,115"/>
+              <polygon points="140,111 165,128 165,152 140,169 115,152 115,128"/>
+            </g>
+            <!-- 轴线 -->
+            <g stroke="var(--rule)" stroke-width="0.6">
+              <line x1="140" y1="30" x2="140" y2="250"/>
+              <line x1="40" y1="90" x2="240" y2="190"/>
+              <line x1="240" y1="90" x2="40" y2="190"/>
+            </g>
+            <!-- 学生数据 -->
+            <polygon points="140,46 226,98 218,180 140,238 56,178 50,100"
+                     fill="var(--moss)" fill-opacity="0.18"
+                     stroke="var(--moss)" stroke-width="2"/>
+            <!-- 数据点 -->
+            <g fill="var(--moss)">
+              <circle cx="140" cy="46" r="4"/>
+              <circle cx="226" cy="98" r="4"/>
+              <circle cx="218" cy="180" r="4"/>
+              <circle cx="140" cy="238" r="4"/>
+              <circle cx="56" cy="178" r="4"/>
+              <circle cx="50" cy="100" r="4"/>
+            </g>
+            <!-- 轴标签 -->
+            <g font-family="var(--font-display)" font-size="13" font-weight="600" fill="var(--ink)" text-anchor="middle">
+              <text x="140" y="20">病史采集</text>
+              <text x="248" y="85">诊断逻辑</text>
+              <text x="248" y="200">沟通技巧</text>
+              <text x="140" y="270">人文关怀</text>
+              <text x="32" y="200">检查决策</text>
+              <text x="32" y="85">文书规范</text>
+            </g>
+            <!-- 分数标注 -->
+            <g font-family="var(--font-mono)" font-size="10" fill="var(--ink-3)" text-anchor="middle">
+              <text x="140" y="38">88</text>
+              <text x="232" y="92">85</text>
+              <text x="226" y="178">79</text>
+              <text x="140" y="232">90</text>
+              <text x="48" y="178">76</text>
+              <text x="42" y="92">82</text>
+            </g>
+          </svg>
+
+          <div class="radar-legend">
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--chart-1);"></div>
+              <div class="radar-leg-name">病史采集</div>
+              <div class="radar-leg-score">88</div>
+            </div>
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--chart-2);"></div>
+              <div class="radar-leg-name">诊断逻辑</div>
+              <div class="radar-leg-score">85</div>
+            </div>
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--chart-3);"></div>
+              <div class="radar-leg-name">沟通技巧</div>
+              <div class="radar-leg-score">79</div>
+            </div>
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--chart-4);"></div>
+              <div class="radar-leg-name">人文关怀</div>
+              <div class="radar-leg-score">90</div>
+            </div>
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--moss);"></div>
+              <div class="radar-leg-name">检查决策</div>
+              <div class="radar-leg-score">76</div>
+            </div>
+            <div class="radar-leg-item">
+              <div class="radar-leg-dot" style="background:var(--amber);"></div>
+              <div class="radar-leg-name">文书规范</div>
+              <div class="radar-leg-score">82</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 优点 -->
+        <div class="feedback-block">
+          <div class="feedback-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+            主要优点
+          </div>
+          <ul class="feedback-list">
+            <li>主诉采集准确，胸痛性质、部位、放射描述清晰</li>
+            <li>及时识别 ST 段抬高与肌钙蛋白升高的关键证据</li>
+            <li>对患者"养家"担忧给予共情回应，体现人文关怀</li>
+          </ul>
+        </div>
+
+        <!-- 改进 -->
+        <div class="feedback-block">
+          <div class="feedback-head vermilion">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+            优先改进点
+          </div>
+          <ul class="feedback-list vermilion">
+            <li>未询问胸痛诱因（体力活动/情绪），影响 ACS 鉴别</li>
+            <li>未采集药物过敏史，存在安全风险</li>
+            <li>心肌酶谱与肌钙蛋白重复开立，违反卫生经济学原则</li>
+          </ul>
+        </div>
+
+        <!-- 推荐训练 -->
+        <div class="feedback-block">
+          <div class="feedback-head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            推荐训练
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--paper);border-radius:var(--r-sm);border:1px solid var(--rule-soft);">
+              <div>
+                <div style="font-size:13px;font-weight:500;">不稳定型心绞痛 · 鉴别诊断</div>
+                <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">心血管 · 标准 · 引用 23 次</div>
+              </div>
+              <button class="btn btn-ghost btn-sm">开始</button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--paper);border-radius:var(--r-sm);border:1px solid var(--rule-soft);">
+              <div>
+                <div style="font-size:13px;font-weight:500;">主动脉夹层 · 急诊识别</div>
+                <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">心血管 · 困难 · 引用 15 次</div>
+              </div>
+              <button class="btn btn-ghost btn-sm">开始</button>
+            </div>
+          </div>
+          <div style="margin-top:12px;padding:8px 10px;background:var(--moss-tint);border-left:2px solid var(--moss);font-size:11.5px;color:var(--moss);">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:middle;margin-right:4px;"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            教材：《内科学》第9版 · 第三篇第七章 · P236-258
+          </div>
+        </div>
+
+        <div style="padding: 0 20px 30px;">
+          <button class="btn btn-primary w-full" onclick="switchScreen('report')">
+            查看 AI 复盘报告
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 5：错题本 ============ -->
+    <section class="screen" id="screen-mistakes">
+      <div class="statusbar">
+        <span>14:30</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('home')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">错题本</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </button>
+      </div>
+
+      <!-- 统计条 -->
+      <div style="padding: 14px 20px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;border-bottom:1px solid var(--rule);">
+        <div style="text-align:center;">
+          <div class="t-display" style="font-size:24px;color:var(--vermilion);font-weight:600;">17</div>
+          <div class="t-meta" style="margin-top:2px;">未复习</div>
+        </div>
+        <div style="text-align:center;border-left:1px solid var(--rule);border-right:1px solid var(--rule);">
+          <div class="t-display" style="font-size:24px;color:var(--amber);font-weight:600;">8</div>
+          <div class="t-meta" style="margin-top:2px;">已复习</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="t-display" style="font-size:24px;color:var(--moss);font-weight:600;">23</div>
+          <div class="t-meta" style="margin-top:2px;">已掌握</div>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-chip active">全部 48</div>
+        <div class="filter-chip">诊断错误 12</div>
+        <div class="filter-chip">漏问病史 9</div>
+        <div class="filter-chip">检查错误 7</div>
+        <div class="filter-chip">文书问题 11</div>
+        <div class="filter-chip">沟通 9</div>
+      </div>
+
+      <div style="padding-top:6px;">
+        <div class="mistake-card unresolved">
+          <div class="mistake-head">
+            <span class="mistake-type">● 诊断错误</span>
+            <span class="mistake-date">07.20 · 心血管</span>
+          </div>
+          <div class="mistake-title">将急性下壁心梗误诊为胃食管反流</div>
+          <div class="mistake-evidence">
+            <strong style="color:var(--ink);">学生诊断：</strong>胃食管反流<br>
+            <strong style="color:var(--moss);">标准诊断：</strong>急性下壁+右室心肌梗死<br>
+            <strong style="color:var(--vermilion);">脱轨节点：</strong>未识别上腹痛伴大汗的 ACS 不典型表现
+          </div>
+          <div class="mistake-tags">
+            <span class="chip chip-vermilion">ACS</span>
+            <span class="chip">不典型表现</span>
+            <span class="chip">高危遗漏</span>
+          </div>
+        </div>
+
+        <div class="mistake-card unresolved">
+          <div class="mistake-head">
+            <span class="mistake-type">● 漏问病史</span>
+            <span class="mistake-date">07.20 · 心血管</span>
+          </div>
+          <div class="mistake-title">未询问胸痛诱因（体力活动/情绪）</div>
+          <div class="mistake-evidence">
+            <strong style="color:var(--vermilion);">为什么重要：</strong>诱因是 ACS 与肺栓塞、主动脉夹层鉴别关键<br>
+            <strong style="color:var(--ink);">对应风险：</strong>可能延误再灌注治疗时机
+          </div>
+          <div class="mistake-tags">
+            <span class="chip chip-vermilion">诱因</span>
+            <span class="chip">鉴别诊断</span>
+          </div>
+        </div>
+
+        <div class="mistake-card unresolved">
+          <div class="mistake-head">
+            <span class="mistake-type">● 检查错误</span>
+            <span class="mistake-date">07.19 · 呼吸</span>
+          </div>
+          <div class="mistake-title">慢阻肺急性加重病例过度开立 D-二聚体</div>
+          <div class="mistake-evidence">
+            <strong style="color:var(--ink);">学生行为：</strong>无 Wells 评估即开 D-二聚体<br>
+            <strong style="color:var(--moss);">建议路径：</strong>先评估临床概率，再决定是否查 D-二聚体<br>
+            <strong style="color:var(--amber);">成本超支：</strong>¥180 / 单次
+          </div>
+          <div class="mistake-tags">
+            <span class="chip chip-amber">过度检查</span>
+            <span class="chip">卫生经济学</span>
+            <span class="chip">慢阻肺</span>
+          </div>
+        </div>
+
+        <div class="mistake-card resolved">
+          <div class="mistake-head">
+            <span class="mistake-type resolved">✓ 已掌握</span>
+            <span class="mistake-date">07.15 · 消化</span>
+          </div>
+          <div class="mistake-title">消化道出血未评估出血严重程度</div>
+          <div class="mistake-evidence">
+            <strong style="color:var(--ink);">曾经错误：</strong>仅凭主诉判断出血量<br>
+            <strong style="color:var(--moss);">已掌握：</strong>已能正确使用 Rockall / Glasgow-Blatchford 评分
+          </div>
+          <div class="mistake-tags">
+            <span class="chip chip-moss">消化道出血</span>
+            <span class="chip">严重程度评估</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding: 20px;">
+        <button class="btn btn-ghost w-full" style="border-style:dashed;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          导出 PDF 复盘报告
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 6：AI 复盘报告 ============ -->
+    <section class="screen" id="screen-report">
+      <div class="statusbar">
+        <span>14:42</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('result')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">AI 复盘报告</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13"/></svg>
+        </button>
+      </div>
+
+      <div style="padding: 20px;">
+        <!-- 报告封面 -->
+        <div style="padding:24px 20px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-md);text-align:center;margin-bottom:20px;">
+          <div class="t-eyebrow" style="color:var(--moss);">REVIEW REPORT · 2026.07.21</div>
+          <div class="t-display" style="font-size:22px;margin:10px 0 6px;line-height:1.3;">
+            胸痛问诊中<br>你漏掉的 3 个关键体征
+          </div>
+          <div class="t-caption">基于 7 月共 6 次胸痛相关病例训练</div>
+          <hr class="rule-double" style="margin: 14px 0;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div>
+              <div class="t-display" style="font-size:20px;color:var(--ink);">6</div>
+              <div class="t-meta">训练次数</div>
+            </div>
+            <div>
+              <div class="t-display" style="font-size:20px;color:var(--vermilion);">3</div>
+              <div class="t-meta">关键遗漏</div>
+            </div>
+            <div>
+              <div class="t-display" style="font-size:20px;color:var(--amber);">2</div>
+              <div class="t-meta">过度检查</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 章节 1 -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+            <span class="section-no">01</span>
+            <div class="t-serif" style="font-size:16px;font-weight:600;">诱因采集：被忽略的鉴别钥匙</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--ink-2);line-height:1.65;padding-left:20px;">
+            <p style="margin-bottom:10px;">在 6 次胸痛病例中，你<strong>4 次</strong>未询问胸痛诱因。诱因是 ACS、肺栓塞、主动脉夹层、气胸鉴别诊断的核心钥匙——体力活动后加重指向 ACS，突发撕裂样痛指向夹层，长期卧床后指向肺栓塞。</p>
+            <div style="padding:10px 12px;background:var(--moss-tint);border-left:3px solid var(--moss);border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12.5px;color:var(--moss);">
+              <strong>建议话术：</strong>"这次胸痛发作前在做什么？是活动时还是休息时？疼痛和体位有关系吗？"
+            </div>
+          </div>
+        </div>
+
+        <!-- 章节 2 -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+            <span class="section-no">02</span>
+            <div class="t-serif" style="font-size:16px;font-weight:600;">过敏史：被低估的安全阀</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--ink-2);line-height:1.65;padding-left:20px;">
+            <p style="margin-bottom:10px;">6 次训练中<strong>3 次</strong>未采集过敏史。在真实临床中，这可能导致严重的用药错误。养成"主诉—既往—过敏"三段式开场习惯，可显著降低遗漏率。</p>
+            <div style="padding:10px 12px;background:var(--amber-soft);border-left:3px solid var(--amber);border-radius:0 var(--r-sm) var(--r-sm) 0;font-size:12.5px;color:var(--ink);">
+              <strong>参考路径：</strong>《诊断学》第9版 · 第三章 · 病史采集顺序
+            </div>
+          </div>
+        </div>
+
+        <!-- 章节 3 -->
+        <div style="margin-bottom:24px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+            <span class="section-no">03</span>
+            <div class="t-serif" style="font-size:16px;font-weight:600;">检查决策：贵的 ≠ 对的</div>
+          </div>
+          <div style="font-size:13.5px;color:var(--ink-2);line-height:1.65;padding-left:20px;">
+            <p style="margin-bottom:10px;">你 2 次出现高价检查未配套低价必要检查的情况。例如：开 D-二聚体前未做 Wells 评估，开心肌酶谱同时开肌钙蛋白（重复）。卫生经济学不是抠门，而是<strong>用最少的代价获取最有效证据</strong>。</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;">
+              <div style="padding:10px;background:var(--card);border:1px solid var(--rule-soft);border-radius:var(--r-sm);">
+                <div class="t-meta" style="color:var(--vermilion);">超支案例</div>
+                <div style="font-family:var(--font-mono);font-size:12px;margin-top:4px;">D-二聚体 ¥180<br>未先行 Wells 评估</div>
+              </div>
+              <div style="padding:10px;background:var(--card);border:1px solid var(--rule-soft);border-radius:var(--r-sm);">
+                <div class="t-meta" style="color:var(--moss);">优化方案</div>
+                <div style="font-family:var(--font-mono);font-size:12px;margin-top:4px;">Wells ≤4 → 不查<br>Wells &gt;4 → 查 D-二聚体</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 下一步建议 -->
+        <div style="padding:16px;background:var(--moss);color:var(--paper);border-radius:var(--r-md);">
+          <div class="t-eyebrow" style="color:#b8c9b8;">NEXT STEPS · 下一步训练</div>
+          <div class="t-serif" style="font-size:15px;font-weight:600;margin:6px 0 10px;">递进式补救路径</div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="width:18px;height:18px;border:1px solid #b8c9b8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;">1</span>
+              <span>复习《内科学》P236-258 · ACS 章节</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="width:18px;height:18px;border:1px solid #b8c9b8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;">2</span>
+              <span>完成"不稳定型心绞痛"简单病例</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="width:18px;height:18px;border:1px solid #b8c9b8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;">3</span>
+              <span>完成"主动脉夹层"标准病例</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+              <span style="width:18px;height:18px;border:1px solid #b8c9b8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:10px;">4</span>
+              <span>挑战"不典型 ACS"综合病例</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-full" style="margin-top:16px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          导出完整 PDF
+        </button>
+      </div>
+    </section>
+
+    <!-- ============ 屏幕 7：每日一例 ============ -->
+    <section class="screen" id="screen-daily">
+      <div class="statusbar">
+        <span>9:08</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('home')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">每日一例 · No.213</div>
+        <div style="font-family:var(--font-mono);font-size:11px;color:var(--ink-3);">⏱ 03:24</div>
+      </div>
+
+      <div style="padding:20px;">
+        <!-- 病例摘要 -->
+        <div style="padding:18px 20px;background:var(--moss);color:var(--paper);border-radius:var(--r-md);margin-bottom:20px;">
+          <div class="t-eyebrow" style="color:#b8c9b8;">CASE BRIEF · 心血管</div>
+          <div class="t-display" style="font-size:18px;margin:8px 0 12px;line-height:1.35;">
+            58 岁男性，胸痛 2 小时
+          </div>
+          <div style="font-size:13px;line-height:1.7;color:#d8e0d3;">
+            建筑工人，搬运水泥时突发胸骨后压榨样疼痛，伴大汗、恶心，疼痛放射至左肩。既往高血压 8 年。BP 90/60，HR 102。
+          </div>
+        </div>
+
+        <!-- 关键检查 -->
+        <div style="margin-bottom:20px;">
+          <div class="t-eyebrow" style="margin-bottom:8px;">关键检查结果</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div style="padding:10px 12px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <div class="t-meta">心电图</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--vermilion);margin-top:4px;line-height:1.5;">
+                II,III,aVF<br>ST ↑ 0.3mV
+              </div>
+            </div>
+            <div style="padding:10px 12px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <div class="t-meta">肌钙蛋白</div>
+              <div style="font-family:var(--font-mono);font-size:11px;color:var(--vermilion);margin-top:4px;line-height:1.5;">
+                cTnI<br>3.8 ng/mL ↑
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 问题 1 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+            <span class="section-no">Q1</span>
+            <div class="t-serif" style="font-size:14px;font-weight:600;">最可能的诊断是？</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);cursor:pointer;">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">急性胃食管反流</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--moss-tint);border:1.5px solid var(--moss);border-radius:var(--r-sm);cursor:pointer;">
+              <span style="width:18px;height:18px;border:1.5px solid var(--moss);border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <span style="width:10px;height:10px;background:var(--moss);border-radius:50%;"></span>
+              </span>
+              <span style="font-size:13.5px;font-weight:500;color:var(--moss);">急性下壁心肌梗死</span>
+              <span class="chip chip-moss" style="margin-left:auto;">已选</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);cursor:pointer;">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">主动脉夹层</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);cursor:pointer;">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">急性心包炎</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 问题 2 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+            <span class="section-no">Q2</span>
+            <div class="t-serif" style="font-size:14px;font-weight:600;">必须做的一项检查是？</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <span style="width:10px;height:10px;background:var(--moss);border-radius:50%;"></span>
+              </span>
+              <span style="font-size:13.5px;font-weight:500;color:var(--moss);">18 导联心电图</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">胸部 CT 平扫</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">D-二聚体</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 问题 3 -->
+        <div style="margin-bottom:20px;">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+            <span class="section-no">Q3</span>
+            <div class="t-serif" style="font-size:14px;font-weight:600;">应避免的一项检查是？</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--card);border:1px solid var(--card-edge);border-radius:var(--r-sm);">
+              <span style="width:18px;height:18px;border:1.5px solid var(--rule);border-radius:50%;flex-shrink:0;"></span>
+              <span style="font-size:13.5px;">心肌酶谱</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--vermilion-soft);border:1.5px solid var(--vermilion);border-radius:var(--r-sm);">
+              <span style="width:18px;height:18px;border:1.5px solid var(--vermilion);border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                <span style="width:10px;height:10px;background:var(--vermilion);border-radius:50%;"></span>
+              </span>
+              <span style="font-size:13.5px;font-weight:500;color:var(--vermilion);">立即冠脉造影（无再灌注指征评估）</span>
+            </label>
+          </div>
+        </div>
+
+        <button class="btn btn-primary w-full" style="margin-top:8px;">
+          提交答案 · 查看反馈
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  // 屏幕切换
+  function switchScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    document.querySelectorAll('.screen-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.screen-tab[data-screen="${name}"]`)?.classList.add('active');
+    document.querySelector('.phone').scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  document.querySelectorAll('.screen-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchScreen(tab.dataset.screen));
+  });
+
+  // 思维树侧滑
+  function toggleTree() {
+    document.getElementById('treePanel').classList.toggle('open');
+  }
+
+  // 生成热力图（26 列 × 7 行 = 182 天，约半年）
+  const heatmap = document.getElementById('heatmap');
+  if (heatmap) {
+    const levels = ['', '', '', 'l1', 'l1', 'l2', 'l2', 'l3', 'l4'];
+    for (let i = 0; i < 26 * 7; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell ' + (Math.random() > 0.4 ? levels[Math.floor(Math.random() * levels.length)] : '');
+      heatmap.appendChild(cell);
+    }
+  }
+</script>
+
+</body>
+</html>

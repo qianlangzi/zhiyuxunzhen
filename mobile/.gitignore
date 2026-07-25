@@ -3,6 +3,7 @@
 *.log
 *.pyc
 *.swp
+*.swo
 .DS_Store
 .atom/
 .build/
@@ -38,6 +39,9 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+
+# Generated / local
+.metadata
 
 # Android Studio will place build artifacts here
 /android/app/debug

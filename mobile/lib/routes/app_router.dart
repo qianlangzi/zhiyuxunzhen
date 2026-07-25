@@ -1,225 +1,175 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/register_screen.dart';
+import '../features/auth/providers/auth_provider.dart';
+import '../features/student/home/student_home_screen.dart';
+import '../features/student/chat/chat_room_screen.dart';
+import '../features/student/tree/thinking_tree_screen.dart';
+import '../features/student/result/osce_result_screen.dart';
+import '../features/student/mistakes/mistakes_screen.dart';
+import '../features/student/report/review_report_screen.dart';
+import '../features/student/daily_case/daily_case_screen.dart';
+import '../features/student/profile/student_profile_screen.dart';
+import '../features/common/profile/profile_edit_screen.dart';
+import '../features/teacher/home/teacher_home_screen.dart';
+import '../features/teacher/case_config/sp_config_screen.dart';
+import '../features/teacher/market/case_market_screen.dart';
+import '../features/teacher/assignments/assignment_screen.dart';
+import '../features/teacher/review/review_screen.dart';
+import '../features/teacher/dashboard/dashboard_screen.dart';
+import '../features/teacher/profile/teacher_profile_screen.dart';
+import '../features/common/about/about_app_screen.dart';
+import '../features/common/settings/settings_screen.dart';
+import '../features/common/legal/legal_document_screen.dart';
+import 'route_names.dart';
 
-import '../core/config/app_config.dart';
-import '../core/theme/app_motion.dart';
-import '../features/auth/auth_controller.dart';
-import '../features/auth/login_page.dart';
-import '../features/auth/register_page.dart';
-import '../features/student/student_shell.dart';
-import '../features/student/home/student_home_page.dart';
-import '../features/student/cases/cases_list_page.dart';
-import '../features/student/cases/case_detail_page.dart';
-import '../features/student/chat/chat_room_page.dart';
-import '../features/student/feedback/feedback_page.dart';
-import '../features/student/feedback/mistakes_page.dart';
-import '../features/student/profile/student_profile_page.dart';
-import '../features/student/assignments/student_assignments_page.dart';
-import '../features/teacher/teacher_shell.dart';
-import '../features/teacher/overview/teacher_overview_page.dart';
-import '../features/teacher/cases/case_config_page.dart';
-import '../features/teacher/cases/case_market_page.dart';
-import '../features/teacher/assignments/assignments_page.dart';
-import '../features/teacher/review/review_page.dart';
-import '../features/teacher/profile/teacher_profile_page.dart';
+/// 全局路由配置
+final GoRouter appRouter = GoRouter(
+  initialLocation: '/login',
+  redirect: (context, state) {
+    final container = ProviderScope.containerOf(context, listen: false);
+    final auth = container.read(authProvider);
+    final loc = state.matchedLocation;
+    final goingToLogin = loc == '/login';
 
-/// 路由配置 + 角色守卫
-class AppRouter {
-  AppRouter(this.ref);
+    // 未登录只能进登录页
+    if (!auth.isAuthenticated) {
+      return goingToLogin ? null : '/login';
+    }
+    // 已登录访问登录页 → 按角色回首页
+    if (goingToLogin) {
+      return auth.isStudent ? '/student' : '/teacher';
+    }
+    // 角色越权拦截：学生不可进教师区，反之亦然（/about 为公共页放行）
+    if (auth.isStudent && loc.startsWith('/teacher')) return '/student';
+    if (auth.isTeacher && loc.startsWith('/student')) return '/teacher';
+    return null;
+  },
+  routes: [
+    // 登录
+    GoRoute(
+      name: RouteNames.login,
+      path: '/login',
+      builder: (context, state) => LoginScreen(),
+    ),
 
-  final WidgetRef ref;
+    // 独立注册页
+    GoRoute(
+      name: RouteNames.register,
+      path: '/register',
+      builder: (context, state) => RegisterScreen(),
+    ),
 
-  late final GoRouter router = GoRouter(
-    initialLocation: '/login',
-    refreshListenable: _AuthListenable(ref),
-    redirect: (BuildContext context, GoRouterState state) {
-      final bool loggedIn = ref.read(authControllerProvider).isLoggedIn;
-      final int role = ref.read(currentRoleProvider);
-      final String path = state.matchedLocation;
-      final bool onAuth = path == '/login' || path == '/register';
+    // ========== 学生端 ==========
+    GoRoute(
+      name: RouteNames.studentHome,
+      path: '/student',
+      builder: (context, state) => StudentHomeScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.chat,
+      path: '/student/chat',
+      builder: (context, state) => ChatRoomScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.thinkingTree,
+      path: '/student/tree',
+      builder: (context, state) => ThinkingTreeScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.osceResult,
+      path: '/student/result',
+      builder: (context, state) => OsceResultScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.mistakes,
+      path: '/student/mistakes',
+      builder: (context, state) => MistakesScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.reviewReport,
+      path: '/student/report',
+      builder: (context, state) => ReviewReportScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.dailyCase,
+      path: '/student/daily',
+      builder: (context, state) => DailyCaseScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.studentProfile,
+      path: '/student/profile',
+      builder: (context, state) => StudentProfileScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.profileEdit,
+      path: '/student/profile/edit',
+      builder: (context, state) => ProfileEditScreen(),
+    ),
 
-      // 未登录 → 强制登录页
-      if (!loggedIn) {
-        return onAuth ? null : '/login';
-      }
+    // ========== 教师端 ==========
+    GoRoute(
+      name: RouteNames.teacherHome,
+      path: '/teacher',
+      builder: (context, state) => TeacherHomeScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.spConfig,
+      path: '/teacher/sp-config',
+      builder: (context, state) => SpConfigScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.caseMarket,
+      path: '/teacher/market',
+      builder: (context, state) => CaseMarketScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.assignment,
+      path: '/teacher/assignment',
+      builder: (context, state) => AssignmentScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.review,
+      path: '/teacher/review',
+      builder: (context, state) => ReviewScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.dashboard,
+      path: '/teacher/dashboard',
+      builder: (context, state) => DashboardScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.teacherProfile,
+      path: '/teacher/profile',
+      builder: (context, state) => TeacherProfileScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.profileEditTeacher,
+      path: '/teacher/profile/edit',
+      builder: (context, state) => ProfileEditScreen(),
+    ),
 
-      // 已登录访问登录页 → 跳到对应首页
-      if (onAuth) {
-        return role == AppConfig.roleTeacher ? '/teacher' : '/';
-      }
-
-      // 教师访问学生根路径 → 重定向到教师首页
-      // 学生根路径 `/` 由 StudentShell 接管，教师不能停留在此
-      if (path == '/' && role == AppConfig.roleTeacher) {
-        return '/teacher';
-      }
-
-      // 学生越权访问教师路由
-      if (path.startsWith('/teacher') && role != AppConfig.roleTeacher) {
-        return '/';
-      }
-      // 教师越权访问学生路由
-      if (path.startsWith('/student') && role != AppConfig.roleStudent) {
-        return '/teacher';
-      }
-
-      return null;
-    },
-    routes: <RouteBase>[
-      GoRoute(
-        path: '/login',
-        builder: (BuildContext context, GoRouterState state) => LoginPage(
-          initialUsername: state.uri.queryParameters['username'],
-          registrationMessage: state.uri.queryParameters['message'],
-        ),
-      ),
-      GoRoute(
-        path: '/register',
-        builder: (BuildContext context, GoRouterState state) =>
-            const RegisterPage(),
-      ),
-      // 学生 Shell：仅包裹 Tab 首页，详情/问诊室走全屏推送
-      ShellRoute(
-        builder: (BuildContext context, GoRouterState state, Widget child) =>
-            StudentShell(child: child),
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/',
-            builder: (BuildContext context, GoRouterState state) =>
-                const StudentHomePage(),
-          ),
-          GoRoute(
-            path: '/student/cases',
-            builder: (BuildContext context, GoRouterState state) =>
-                const CasesListPage(),
-          ),
-          GoRoute(
-            path: '/student/feedback',
-            builder: (BuildContext context, GoRouterState state) =>
-                const FeedbackPage(),
-          ),
-          GoRoute(
-            path: '/student/mistakes',
-            builder: (BuildContext context, GoRouterState state) =>
-                const MistakesPage(),
-          ),
-          GoRoute(
-            path: '/student/profile',
-            builder: (BuildContext context, GoRouterState state) =>
-                const StudentProfilePage(),
-          ),
-        ],
-      ),
-      // 学生：问诊室（全屏，自带输入栏，不显示底部 Tab）
-      GoRoute(
-        path: '/student/assignments',
-        pageBuilder: (BuildContext context, GoRouterState state) =>
-            _detailPage(state, const StudentAssignmentsPage()),
-      ),
-      GoRoute(
-        path: '/student/chat',
-        pageBuilder: (BuildContext context, GoRouterState state) {
-          final String caseId = state.uri.queryParameters['caseId'] ?? '';
-          final int? assignmentInstanceId = int.tryParse(
-              state.uri.queryParameters['assignmentInstanceId'] ?? '');
-          return _detailPage(
-            state,
-            ChatRoomPage(
-              caseId: caseId,
-              assignmentInstanceId: assignmentInstanceId,
-            ),
-          );
-        },
-      ),
-      // 学生：病例详情（全屏，底部带进入问诊室按钮）
-      GoRoute(
-        path: '/student/case/:id',
-        pageBuilder: (BuildContext context, GoRouterState state) => _detailPage(
-          state,
-          CaseDetailPage(
-            caseId: state.pathParameters['id']!,
-            scheduleId:
-                int.tryParse(state.uri.queryParameters['scheduleId'] ?? ''),
-          ),
-        ),
-      ),
-      // 教师 Shell
-      ShellRoute(
-        builder: (BuildContext context, GoRouterState state, Widget child) =>
-            TeacherShell(child: child),
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/teacher',
-            builder: (BuildContext context, GoRouterState state) =>
-                const TeacherOverviewPage(),
-          ),
-          GoRoute(
-            path: '/teacher/cases',
-            builder: (BuildContext context, GoRouterState state) =>
-                const CaseConfigPage(),
-          ),
-          GoRoute(
-            path: '/teacher/market',
-            builder: (BuildContext context, GoRouterState state) =>
-                const CaseMarketPage(),
-          ),
-          GoRoute(
-            path: '/teacher/assignments',
-            builder: (BuildContext context, GoRouterState state) =>
-                const AssignmentsPage(),
-          ),
-          GoRoute(
-            path: '/teacher/review',
-            builder: (BuildContext context, GoRouterState state) =>
-                const ReviewPage(),
-          ),
-          GoRoute(
-            path: '/teacher/profile',
-            builder: (BuildContext context, GoRouterState state) =>
-                const TeacherProfilePage(),
-          ),
-        ],
-      ),
-    ],
-  );
-}
-
-/// 把 AuthController 状态变化转换为路由 refresh 信号
-class _AuthListenable extends ChangeNotifier {
-  _AuthListenable(this.ref) {
-    ref.listen<AuthState>(authControllerProvider, (_, __) {
-      notifyListeners();
-    });
-  }
-
-  final WidgetRef ref;
-}
-
-/// 详情页推入转场：从右侧滑入，减少动效时直接显示
-CustomTransitionPage<void> _detailPage(
-  GoRouterState state,
-  Widget child,
-) {
-  return CustomTransitionPage<void>(
-    key: state.pageKey,
-    child: child,
-    transitionDuration: AppMotion.routeDuration,
-    reverseTransitionDuration: AppMotion.routeDuration,
-    transitionsBuilder: (
-      BuildContext context,
-      Animation<double> animation,
-      Animation<double> secondaryAnimation,
-      Widget child,
-    ) {
-      if (MediaQuery.disableAnimationsOf(context)) return child;
-      final Animation<Offset> slide = Tween<Offset>(
-        begin: const Offset(1, 0),
-        end: Offset.zero,
-      ).animate(
-        CurvedAnimation(parent: animation, curve: AppMotion.standardCurve),
-      );
-      return SlideTransition(position: slide, child: child);
-    },
-  );
-}
+    // ========== 通用 ==========
+    GoRoute(
+      name: RouteNames.about,
+      path: '/about',
+      builder: (context, state) => AboutAppScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.settings,
+      path: '/settings',
+      builder: (context, state) => SettingsScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.privacyPolicy,
+      path: '/privacy',
+      builder: (context, state) => LegalDocumentScreen(type: 'privacy'),
+    ),
+    GoRoute(
+      name: RouteNames.userAgreement,
+      path: '/agreement',
+      builder: (context, state) => LegalDocumentScreen(type: 'agreement'),
+    ),
+  ],
+);

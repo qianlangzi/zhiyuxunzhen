@@ -1,228 +1,442 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'app_colors.dart';
 
-import '../constants/app_colors.dart';
-import '../constants/app_dimens.dart';
-import '../constants/app_text_styles.dart';
-
-/// Clinical ledger Material 3 theme.
+/// 智愈寻真 - Material Design 3 主题配置
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get light {
-    final ColorScheme scheme = ColorScheme.fromSeed(
-      seedColor: AppColors.action,
-      primary: AppColors.action,
-      onPrimary: Colors.white,
-      secondary: AppColors.success,
-      onSecondary: Colors.white,
-      surface: AppColors.surface,
-      onSurface: AppColors.ink,
-      error: AppColors.risk,
-      onError: Colors.white,
+  static ThemeData get lightTheme {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.moss,
       brightness: Brightness.light,
+      primary: AppColors.moss,
+      onPrimary: AppColors.paper,
+      secondary: AppColors.amber,
+      onSecondary: AppColors.paper,
+      error: AppColors.vermilion,
+      onError: AppColors.paper,
+      surface: AppColors.card,
+      onSurface: AppColors.ink,
+      background: AppColors.paper,
+      onBackground: AppColors.ink,
     );
 
     return ThemeData(
       useMaterial3: true,
-      colorScheme: scheme,
+      colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.paper,
-      splashFactory: InkSparkle.splashFactory,
-      visualDensity: VisualDensity.adaptivePlatformDensity,
-      textTheme: const TextTheme(
-        displayLarge: AppTextStyles.h1,
-        displayMedium: AppTextStyles.h2,
-        displaySmall: AppTextStyles.h3,
-        titleLarge: AppTextStyles.h2,
-        titleMedium: AppTextStyles.title,
-        titleSmall: AppTextStyles.title,
-        bodyLarge: AppTextStyles.body,
-        bodyMedium: AppTextStyles.body,
-        bodySmall: AppTextStyles.caption,
-        labelLarge: AppTextStyles.button,
-        labelMedium: AppTextStyles.tag,
-        labelSmall: AppTextStyles.kicker,
-      ),
+      canvasColor: AppColors.paper,
+
+      // AppBar
       appBarTheme: const AppBarTheme(
         backgroundColor: AppColors.paper,
         foregroundColor: AppColors.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.dark,
-        ),
       ),
-      cardTheme: CardThemeData(
-        color: AppColors.surface,
+
+      // Bottom Navigation
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: AppColors.paper,
+        selectedItemColor: AppColors.moss,
+        unselectedItemColor: AppColors.ink4,
+        type: BottomNavigationBarType.fixed,
         elevation: 0,
-        margin: EdgeInsets.zero,
+      ),
+
+      // Card
+      cardTheme: CardThemeData(
+        color: AppColors.card,
+        elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusCard),
-          side: const BorderSide(color: AppColors.rule, width: 1),
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: AppColors.cardEdge, width: 1),
+        ),
+        margin: EdgeInsets.zero,
+      ),
+
+      // Input
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.paper,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.rule, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.rule, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.moss, width: 1.5),
+        ),
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: AppColors.ink2,
+          letterSpacing: 0.04,
         ),
       ),
+
+      // Divider
       dividerTheme: const DividerThemeData(
         color: AppColors.rule,
         thickness: 1,
         space: 1,
       ),
-      inputDecorationTheme: _buildInputTheme(),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.action,
-          foregroundColor: Colors.white,
-          minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
+
+      // Button
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.moss,
+          foregroundColor: AppColors.paper,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDimens.radiusControl),
+            borderRadius: BorderRadius.circular(6),
           ),
           textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
           ),
-          padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid6),
         ),
       ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.action,
-          minimumSize: const Size.fromHeight(AppDimens.buttonHeight),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppDimens.radiusControl),
-          ),
-          side: const BorderSide(color: AppColors.ruleStrong, width: 1),
-          textStyle: const TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: AppDimens.grid6),
-        ),
-      ),
+
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.action,
+          foregroundColor: AppColors.moss,
           textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
+            fontSize: 12,
+            fontFamily: 'JetBrainsMono',
           ),
         ),
       ),
-      iconTheme: const IconThemeData(
-        color: AppColors.ink,
-        size: 22,
-      ),
-      chipTheme: ChipThemeData(
-        backgroundColor: AppColors.surface,
-        labelStyle: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: AppColors.graphite,
-        ),
-        side: const BorderSide(color: AppColors.rule, width: 1),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusStatus),
-        ),
-        padding: const EdgeInsets.symmetric(
-            horizontal: AppDimens.grid2, vertical: AppDimens.grid),
-      ),
-      navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        height: AppDimens.navBarHeight,
-        indicatorColor: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        labelTextStyle: WidgetStateProperty.resolveWith<TextStyle>(
-          (Set<WidgetState> states) => TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-            color: states.contains(WidgetState.selected)
-                ? AppColors.action
-                : AppColors.graphite,
-          ),
-        ),
-        iconTheme: WidgetStateProperty.resolveWith<IconThemeData>(
-          (Set<WidgetState> states) => IconThemeData(
-            size: 24,
-            color: states.contains(WidgetState.selected)
-                ? AppColors.action
-                : AppColors.graphite,
-          ),
-        ),
-      ),
-      snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.ink,
-        contentTextStyle: const TextStyle(
-          color: AppColors.surface,
-          fontSize: 14,
+
+      // Text
+      textTheme: const TextTheme(
+        // Display
+        displayLarge: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 32,
           fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+          height: 1.1,
+          letterSpacing: -0.02,
         ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusControl),
+        displayMedium: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 26,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+          height: 1.15,
+          letterSpacing: -0.02,
         ),
-      ),
-      dialogTheme: DialogThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppDimens.radiusSheet),
+        displaySmall: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+          height: 1.2,
+          letterSpacing: -0.01,
         ),
-      ),
-      bottomSheetTheme: const BottomSheetThemeData(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            top: Radius.circular(AppDimens.radiusSheet),
-          ),
+        // Headline
+        headlineLarge: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
         ),
-        showDragHandle: true,
-        dragHandleColor: AppColors.ruleStrong,
-      ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.action,
-        linearTrackColor: AppColors.actionSoft,
-        linearMinHeight: 6,
+        headlineMedium: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+          letterSpacing: -0.01,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+        ),
+        // Title
+        titleLarge: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.ink,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: AppColors.ink,
+        ),
+        titleSmall: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: AppColors.ink2,
+        ),
+        // Body
+        bodyLarge: TextStyle(
+          fontSize: 14,
+          color: AppColors.ink,
+          height: 1.55,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 13,
+          color: AppColors.ink2,
+          height: 1.55,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          color: AppColors.ink3,
+          height: 1.5,
+        ),
+        // Label
+        labelLarge: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: AppColors.ink,
+        ),
+        labelMedium: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: AppColors.ink2,
+          letterSpacing: 0.04,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: 10,
+          color: AppColors.ink3,
+          letterSpacing: 0.06,
+        ),
       ),
     );
   }
 
-  static InputDecorationTheme _buildInputTheme() {
-    OutlineInputBorder buildBorder(Color color, [double width = 1]) {
-      return OutlineInputBorder(
-        borderRadius: BorderRadius.circular(AppDimens.radiusControl),
-        borderSide: BorderSide(color: color, width: width),
-      );
-    }
+  /// 深色主题（夜间护眼）
+  ///
+  /// 基于设计系统深色化：米白/墨绿反转为深墨绿黑背景，主色 moss 提亮为 moss3
+  /// 以保证在深色背景上的对比度。开启「深色模式」开关后由 [ZhiyuApp] 切换。
+  static ThemeData get darkTheme {
+    const darkBg = AppColors.darkBg;
+    const darkSurface = AppColors.darkSurface;
+    const darkSurfaceEdge = AppColors.darkSurfaceEdge;
+    const darkRule = AppColors.darkSurfaceEdge;
+    const darkText = AppColors.darkText;
+    const darkText2 = AppColors.darkText2;
+    const darkText3 = AppColors.darkText3;
+    const darkText4 = AppColors.darkText4;
 
-    return InputDecorationTheme(
-      filled: true,
-      fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: AppDimens.grid4,
-        vertical: AppDimens.grid4,
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.moss,
+      brightness: Brightness.dark,
+      primary: AppColors.moss3,
+      onPrimary: AppColors.paper,
+      secondary: AppColors.amber,
+      onSecondary: AppColors.ink,
+      error: AppColors.vermilion,
+      onError: AppColors.paper,
+      surface: darkSurface,
+      onSurface: darkText,
+      background: darkBg,
+      onBackground: darkText,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: darkBg,
+      canvasColor: darkBg,
+
+      appBarTheme: const AppBarTheme(
+        backgroundColor: darkBg,
+        foregroundColor: darkText,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
       ),
-      hintStyle: const TextStyle(
-        color: AppColors.weak,
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
+
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: darkBg,
+        selectedItemColor: AppColors.moss3,
+        unselectedItemColor: darkText4,
+        type: BottomNavigationBarType.fixed,
+        elevation: 0,
       ),
-      labelStyle: const TextStyle(
-        color: AppColors.graphite,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
+
+      cardTheme: CardThemeData(
+        color: darkSurface,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: darkSurfaceEdge, width: 1),
+        ),
+        margin: EdgeInsets.zero,
       ),
-      floatingLabelStyle: const TextStyle(
-        color: AppColors.action,
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
+
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: darkSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: darkSurfaceEdge, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: darkSurfaceEdge, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: const BorderSide(color: AppColors.moss3, width: 1.5),
+        ),
+        labelStyle: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: darkText2,
+          letterSpacing: 0.04,
+        ),
       ),
-      enabledBorder: buildBorder(AppColors.rule),
-      border: buildBorder(AppColors.rule),
-      focusedBorder: buildBorder(AppColors.action, 1.5),
-      errorBorder: buildBorder(AppColors.risk),
-      focusedErrorBorder: buildBorder(AppColors.risk, 1.5),
+
+      dividerTheme: const DividerThemeData(
+        color: darkRule,
+        thickness: 1,
+        space: 1,
+      ),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.moss3,
+          foregroundColor: AppColors.ink,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(6),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.moss3,
+          textStyle: const TextStyle(
+            fontSize: 12,
+            fontFamily: 'JetBrainsMono',
+          ),
+        ),
+      ),
+
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 32,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+          height: 1.1,
+          letterSpacing: -0.02,
+        ),
+        displayMedium: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 26,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+          height: 1.15,
+          letterSpacing: -0.02,
+        ),
+        displaySmall: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+          height: 1.2,
+          letterSpacing: -0.01,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+          letterSpacing: -0.01,
+        ),
+        headlineSmall: TextStyle(
+          fontFamily: 'NotoSerifSC',
+          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: darkText,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: darkText,
+        ),
+        titleSmall: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: darkText2,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 14,
+          color: darkText,
+          height: 1.55,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 13,
+          color: darkText2,
+          height: 1.55,
+        ),
+        bodySmall: TextStyle(
+          fontSize: 12,
+          color: darkText3,
+          height: 1.5,
+        ),
+        labelLarge: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+          color: darkText,
+        ),
+        labelMedium: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: darkText2,
+          letterSpacing: 0.04,
+        ),
+        labelSmall: TextStyle(
+          fontFamily: 'JetBrainsMono',
+          fontSize: 10,
+          color: darkText3,
+          letterSpacing: 0.06,
+        ),
+      ),
     );
   }
 }

@@ -1,0 +1,1429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智愈寻真 · 教师端原型</title>
+<link rel="stylesheet" href="css/design-system.css">
+<style>
+  body {
+    background: #2a2e2a;
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(45,74,62,0.15) 0%, transparent 50%),
+      radial-gradient(circle at 80% 70%, rgba(184,130,30,0.08) 0%, transparent 50%);
+    min-height: 100vh;
+    padding: 32px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .proto-topbar {
+    width: 100%; max-width: 1200px;
+    display: flex; align-items: center; justify-content: space-between;
+    color: #d8d4c8; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em;
+  }
+  .proto-topbar .brand { display: flex; align-items: center; gap: 12px; }
+  .proto-topbar .brand-mark {
+    width: 28px; height: 28px; border: 1px solid #6b7270;
+    display: flex; align-items: center; justify-content: center;
+    color: #d8e0d3; font-family: var(--font-display); font-weight: 600;
+  }
+  .proto-topbar .brand-text {
+    font-family: var(--font-display); font-size: 16px; color: #f5f1e8; letter-spacing: 0.02em;
+  }
+  .proto-topbar .meta { display: flex; gap: 24px; color: #9aa09d; }
+
+  .screen-tabs {
+    width: 100%; max-width: 1200px;
+    display: flex; flex-wrap: wrap; gap: 4px;
+    padding: 8px; background: rgba(245,241,232,0.04);
+    border: 1px solid rgba(245,241,232,0.08); border-radius: 8px;
+  }
+  .screen-tab {
+    padding: 8px 14px; font-family: var(--font-mono); font-size: 12px;
+    color: #9aa09d; border-radius: 4px; transition: all 0.15s; letter-spacing: 0.04em;
+  }
+  .screen-tab:hover { color: #d8d4c8; background: rgba(245,241,232,0.05); }
+  .screen-tab.active { background: #d8e0d3; color: #1a1f1c; font-weight: 500; }
+
+  .phone-stage { display: flex; gap: 32px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .phone {
+    width: 390px; height: 844px;
+    background: var(--paper); border-radius: 44px;
+    border: 11px solid #1a1f1c;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05);
+    overflow: hidden; position: relative;
+  }
+  .phone::before {
+    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 120px; height: 28px; background: #1a1f1c; border-radius: 0 0 18px 18px; z-index: 100;
+  }
+
+  .screen {
+    width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden;
+    background: var(--paper); position: relative; display: none;
+  }
+  .screen.active { display: block; }
+
+  .statusbar {
+    height: 44px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px 0 24px; font-family: var(--font-mono); font-size: 13px;
+    font-weight: 600; color: var(--ink); position: sticky; top: 0;
+    background: var(--paper); z-index: 50;
+  }
+  .statusbar .right { display: flex; gap: 5px; align-items: center; }
+
+  .appbar {
+    padding: 8px 20px 12px; display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--rule); background: var(--paper);
+    position: sticky; top: 44px; z-index: 40;
+  }
+  .appbar-title { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .appbar-back { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; color: var(--ink); }
+
+  .tabbar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 78px;
+    background: var(--paper); border-top: 1px solid var(--rule);
+    display: flex; align-items: flex-start; padding-top: 8px; z-index: 50;
+  }
+  .tab-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+    color: var(--ink-4); font-size: 10px; font-family: var(--font-mono); letter-spacing: 0.04em;
+  }
+  .tab-item.active { color: var(--moss); }
+  .tab-item svg { width: 22px; height: 22px; }
+  .content { padding: 16px 20px 100px; }
+  .header-tag {
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-4);
+    letter-spacing: 0.12em; text-transform: uppercase;
+  }
+
+  /* ========== 教师首页 ========== */
+  .teach-greet { margin-bottom: 20px; }
+  .teach-greet .name {
+    font-family: var(--font-display); font-size: 26px; font-weight: 600;
+    line-height: 1.15; letter-spacing: -0.02em;
+  }
+  .teach-greet .sub {
+    font-size: 12px; color: var(--ink-3); font-family: var(--font-mono);
+    letter-spacing: 0.04em; margin-top: 4px;
+  }
+
+  .stat-row {
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px;
+  }
+  .stat-card {
+    padding: 12px 14px; background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); position: relative;
+  }
+  .stat-card.urgent { border-color: var(--vermilion-soft); background: var(--vermilion-soft); }
+  .stat-num {
+    font-family: var(--font-display); font-size: 24px; font-weight: 600;
+    line-height: 1; letter-spacing: -0.02em;
+  }
+  .stat-num.urgent { color: var(--vermilion); }
+  .stat-label {
+    font-size: 11px; color: var(--ink-3); font-family: var(--font-mono);
+    margin-top: 4px; letter-spacing: 0.04em;
+  }
+  .stat-card .corner {
+    position: absolute; top: 8px; right: 10px;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--vermilion);
+  }
+
+  /* 待批阅列表 */
+  .review-item {
+    padding: 14px 16px; background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); margin-bottom: 8px; position: relative;
+  }
+  .review-item.urgent { border-left: 3px solid var(--vermilion); }
+  .review-head {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;
+  }
+  .review-student { font-size: 14px; font-weight: 500; }
+  .review-student-id { font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); margin-top: 1px; }
+  .review-status {
+    font-size: 10px; font-family: var(--font-mono); padding: 2px 6px;
+    border-radius: 2px; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .status-ai { background: var(--indigo-soft); color: var(--indigo); }
+  .status-format { background: var(--amber-soft); color: var(--amber); }
+  .status-done { background: var(--moss-tint); color: var(--moss); }
+  .review-meta {
+    display: flex; gap: 10px; font-size: 11px; color: var(--ink-3);
+    font-family: var(--font-mono); margin-top: 6px;
+  }
+  .review-meta .score-ai { color: var(--indigo); font-weight: 500; }
+
+  .section-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin: 20px 0 12px;
+  }
+  .section-head .title {
+    font-family: var(--font-display); font-size: 16px; font-weight: 600;
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .section-head .title .no {
+    font-family: var(--font-mono); font-size: 11px; color: var(--ink-4); letter-spacing: 0.08em;
+  }
+  .section-head .more { font-size: 12px; color: var(--moss); font-family: var(--font-mono); }
+
+  /* ========== SP 配置台 ========== */
+  .form-section {
+    background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); padding: 16px; margin-bottom: 12px; position: relative;
+  }
+  .form-section-title {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--rule-soft);
+  }
+  .form-section-title .no {
+    font-family: var(--font-mono); font-size: 11px; color: var(--moss);
+    letter-spacing: 0.08em; padding-right: 8px; border-right: 1px solid var(--rule);
+  }
+  .form-section-title .name {
+    font-family: var(--font-display); font-size: 15px; font-weight: 600;
+  }
+  .form-section-title .hint {
+    font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); margin-left: auto;
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .form-row.single { grid-template-columns: 1fr; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field-label {
+    font-size: 11px; font-weight: 500; color: var(--ink-2);
+    font-family: var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .field-label .req { color: var(--vermilion); }
+  .input, .textarea, .select {
+    width: 100%; padding: 9px 11px; font-size: 13.5px;
+    background: var(--paper); border: 1px solid var(--rule);
+    border-radius: var(--r-sm); color: var(--ink); transition: border-color 0.15s;
+  }
+  .input:focus, .textarea:focus, .select:focus {
+    outline: none; border-color: var(--moss); background: var(--card);
+  }
+  .textarea { resize: vertical; min-height: 60px; line-height: 1.55; }
+
+  .tag-input-wrap {
+    display: flex; flex-wrap: wrap; gap: 4px; padding: 6px;
+    background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-sm); min-height: 38px;
+  }
+  .tag-input-wrap .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 7px; font-size: 11px; font-family: var(--font-mono);
+    background: var(--moss-tint); border: 1px solid var(--moss-soft);
+    border-radius: var(--r-xs); color: var(--moss);
+  }
+  .tag-input-wrap .tag .x { cursor: pointer; opacity: 0.6; }
+  .tag-input-wrap .tag-add {
+    padding: 3px 7px; font-size: 11px; color: var(--ink-3); font-family: var(--font-mono);
+    border: 1px dashed var(--rule); border-radius: var(--r-xs);
+  }
+
+  .difficulty-row { display: flex; gap: 6px; }
+  .diff-opt {
+    flex: 1; padding: 9px; text-align: center;
+    background: var(--paper); border: 1px solid var(--rule);
+    border-radius: var(--r-sm); font-size: 12px; color: var(--ink-2);
+    font-family: var(--font-mono); cursor: pointer;
+  }
+  .diff-opt.active { background: var(--moss); color: var(--paper); border-color: var(--moss); }
+
+  .hidden-disease-box {
+    padding: 12px; background: var(--vermilion-soft);
+    border: 1px dashed var(--vermilion); border-radius: var(--r-sm);
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .hidden-disease-box .lock-icon {
+    color: var(--vermilion); flex-shrink: 0; margin-top: 2px;
+  }
+  .hidden-disease-box .text {
+    font-size: 12px; color: var(--ink-2); line-height: 1.5;
+  }
+  .hidden-disease-box .text strong { color: var(--vermilion); }
+
+  .preset-exam-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    background: var(--paper); border: 1px solid var(--rule-soft);
+    border-radius: var(--r-sm); margin-bottom: 6px;
+  }
+  .preset-exam-name { flex: 1; font-size: 12.5px; }
+  .preset-exam-cost {
+    font-family: var(--font-mono); font-size: 11px; color: var(--amber);
+  }
+  .preset-exam-tag {
+    font-size: 10px; padding: 1px 5px; border-radius: 2px;
+    font-family: var(--font-mono);
+  }
+  .tag-key { background: var(--moss-tint); color: var(--moss); }
+  .tag-over { background: var(--amber-soft); color: var(--amber); }
+
+  /* ========== 病例广场 ========== */
+  .market-search {
+    padding: 12px 20px; display: flex; gap: 8px;
+    background: var(--paper); border-bottom: 1px solid var(--rule);
+    position: sticky; top: 92px; z-index: 30;
+  }
+  .market-search-input {
+    flex: 1; padding: 8px 12px 8px 32px;
+    background: var(--card); border: 1px solid var(--rule);
+    border-radius: var(--r-sm); font-size: 13px; position: relative;
+  }
+  .search-wrap { flex: 1; position: relative; }
+  .search-wrap svg {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    color: var(--ink-3);
+  }
+
+  .filter-bar {
+    display: flex; gap: 6px; padding: 10px 20px;
+    overflow-x: auto; border-bottom: 1px solid var(--rule); background: var(--paper);
+  }
+  .filter-chip {
+    padding: 5px 10px; font-size: 11px; background: var(--card);
+    border: 1px solid var(--rule); border-radius: 12px; color: var(--ink-2);
+    white-space: nowrap; font-family: var(--font-mono);
+  }
+  .filter-chip.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+  .case-card {
+    margin: 10px 20px; background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); overflow: hidden;
+  }
+  .case-cover {
+    padding: 14px 16px; background: var(--moss-tint);
+    border-bottom: 1px solid var(--moss-soft);
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .case-dept {
+    font-family: var(--font-mono); font-size: 10px; color: var(--moss);
+    letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 4px;
+  }
+  .case-title {
+    font-family: var(--font-display); font-size: 15px; font-weight: 600;
+    line-height: 1.3; letter-spacing: -0.01em;
+  }
+  .case-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 3px 7px; background: var(--moss); color: var(--paper);
+    border-radius: var(--r-xs); font-size: 10px; font-family: var(--font-mono);
+    letter-spacing: 0.04em;
+  }
+  .case-body { padding: 12px 16px; }
+  .case-meta-row {
+    display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px;
+    color: var(--ink-3); font-family: var(--font-mono); margin-bottom: 8px;
+  }
+  .case-summary {
+    font-size: 12.5px; color: var(--ink-2); line-height: 1.55; margin-bottom: 10px;
+  }
+  .case-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-top: 8px; border-top: 1px dashed var(--rule);
+  }
+  .case-stats { display: flex; gap: 12px; font-size: 11px; color: var(--ink-3); font-family: var(--font-mono); }
+  .case-rating { color: var(--amber); }
+
+  /* ========== 作业分发 ========== */
+  .assign-card {
+    background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); padding: 16px; margin-bottom: 12px;
+  }
+  .assign-progress-row {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 10px;
+  }
+  .assign-prog-cell {
+    text-align: center; padding: 8px 4px;
+    background: var(--paper); border-radius: var(--r-xs);
+  }
+  .assign-prog-num {
+    font-family: var(--font-display); font-size: 16px; font-weight: 600;
+  }
+  .assign-prog-label {
+    font-size: 9px; color: var(--ink-3); font-family: var(--font-mono);
+    margin-top: 2px; letter-spacing: 0.04em;
+  }
+  .assign-prog-cell.not-started { color: var(--ink-3); }
+  .assign-prog-cell.in-progress { color: var(--amber); }
+  .assign-prog-cell.submitted { color: var(--indigo); }
+  .assign-prog-cell.format-bounce { color: var(--vermilion); }
+  .assign-prog-cell.ai-review { color: var(--indigo); }
+  .assign-prog-cell.done { color: var(--moss); }
+
+  .var-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 8px; background: var(--amber-soft);
+    border: 1px solid #e3cfa0; border-radius: var(--r-xs);
+    font-size: 11px; color: var(--amber); font-family: var(--font-mono);
+  }
+
+  /* ========== 智能批阅 ========== */
+  .review-screen { display: flex; flex-direction: column; height: 100%; }
+  .review-tabs {
+    display: flex; background: var(--card); border-bottom: 1px solid var(--rule);
+  }
+  .review-tab {
+    flex: 1; padding: 12px 4px; text-align: center;
+    font-size: 12px; color: var(--ink-3); font-family: var(--font-mono);
+    letter-spacing: 0.04em; border-bottom: 2px solid transparent;
+  }
+  .review-tab.active { color: var(--moss); border-bottom-color: var(--moss); font-weight: 500; }
+
+  .record-block {
+    margin: 12px 16px; padding: 14px 16px;
+    background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md);
+  }
+  .record-sec-title {
+    font-family: var(--font-display); font-size: 13px; font-weight: 600;
+    color: var(--moss); margin-bottom: 8px;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .record-sec-title .req { color: var(--vermilion); font-size: 10px; }
+  .record-text {
+    font-size: 12.5px; line-height: 1.7; color: var(--ink);
+  }
+  .record-text .highlight-err {
+    background: var(--vermilion-soft); border-bottom: 1px dashed var(--vermilion);
+    padding: 1px 2px; cursor: help;
+  }
+  .record-text .highlight-warn {
+    background: var(--amber-soft); border-bottom: 1px dashed var(--amber);
+    padding: 1px 2px; cursor: help;
+  }
+  .record-text .highlight-ok {
+    background: var(--moss-tint); border-bottom: 1px dashed var(--moss);
+    padding: 1px 2px;
+  }
+
+  .ai-score-card {
+    margin: 12px 16px; padding: 14px 16px;
+    background: linear-gradient(180deg, var(--moss) 0%, var(--moss-2) 100%);
+    color: var(--paper); border-radius: var(--r-md); position: relative; overflow: hidden;
+  }
+  .ai-score-card::before {
+    content: 'AI REVIEW'; position: absolute; top: 12px; right: 14px;
+    font-family: var(--font-mono); font-size: 10px;
+    color: rgba(245,241,232,0.4); letter-spacing: 0.14em;
+  }
+  .ai-score-row { display: flex; align-items: baseline; gap: 10px; }
+  .ai-score-val {
+    font-family: var(--font-display); font-size: 36px; font-weight: 600;
+    line-height: 1; letter-spacing: -0.03em;
+  }
+  .ai-score-max { font-size: 14px; color: #b8c9b8; }
+  .ai-score-grade { font-size: 12px; color: #d8e0d3; font-style: italic; margin-left: 8px; }
+
+  .ai-deduct-list { margin-top: 12px; }
+  .ai-deduct-item {
+    padding: 8px 10px; background: rgba(245,241,232,0.08);
+    border-left: 2px solid #b8c9b8; border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    margin-bottom: 6px; font-size: 12px; color: #d8e0d3;
+  }
+  .ai-deduct-item strong { color: var(--paper); }
+  .ai-deduct-item .pts {
+    float: right; font-family: var(--font-mono); color: #f3dcd7;
+    font-weight: 500;
+  }
+
+  .override-row {
+    margin: 12px 16px; padding: 12px 14px;
+    background: var(--amber-soft); border: 1px dashed var(--amber);
+    border-radius: var(--r-md);
+  }
+  .override-row .head {
+    font-family: var(--font-mono); font-size: 11px; color: var(--amber);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .score-input-wrap {
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .score-input {
+    width: 80px; padding: 8px 10px; font-family: var(--font-mono);
+    font-size: 18px; font-weight: 600; text-align: center;
+    background: var(--paper); border: 1px solid var(--amber);
+    border-radius: var(--r-sm); color: var(--ink);
+  }
+
+  /* ========== 学情看板 ========== */
+  .dash-stat-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;
+  }
+  .dash-stat {
+    padding: 12px 14px; background: var(--card); border: 1px solid var(--card-edge);
+    border-radius: var(--r-md); position: relative;
+  }
+  .dash-stat-label {
+    font-family: var(--font-mono); font-size: 10px; color: var(--ink-3);
+    letter-spacing: 0.1em; text-transform: uppercase;
+  }
+  .dash-stat-val {
+    font-family: var(--font-display); font-size: 22px; font-weight: 600;
+    margin-top: 4px; letter-spacing: -0.02em;
+  }
+  .dash-stat-trend {
+    font-size: 11px; font-family: var(--font-mono); margin-top: 2px;
+  }
+  .trend-up { color: var(--moss); }
+  .trend-down { color: var(--vermilion); }
+
+  .common-miss-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px dashed var(--rule);
+  }
+  .common-miss-row:last-child { border-bottom: 0; }
+  .common-miss-name { flex: 1; font-size: 13px; }
+  .common-miss-count {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--vermilion); font-weight: 500; width: 36px; text-align: right;
+  }
+  .common-miss-bar {
+    width: 60px; height: 4px; background: var(--paper-3); border-radius: 2px; overflow: hidden;
+  }
+  .common-miss-bar-fill { height: 100%; background: var(--vermilion); }
+</style>
+</head>
+<body>
+
+<div class="proto-topbar">
+  <div class="brand">
+    <div class="brand-mark">愈</div>
+    <div>
+      <div class="brand-text">智愈寻真</div>
+      <div style="font-size:10px;color:#9aa09d;letter-spacing:0.1em;">ZHIYU XUNZHEN · TEACHER</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span>v2.1 PROTO</span>
+    <span>2026.07.21</span>
+    <span><a href="index.html" style="color:#d8e0d3;">← 返回总览</a></span>
+  </div>
+</div>
+
+<div class="screen-tabs">
+  <div class="screen-tab active" data-screen="thome">教师首页</div>
+  <div class="screen-tab" data-screen="spconfig">SP 配置台</div>
+  <div class="screen-tab" data-screen="market">病例广场</div>
+  <div class="screen-tab" data-screen="assign">作业分发</div>
+  <div class="screen-tab" data-screen="review">智能批阅</div>
+  <div class="screen-tab" data-screen="dashboard">学情看板</div>
+</div>
+
+<div class="phone-stage">
+  <div class="phone">
+
+    <!-- ============ 教师首页 ============ -->
+    <section class="screen active" id="screen-thome">
+      <div class="statusbar">
+        <span>14:08</span>
+        <span class="right">
+          <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M1 7h2v2H1zM4 5h2v4H4zM7 3h2v6H7zM10 1h2v8h-2z"/></svg>
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <div>
+          <div class="header-tag">内科教研 · 教师端</div>
+          <div class="appbar-title">王老师 · 工作台</div>
+        </div>
+        <button class="btn btn-primary btn-sm">+ 新建病例</button>
+      </div>
+
+      <div class="content">
+        <div class="teach-greet">
+          <div class="name">下午好，王老师</div>
+          <div class="sub">附属第一医院 · 心血管内科 · 带教 3 个班级</div>
+        </div>
+
+        <!-- 统计 -->
+        <div class="stat-row">
+          <div class="stat-card urgent">
+            <div class="corner pulse"></div>
+            <div class="stat-num urgent">12</div>
+            <div class="stat-label">待复核</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">3</div>
+            <div class="stat-label">进行作业</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-num">28</div>
+            <div class="stat-label">我的病例</div>
+          </div>
+        </div>
+
+        <!-- 待批阅 -->
+        <div class="section-head">
+          <div class="title"><span class="no">01</span>待批阅 · 12</div>
+          <div class="more">全部 →</div>
+        </div>
+
+        <div class="review-item urgent">
+          <div class="review-head">
+            <div>
+              <div class="review-student">陈思远 · 急性心梗大病历</div>
+              <div class="review-student-id">学号 2021302014 · 心血管 03 班</div>
+            </div>
+            <span class="review-status status-ai">AI 批阅中</span>
+          </div>
+          <div class="review-meta">
+            <span>提交于 13:42</span>
+            <span class="score-ai">AI 预评 82 分</span>
+          </div>
+        </div>
+
+        <div class="review-item urgent">
+          <div class="review-head">
+            <div>
+              <div class="review-student">林雨欣 · 急性心梗大病历</div>
+              <div class="review-student-id">学号 2021302022 · 心血管 03 班</div>
+            </div>
+            <span class="review-status status-format">格式打回</span>
+          </div>
+          <div class="review-meta">
+            <span>提交于 12:18</span>
+            <span style="color:var(--vermilion);">主诉超 20 字 / 过敏史空</span>
+          </div>
+        </div>
+
+        <div class="review-item">
+          <div class="review-head">
+            <div>
+              <div class="review-student">赵子轩 · 慢阻肺大病历</div>
+              <div class="review-student-id">学号 2021302008 · 呼吸 02 班</div>
+            </div>
+            <span class="review-status status-ai">AI 预评 91 分</span>
+          </div>
+          <div class="review-meta">
+            <span>提交于 11:30</span>
+            <span class="score-ai">建议复核</span>
+          </div>
+        </div>
+
+        <div class="review-item">
+          <div class="review-head">
+            <div>
+              <div class="review-student">周明 · 慢阻肺大病历</div>
+              <div class="review-student-id">学号 2021302015 · 呼吸 02 班</div>
+            </div>
+            <span class="review-status status-done">已完成 88</span>
+          </div>
+          <div class="review-meta">
+            <span>复核于 10:15</span>
+            <span>已覆盖 AI 评分</span>
+          </div>
+        </div>
+
+        <!-- 班级概览 -->
+        <div class="section-head">
+          <div class="title"><span class="no">02</span>班级概览</div>
+          <div class="more">学情看板 →</div>
+        </div>
+
+        <div class="paper" style="padding: 14px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--rule);">
+            <div>
+              <div style="font-size:13px;font-weight:500;">心血管 03 班 · 32 人</div>
+              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">急性心梗作业 · 截止 07.22</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--moss);">68%</div>
+              <div class="t-meta">完成率</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">呼吸 02 班 · 28 人</div>
+              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">慢阻肺作业 · 截止 07.25</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--amber);">32%</div>
+              <div class="t-meta">完成率</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 病例广场动态 -->
+        <div class="section-head">
+          <div class="title"><span class="no">03</span>病例广场动态</div>
+          <div class="more">浏览 →</div>
+        </div>
+
+        <div class="paper" style="padding: 12px 14px;">
+          <div style="font-size:12.5px;color:var(--ink-2);line-height:1.6;">
+            你的病例 <strong>《急性下壁心梗的不典型表现》</strong> 被引用 <span style="color:var(--moss);font-weight:500;">+5</span> 次
+          </div>
+          <div class="t-meta" style="margin-top:4px;">本周新增引用 · 累计 23 次 · 评分 4.8</div>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <div class="tab-item active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 11l9-8 9 8v10a1 1 0 01-1 1h-5v-7h-6v7H4a1 1 0 01-1-1V11z"/></svg>
+          工作台
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+          配置
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2V9zM9 22V12h6v10"/></svg>
+          广场
+        </div>
+        <div class="tab-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/></svg>
+          我的
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SP 配置台 ============ -->
+    <section class="screen" id="screen-spconfig">
+      <div class="statusbar">
+        <span>14:15</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('thome')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">SP 配置台</div>
+        <button class="btn btn-ghost btn-sm">预览试诊</button>
+      </div>
+
+      <div style="padding: 16px 20px 100px;">
+        <!-- 草稿状态 -->
+        <div style="padding:8px 12px;background:var(--amber-soft);border:1px dashed var(--amber);border-radius:var(--r-sm);font-size:11px;color:var(--amber);font-family:var(--font-mono);margin-bottom:14px;display:flex;align-items:center;gap:6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L1 21h22L12 2zm0 4l7.5 13h-15L12 6zm-1 5v4h2v-4h-2zm0 6v2h2v-2h-2z"/></svg>
+          草稿 · 自动保存于 14:14 · 完整度 72%
+        </div>
+
+        <!-- SP 说明 -->
+        <div style="padding:8px 12px;background:#e8efe9;border:1px solid var(--moss);border-radius:var(--r-sm);font-size:11px;color:var(--moss);font-family:var(--font-mono);margin-bottom:14px;display:flex;align-items:center;gap:6px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>
+          SP = 标准化病人（Standardized Patient）：模拟真实患者，供学生问诊与鉴别诊断训练。
+        </div>
+
+        <!-- 基础信息 -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="no">01</span>
+            <span class="name">基础信息</span>
+            <span class="hint">必填 4 项</span>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">病例标题 <span class="req">*</span></div>
+              <input class="input" value="急性下壁心肌梗死 · 不典型表现">
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <div class="field-label">适用年级 <span class="req">*</span></div>
+              <select class="select"><option>大四</option><option>大三</option><option>大五/规培</option></select>
+            </div>
+            <div class="field">
+              <div class="field-label">科室 <span class="req">*</span></div>
+              <select class="select"><option>心血管内科</option><option>呼吸内科</option><option>消化内科</option></select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <div class="field-label">难度 <span class="req">*</span></div>
+              <div class="difficulty-row">
+                <div class="diff-opt">简单</div>
+                <div class="diff-opt active">标准</div>
+                <div class="diff-opt">困难</div>
+              </div>
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">知识点标签 · 最多 8 个 <span style="color:var(--ink-4);">(3/8)</span></div>
+              <div class="tag-input-wrap">
+                <span class="tag">ACS <span class="x">×</span></span>
+                <span class="tag">心电图判读 <span class="x">×</span></span>
+                <span class="tag">鉴别诊断 <span class="x">×</span></span>
+                <span class="tag-add">+ 添加</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 患者画像 -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="no">02</span>
+            <span class="name">患者画像</span>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <div class="field-label">年龄 <span class="req">*</span></div>
+              <input class="input" value="58">
+            </div>
+            <div class="field">
+              <div class="field-label">性别 <span class="req">*</span></div>
+              <select class="select"><option>男</option><option>女</option></select>
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">职业</div>
+              <input class="input" value="建筑工人">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">主诉 <span class="req">*</span></div>
+              <input class="input" value="胸痛 2 小时伴大汗">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">现病史摘要</div>
+              <textarea class="textarea">搬运水泥时突发胸骨后压榨样疼痛 2h，放射至左肩，伴大汗、恶心。BP 90/60，HR 102。既往高血压 8 年未规律服药。</textarea>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="field">
+              <div class="field-label">既往史</div>
+              <input class="input" value="高血压 8 年">
+            </div>
+            <div class="field">
+              <div class="field-label">过敏史</div>
+              <input class="input" value="否认">
+            </div>
+          </div>
+          <div class="form-row single">
+            <div class="field">
+              <div class="field-label">性格与沟通风格</div>
+              <div class="tag-input-wrap">
+                <span class="tag">焦虑</span>
+                <span class="tag">表达不清</span>
+                <span class="tag-add">+ 添加标签</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 隐藏疾病 -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="no">03</span>
+            <span class="name">隐藏疾病 · 标准路径</span>
+            <span class="hint" style="color:var(--vermilion);">仅教师可见</span>
+          </div>
+
+          <div class="hidden-disease-box" style="margin-bottom:12px;">
+            <svg class="lock-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="3" y="11" width="18" height="11" rx="2"/>
+              <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+            <div class="text">
+              <strong>真实诊断：</strong>急性下壁+右室心肌梗死<br>
+              <strong>关键阳性体征：</strong>胸骨后压榨痛、大汗、BP 90/60、心电图 II/III/aVF ST↑<br>
+              <strong>关键阴性体征：</strong>无胸膜摩擦音、无奇脉<br>
+              <strong>误导信息：</strong>上腹痛（可能误诊为胃病）<br>
+              <strong>鉴别诊断：</strong>主动脉夹层、肺栓塞、急性心包炎
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-label">标准问诊路径</div>
+            <textarea class="textarea">1. 询问疼痛部位、性质、放射、持续时间
+2. 询问诱因（体力活动/情绪/饱餐）
+3. 询问伴随症状（大汗、恶心、呼吸困难）
+4. 既往史、过敏史、家族史
+5. 开 18 导联心电图（关键检查）
+6. 查肌钙蛋白（关键检查）
+7. 鉴别 ACS / 主动脉夹层 / 肺栓塞</textarea>
+          </div>
+        </div>
+
+        <!-- 检查项目配置 -->
+        <div class="form-section">
+          <div class="form-section-title">
+            <span class="no">04</span>
+            <span class="name">检查项目配置</span>
+            <span class="hint">5 项</span>
+          </div>
+
+          <div class="preset-exam-row">
+            <div class="preset-exam-name">18 导联心电图</div>
+            <span class="preset-exam-cost">¥120</span>
+            <span class="preset-exam-tag tag-key">关键</span>
+          </div>
+          <div class="preset-exam-row">
+            <div class="preset-exam-name">肌钙蛋白 I</div>
+            <span class="preset-exam-cost">¥280</span>
+            <span class="preset-exam-tag tag-key">关键</span>
+          </div>
+          <div class="preset-exam-row">
+            <div class="preset-exam-name">心肌酶谱</div>
+            <span class="preset-exam-cost">¥280</span>
+            <span class="preset-exam-tag tag-over">可过度</span>
+          </div>
+          <div class="preset-exam-row">
+            <div class="preset-exam-name">D-二聚体</div>
+            <span class="preset-exam-cost">¥180</span>
+          </div>
+          <div class="preset-exam-row">
+            <div class="preset-exam-name">胸主动脉 CTA</div>
+            <span class="preset-exam-cost">¥1,800</span>
+            <span class="preset-exam-tag tag-over">高价</span>
+          </div>
+
+          <button class="btn btn-ghost btn-sm w-full" style="margin-top:8px;border-style:dashed;">
+            + 添加检查项
+          </button>
+        </div>
+
+        <!-- 底部操作 -->
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn btn-ghost flex-1">保存草稿</button>
+          <button class="btn btn-primary flex-1">发布作业</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 病例广场 ============ -->
+    <section class="screen" id="screen-market">
+      <div class="statusbar">
+        <span>14:30</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('thome')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">病例广场</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        </button>
+      </div>
+
+      <div class="filter-bar">
+        <div class="filter-chip active">全部</div>
+        <div class="filter-chip">心血管</div>
+        <div class="filter-chip">呼吸</div>
+        <div class="filter-chip">消化</div>
+        <div class="filter-chip">内分泌</div>
+        <div class="filter-chip">官方认证</div>
+        <div class="filter-chip">高评分</div>
+      </div>
+
+      <div style="padding-top:6px;">
+        <div class="case-card">
+          <div class="case-cover">
+            <div>
+              <div class="case-dept">心血管 · 标准</div>
+              <div class="case-title">急性下壁心梗的<br>不典型表现</div>
+            </div>
+            <span class="case-badge">✓ 官方</span>
+          </div>
+          <div class="case-body">
+            <div class="case-meta-row">
+              <span>王老师</span>
+              <span>· 附属第一医院</span>
+              <span>· 大四</span>
+            </div>
+            <div class="case-summary">
+              58 岁建筑工人，搬运水泥时突发胸痛伴上腹痛，需要学生识别 ACS 不典型表现并完成鉴别诊断。
+            </div>
+            <div class="case-footer">
+              <div class="case-stats">
+                <span>引用 <strong style="color:var(--ink);">23</strong></span>
+                <span class="case-rating">★ 4.8</span>
+                <span>v3</span>
+              </div>
+              <button class="btn btn-primary btn-sm">引用</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="case-card">
+          <div class="case-cover" style="background:var(--amber-soft);border-bottom-color:#e3cfa0;">
+            <div>
+              <div class="case-dept" style="color:var(--amber);">呼吸 · 困难</div>
+              <div class="case-title">慢阻肺急性加重<br>伴 II 型呼衰</div>
+            </div>
+          </div>
+          <div class="case-body">
+            <div class="case-meta-row">
+              <span>李老师</span>
+              <span>· 附属第二医院</span>
+              <span>· 大五/规培</span>
+            </div>
+            <div class="case-summary">
+              68 岁慢阻肺患者，急性加重伴意识障碍，考察呼吸支持决策和血气分析判读。
+            </div>
+            <div class="case-footer">
+              <div class="case-stats">
+                <span>引用 <strong style="color:var(--ink);">15</strong></span>
+                <span class="case-rating">★ 4.6</span>
+                <span>v2</span>
+              </div>
+              <button class="btn btn-primary btn-sm">引用</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="case-card">
+          <div class="case-cover" style="background:var(--indigo-soft);border-bottom-color:#c4cce0;">
+            <div>
+              <div class="case-dept" style="color:var(--indigo);">消化 · 标准</div>
+              <div class="case-title">肝硬化食管胃底<br>静脉曲张出血</div>
+            </div>
+            <span class="case-badge">✓ 官方</span>
+          </div>
+          <div class="case-body">
+            <div class="case-meta-row">
+              <span>张老师</span>
+              <span>· 附属第一医院</span>
+              <span>· 大四</span>
+            </div>
+            <div class="case-summary">
+              52 岁乙肝肝硬化患者呕血 200ml，考察出血量评估、Rockall 评分和急诊处理决策。
+            </div>
+            <div class="case-footer">
+              <div class="case-stats">
+                <span>引用 <strong style="color:var(--ink);">31</strong></span>
+                <span class="case-rating">★ 4.9</span>
+                <span>v4</span>
+              </div>
+              <button class="btn btn-primary btn-sm">引用</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 作业分发 ============ -->
+    <section class="screen" id="screen-assign">
+      <div class="statusbar">
+        <span>14:45</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('thome')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">作业进度</div>
+        <button class="btn-icon">⋯</button>
+      </div>
+
+      <div style="padding: 16px 20px 100px;">
+        <!-- 作业信息 -->
+        <div class="assign-card">
+          <div class="t-eyebrow" style="color:var(--moss);">ASSIGNMENT · 进行中</div>
+          <div class="t-display" style="font-size:18px;font-weight:600;margin:6px 0 8px;line-height:1.3;">
+            急性心梗病例问诊 · 大病历
+          </div>
+          <div style="display:flex;gap:12px;font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-bottom:10px;">
+            <span>心血管 03 班 · 32 人</span>
+            <span>·</span>
+            <span>截止 07.22 23:59</span>
+          </div>
+
+          <hr class="rule-dotted" style="margin: 10px 0;">
+
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span class="t-eyebrow">防作弊变量</span>
+            <span class="var-chip">3 个变量已配置</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">
+            <span class="chip">患者年龄 55-65</span>
+            <span class="chip">疼痛放射部位</span>
+            <span class="chip">血压基线</span>
+          </div>
+        </div>
+
+        <!-- 进度看板 -->
+        <div class="t-eyebrow" style="margin: 16px 0 10px;">进度看板 · 32 人</div>
+        <div class="assign-card">
+          <div class="assign-progress-row">
+            <div class="assign-prog-cell not-started">
+              <div class="assign-prog-num">4</div>
+              <div class="assign-prog-label">未开始</div>
+            </div>
+            <div class="assign-prog-cell in-progress">
+              <div class="assign-prog-num">6</div>
+              <div class="assign-prog-label">问诊中</div>
+            </div>
+            <div class="assign-prog-cell submitted">
+              <div class="assign-prog-num">8</div>
+              <div class="assign-prog-label">已提交</div>
+            </div>
+            <div class="assign-prog-cell format-bounce">
+              <div class="assign-prog-num">2</div>
+              <div class="assign-prog-label">格式打回</div>
+            </div>
+            <div class="assign-prog-cell ai-review">
+              <div class="assign-prog-num">12</div>
+              <div class="assign-prog-label">AI 批阅中</div>
+            </div>
+            <div class="assign-prog-cell done">
+              <div class="assign-prog-num">0</div>
+              <div class="assign-prog-label">已完成</div>
+            </div>
+          </div>
+
+          <hr class="rule-dotted" style="margin: 12px 0;">
+
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="t-meta">班级完成率</div>
+              <div style="font-family:var(--font-display);font-size:24px;font-weight:600;color:var(--moss);margin-top:2px;">68%</div>
+            </div>
+            <div style="text-align:right;">
+              <div class="t-meta">距截止</div>
+              <div style="font-family:var(--font-mono);font-size:14px;color:var(--amber);margin-top:2px;">34h 14min</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 操作 -->
+        <div style="display:flex;gap:8px;margin-top:16px;">
+          <button class="btn btn-ghost flex-1">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.4 8.4 0 01-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.4 8.4 0 013.8-.9h.5a8.5 8.5 0 018 8v.5z"/></svg>
+            催交提醒
+          </button>
+          <button class="btn btn-primary flex-1">
+            查看详情 →
+          </button>
+        </div>
+
+        <!-- 防作弊说明 -->
+        <div style="margin-top:16px;padding:12px 14px;background:var(--moss-tint);border-left:3px solid var(--moss);border-radius:0 var(--r-sm) var(--r-sm) 0;">
+          <div style="font-family:var(--font-mono);font-size:11px;color:var(--moss);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px;">
+            防作弊机制
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);line-height:1.55;">
+            每名学生获得独立变量快照，AI 批阅以该学生对应快照为标准答案。教师可查看每名学生的变量版本。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 智能批阅 ============ -->
+    <section class="screen" id="screen-review">
+      <div class="statusbar">
+        <span>15:02</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('thome')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">陈思远 · 大病历</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </button>
+      </div>
+
+      <div class="review-tabs">
+        <div class="review-tab active">大病历</div>
+        <div class="review-tab">AI 批阅</div>
+        <div class="review-tab">教师复核</div>
+        <div class="review-tab">思维树</div>
+      </div>
+
+      <div style="overflow-y:auto;flex:1;padding-bottom:90px;">
+        <!-- 格式盾牌结果 -->
+        <div style="margin:12px 16px;padding:10px 12px;background:var(--moss-tint);border:1px solid var(--moss-soft);border-radius:var(--r-sm);display:flex;gap:8px;align-items:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--moss)" stroke-width="2"><path d="M12 2L3 7v6c0 5 4 9 9 10 5-1 9-5 9-10V7l-9-5z"/><path d="M9 12l2 2 4-4"/></svg>
+          <div style="flex:1;">
+            <div style="font-size:12px;color:var(--moss);font-weight:500;">格式盾牌 · 通过</div>
+            <div class="t-meta">7 项必填段落齐全 · 主诉 18 字 · 过敏史已注明</div>
+          </div>
+        </div>
+
+        <!-- 学生病历 -->
+        <div class="record-block">
+          <div class="record-sec-title">主诉 <span class="req">· 必填</span></div>
+          <div class="record-text">胸骨后疼痛 2 小时<span class="highlight-ok">伴大汗</span>。</div>
+        </div>
+
+        <div class="record-block">
+          <div class="record-sec-title">现病史 <span class="req">· 必填</span></div>
+          <div class="record-text">
+            患者 2 小时前<span class="highlight-ok">搬运水泥时</span>突发胸骨后压榨样疼痛，<span class="highlight-err">未询问</span>放射部位具体描述，伴大汗、恶心，无呕吐。<span class="highlight-warn">未记录</span>诱因与体力活动关系。来诊时 BP 90/60，HR 102。
+          </div>
+        </div>
+
+        <div class="record-block">
+          <div class="record-sec-title">既往史 <span class="req">· 必填</span></div>
+          <div class="record-text">
+            <span class="highlight-ok">高血压 8 年</span>，未规律服用降压药。<span class="highlight-err">未询问过敏史</span>。<span class="highlight-warn">未询问家族史</span>。
+          </div>
+        </div>
+
+        <div class="record-block">
+          <div class="record-sec-title">辅助检查</div>
+          <div class="record-text">
+            心电图：II、III、aVF 导联 ST 段抬高 0.3mV<span class="highlight-ok"> ✓</span><br>
+            肌钙蛋白 I：3.8 ng/mL ↑<span class="highlight-ok"> ✓</span><br>
+            <span class="highlight-warn">心肌酶谱：CK-MB 25 U/L（与肌钙蛋白重复开立）</span>
+          </div>
+        </div>
+
+        <div class="record-block">
+          <div class="record-sec-title">初步诊断 <span class="req">· 必填</span></div>
+          <div class="record-text">
+            <span class="highlight-ok">急性下壁心肌梗死</span><br>
+            鉴别诊断：<span class="highlight-err">未列出主动脉夹层</span>、肺栓塞
+          </div>
+        </div>
+
+        <!-- AI 评分卡 -->
+        <div class="ai-score-card">
+          <div class="ai-score-row">
+            <div class="ai-score-val">82</div>
+            <div class="ai-score-max">/ 100</div>
+            <div class="ai-score-grade">良好 · 接近优秀</div>
+          </div>
+
+          <div class="ai-deduct-list">
+            <div class="ai-deduct-item">
+              <strong>诱因未询问</strong> · 现病史缺失体力活动/情绪诱因，影响 ACS 鉴别
+              <span class="pts">-6</span>
+            </div>
+            <div class="ai-deduct-item">
+              <strong>过敏史遗漏</strong> · 必填项缺失，存在用药安全风险
+              <span class="pts">-5</span>
+            </div>
+            <div class="ai-deduct-item">
+              <strong>鉴别诊断不全</strong> · 未列出主动脉夹层这一高危鉴别
+              <span class="pts">-4</span>
+            </div>
+            <div class="ai-deduct-item">
+              <strong>检查重复</strong> · 心肌酶谱与肌钙蛋白重复，违反卫生经济学
+              <span class="pts">-3</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 教师复核 -->
+        <div class="override-row">
+          <div class="head">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            教师复核 · 可覆盖
+          </div>
+          <div style="font-size:12px;color:var(--ink-2);margin-bottom:10px;">
+            最终成绩以教师复核为准。所有覆盖操作写入审计日志。
+          </div>
+          <div class="score-input-wrap">
+            <div class="t-eyebrow">调整分数</div>
+            <input class="score-input" value="85">
+            <span style="font-family:var(--font-mono);color:var(--ink-3);">/ 100</span>
+            <button class="btn btn-primary btn-sm" style="margin-left:auto;">提交复核</button>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="t-eyebrow" style="margin-bottom:4px;">补充评语</div>
+            <textarea class="textarea" style="font-size:12.5px;min-height:50px;" placeholder="对 AI 批阅的修正意见…">诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。</textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 学情看板 ============ -->
+    <section class="screen" id="screen-dashboard">
+      <div class="statusbar">
+        <span>16:08</span>
+        <span class="right">
+          <svg width="20" height="10" viewBox="0 0 20 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="16" height="9" rx="2"/><rect x="2" y="2" width="11" height="6" fill="currentColor"/></svg>
+        </span>
+      </div>
+
+      <div class="appbar">
+        <button class="appbar-back" onclick="switchScreen('thome')">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <div class="appbar-title">学情看板 · 心血管 03</div>
+        <button class="btn-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        </button>
+      </div>
+
+      <div style="padding: 16px 20px 100px;">
+        <!-- 概览统计 -->
+        <div class="dash-stat-grid">
+          <div class="dash-stat">
+            <div class="dash-stat-label">作业完成率</div>
+            <div class="dash-stat-val">68%</div>
+            <div class="dash-stat-trend trend-up">↑ 12% · 较上周</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">平均 OSCE</div>
+            <div class="dash-stat-val">82.4</div>
+            <div class="dash-stat-trend trend-up">↑ 4.2 · 较上周</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">批阅效率</div>
+            <div class="dash-stat-val">2.8<span style="font-size:12px;color:var(--ink-3);">min/份</span></div>
+            <div class="dash-stat-trend trend-up">↓ 71% · 较纯人工</div>
+          </div>
+          <div class="dash-stat">
+            <div class="dash-stat-label">过度检查率</div>
+            <div class="dash-stat-val">23%</div>
+            <div class="dash-stat-trend trend-down">↑ 5% · 需关注</div>
+          </div>
+        </div>
+
+        <!-- OSCE 六维均分 -->
+        <div class="section-head">
+          <div class="title"><span class="no">01</span>OSCE 六维均分</div>
+        </div>
+        <div class="paper" style="padding: 16px;">
+          <div style="display:flex;gap:20px;align-items:center;">
+            <svg width="140" height="140" viewBox="0 0 280 280" style="flex-shrink:0;">
+              <g stroke="var(--rule)" fill="none" stroke-width="1">
+                <polygon points="140,30 240,90 240,190 140,250 40,190 40,90"/>
+                <polygon points="140,84 190,115 190,165 140,196 90,165 90,115"/>
+              </g>
+              <polygon points="140,50 220,98 218,180 140,224 60,180 58,98"
+                       fill="var(--moss)" fill-opacity="0.15"
+                       stroke="var(--moss)" stroke-width="2"/>
+              <g fill="var(--moss)">
+                <circle cx="140" cy="50" r="3"/>
+                <circle cx="220" cy="98" r="3"/>
+                <circle cx="218" cy="180" r="3"/>
+                <circle cx="140" cy="224" r="3"/>
+                <circle cx="60" cy="180" r="3"/>
+                <circle cx="58" cy="98" r="3"/>
+              </g>
+            </svg>
+            <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>病史采集</span>
+                <span style="font-family:var(--font-mono);color:var(--moss);font-weight:500;">85.2</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>诊断逻辑</span>
+                <span style="font-family:var(--font-mono);color:var(--moss);font-weight:500;">82.6</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>沟通技巧</span>
+                <span style="font-family:var(--font-mono);color:var(--amber);font-weight:500;">78.4</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>人文关怀</span>
+                <span style="font-family:var(--font-mono);color:var(--moss);font-weight:500;">86.8</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>检查决策</span>
+                <span style="font-family:var(--font-mono);color:var(--moss);font-weight:500;">80.8</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;">
+                <span>文书规范</span>
+                <span style="font-family:var(--font-mono);color:var(--amber);font-weight:500;">81.6</span>
+              </div>
+              <hr class="rule-dotted" style="margin: 4px 0;">
+              <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:500;">
+                <span>综合均分</span>
+                <span style="font-family:var(--font-display);color:var(--moss);font-weight:600;">82.4</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 共性漏问 -->
+        <div class="section-head">
+          <div class="title"><span class="no">02</span>共性漏问项</div>
+          <div class="more">Top 5</div>
+        </div>
+        <div class="paper" style="padding: 8px 14px;">
+          <div class="common-miss-row">
+            <div class="common-miss-name">胸痛诱因（体力活动/情绪）</div>
+            <div class="common-miss-bar"><div class="common-miss-bar-fill" style="width:84%;"></div></div>
+            <div class="common-miss-count">21</div>
+          </div>
+          <div class="common-miss-row">
+            <div class="common-miss-name">过敏史</div>
+            <div class="common-miss-bar"><div class="common-miss-bar-fill" style="width:60%;"></div></div>
+            <div class="common-miss-count">15</div>
+          </div>
+          <div class="common-miss-row">
+            <div class="common-miss-name">家族史</div>
+            <div class="common-miss-bar"><div class="common-miss-bar-fill" style="width:48%;"></div></div>
+            <div class="common-miss-count">12</div>
+          </div>
+          <div class="common-miss-row">
+            <div class="common-miss-name">用药依从性</div>
+            <div class="common-miss-bar"><div class="common-miss-bar-fill" style="width:36%;"></div></div>
+            <div class="common-miss-count">9</div>
+          </div>
+          <div class="common-miss-row">
+            <div class="common-miss-name">个人史（吸烟/饮酒）</div>
+            <div class="common-miss-bar"><div class="common-miss-bar-fill" style="width:28%;"></div></div>
+            <div class="common-miss-count">7</div>
+          </div>
+        </div>
+
+        <!-- 共性误诊 -->
+        <div class="section-head">
+          <div class="title"><span class="no">03</span>共性误诊</div>
+        </div>
+        <div class="paper" style="padding: 14px 16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed var(--rule);">
+            <div>
+              <div style="font-size:13px;font-weight:500;">误诊为胃食管反流</div>
+              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">急性下壁心梗不典型表现</div>
+            </div>
+            <span class="chip chip-vermilion">8 人</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+            <div>
+              <div style="font-size:13px;font-weight:500;">漏诊主动脉夹层</div>
+              <div style="font-size:11px;color:var(--ink-3);font-family:var(--font-mono);margin-top:2px;">鉴别诊断未列出</div>
+            </div>
+            <span class="chip chip-vermilion">6 人</span>
+          </div>
+        </div>
+
+        <!-- 课堂补救建议 -->
+        <div style="margin-top:16px;padding:14px 16px;background:var(--moss);color:var(--paper);border-radius:var(--r-md);">
+          <div class="t-eyebrow" style="color:#b8c9b8;">REMEDIATION · 课堂补救建议</div>
+          <div style="font-size:13px;margin-top:8px;line-height:1.6;">
+            建议下次课堂重点讲解：<strong>胸痛的诱因询问框架</strong>、<strong>ACS 不典型表现的识别</strong>，并安排主动脉夹层鉴别诊断的随堂练习。
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  function switchScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    document.querySelectorAll('.screen-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.screen-tab[data-screen="${name}"]`)?.classList.add('active');
+    document.querySelector('.phone').scrollTop = 0;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  document.querySelectorAll('.screen-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchScreen(tab.dataset.screen));
+  });
+</script>
+
+</body>
+</html>
