@@ -57,3 +57,11 @@ uploads/
 .superpowers/
 stitch_ai/
 front/legacy-*/
+
+# ===== Flutter / Dart 生成产物（根目录，勿提交） =====
+# 通常由 Flutter/Dart 在仓库根目录生成，体积巨大且可重新生成，禁止提交
+/build/
+.dart_tool/
+.pub_cache/
+.flutter-plugins-dependencies
+.metadata
