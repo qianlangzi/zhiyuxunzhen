@@ -25,11 +25,34 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
   final _ageCtl = TextEditingController(text: '58');
   final _complaintCtl = TextEditingController(text: '胸痛 2 小时伴大汗');
 
+  // 报告条目: P1 #7a — 以下 5 个控制器原为 build() 内联创建，每次 rebuild 泄漏
+  // 提升为 State 字段，在 dispose 中统一释放
+  final _occupationCtl = TextEditingController(text: '建筑工人');
+  final _historyCtl = TextEditingController(
+    text: '搬运水泥时突发胸骨后压榨样疼痛 2h，放射至左肩，伴大汗、恶心。BP 90/60，HR 102。既往高血压 8 年未规律服药。',
+  );
+  final _pastHxCtl = TextEditingController(text: '高血压 8 年');
+  final _allergyCtl = TextEditingController(text: '否认');
+  final _pathCtl = TextEditingController(
+    text: '''1. 询问疼痛部位、性质、放射、持续时间
+2. 询问诱因（体力活动/情绪/饱餐）
+3. 询问伴随症状（大汗、恶心、呼吸困难）
+4. 既往史、过敏史、家族史
+5. 开 18 导联心电图（关键检查）
+6. 查肌钙蛋白（关键检查）
+7. 鉴别 ACS / 主动脉夹层 / 肺栓塞''',
+  );
+
   @override
   void dispose() {
     _titleCtl.dispose();
     _ageCtl.dispose();
     _complaintCtl.dispose();
+    _occupationCtl.dispose();
+    _historyCtl.dispose();
+    _pastHxCtl.dispose();
+    _allergyCtl.dispose();
+    _pathCtl.dispose();
     super.dispose();
   }
 
@@ -248,21 +271,21 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         ],
       ),
       const SizedBox(height: 10),
-      _field('职业', TextField(decoration: _inputDec(), controller: TextEditingController(text: '建筑工人'))),
+      _field('职业', TextField(decoration: _inputDec(), controller: _occupationCtl)),
       const SizedBox(height: 10),
       _field('主诉 *', TextField(decoration: _inputDec(), controller: _complaintCtl)),
       const SizedBox(height: 10),
       _field('现病史摘要', TextField(
         decoration: _inputDec(),
         maxLines: 3,
-        controller: TextEditingController(text: '搬运水泥时突发胸骨后压榨样疼痛 2h，放射至左肩，伴大汗、恶心。BP 90/60，HR 102。既往高血压 8 年未规律服药。'),
+        controller: _historyCtl,
       )),
       const SizedBox(height: 10),
       Row(
         children: [
-          Expanded(child: _field('既往史', TextField(decoration: _inputDec(), controller: TextEditingController(text: '高血压 8 年')))),
+          Expanded(child: _field('既往史', TextField(decoration: _inputDec(), controller: _pastHxCtl))),
           const SizedBox(width: 10),
-          Expanded(child: _field('过敏史', TextField(decoration: _inputDec(), controller: TextEditingController(text: '否认')))),
+          Expanded(child: _field('过敏史', TextField(decoration: _inputDec(), controller: _allergyCtl))),
         ],
       ),
       const SizedBox(height: 10),
@@ -312,13 +335,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         _field('标准问诊路径', TextField(
           decoration: _inputDec(),
           maxLines: 7,
-          controller: TextEditingController(text: '''1. 询问疼痛部位、性质、放射、持续时间
-2. 询问诱因（体力活动/情绪/饱餐）
-3. 询问伴随症状（大汗、恶心、呼吸困难）
-4. 既往史、过敏史、家族史
-5. 开 18 导联心电图（关键检查）
-6. 查肌钙蛋白（关键检查）
-7. 鉴别 ACS / 主动脉夹层 / 肺栓塞'''),
+          controller: _pathCtl,
         )),
       ]);
   }

@@ -164,6 +164,8 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // 报告条目: P2 #8 — widget 可能在回调前被 dispose，此时访问 _scrollController 不安全
+      if (!mounted) return;
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,

@@ -169,7 +169,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    ref.read(authProvider.notifier).loginWith(user);
+    await ref.read(authProvider.notifier).loginWith(user);
     if (!mounted) return;
     context.goNamed(
       user.role == UserRole.student

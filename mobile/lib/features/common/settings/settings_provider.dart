@@ -88,9 +88,16 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   final LocalAuthentication _auth = LocalAuthentication();
   final FlutterSecureStorage _secure = const FlutterSecureStorage();
 
+  /// 报告条目: P1 #2 — 存储初始化 Future，供 main() 预热
   SettingsNotifier() : super(const AppSettings()) {
-    _load();
+    _initFuture = _load();
   }
+
+  late final Future<void> _initFuture;
+
+  /// 等待设置加载完成（供 main() 预热调用，避免主题闪烁）。
+  /// 报告条目: P1 #2
+  Future<void> ensureLoaded() => _initFuture;
 
   Future<void> _load() async {
     try {
@@ -201,6 +208,14 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       log('清除缓存失败: $e', name: 'settings');
     }
     return total;
+  }
+
+  /// 报告条目: P2 #11 — 覆写 dispose 作为扩展点
+  @override
+  void dispose() {
+    // 当前无需显式释放 LocalAuthentication / FlutterSecureStorage（平台单例）
+    // 未来若添加 StreamSubscription / Timer / Dio 等资源，在此释放
+    super.dispose();
   }
 }
 

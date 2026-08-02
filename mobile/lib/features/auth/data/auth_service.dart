@@ -18,10 +18,17 @@ class AuthService {
   static const Duration _codeTtl = Duration(minutes: 5);
   static final Map<String, _PendingCode> _pending = {};
 
+  /// 报告条目: P3 #4 — 主动清理过期验证码，避免 _pending Map 无限增长
+  void _purgeExpired() {
+    final now = DateTime.now();
+    _pending.removeWhere((_, v) => now.isAfter(v.expiresAt));
+  }
+
   /// 向手机号下发验证码（演示：返回真实随机码，由 UI 提示用户）
   ///
   /// 返回 `(code, error)`：error 非空表示失败（如手机号非法）。
   ({String code, String? error}) requestCode(String phone) {
+    _purgeExpired(); // 报告条目: P3 #4 — 每次请求前顺手清理过期条目
     final p = phone.trim();
     if (!_isValidPhone(p)) {
       return (code: '', error: '请输入有效的手机号');

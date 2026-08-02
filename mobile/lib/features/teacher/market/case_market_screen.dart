@@ -73,26 +73,10 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
   }
 
   Future<void> _openSearch() async {
+    // 报告条目: P2 #7c — 提取为独立 StatefulWidget，controller 随 dialog 销毁被 dispose
     final result = await showDialog<String>(
       context: context,
-      builder: (ctx) {
-        final ctl = TextEditingController(text: _query);
-        return AlertDialog(
-          backgroundColor: AppColors.surfaceOf(context),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-     title: Text('搜索病例', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textOf(context))),
-          content: TextField(
-            controller: ctl,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '标题 / 作者 / 摘要'),
-            onSubmitted: (v) => Navigator.of(ctx).pop(v),
-          ),
-          actions: [
-      TextButton(onPressed: () => Navigator.of(ctx).pop(''), child: Text('清除', style: TextStyle(color: AppColors.text3Of(context)))),
-            TextButton(onPressed: () => Navigator.of(ctx).pop(ctl.text), child: const Text('搜索', style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w600))),
-          ],
-        );
-      },
+      builder: (ctx) => _SearchDialog(initialQuery: _query),
     );
     if (result != null) {
       setState(() => _query = result);
@@ -370,4 +354,48 @@ class _CaseData {
     required this.rating,
     required this.versionStr,
   });
+}
+
+/// 报告条目: P2 #7c — 搜索对话框，TextEditingController 随 widget 销毁被 dispose
+class _SearchDialog extends StatefulWidget {
+  final String initialQuery;
+  const _SearchDialog({required this.initialQuery});
+
+  @override
+  State<_SearchDialog> createState() => _SearchDialogState();
+}
+
+class _SearchDialogState extends State<_SearchDialog> {
+  late final _ctl = TextEditingController(text: widget.initialQuery);
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surfaceOf(context),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+      title: Text('搜索病例', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textOf(context))),
+      content: TextField(
+        controller: _ctl,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: '标题 / 作者 / 摘要'),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(''),
+          child: Text('清除', style: TextStyle(color: AppColors.text3Of(context))),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_ctl.text),
+          child: const Text('搜索', style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w600)),
+        ),
+      ],
+    );
+  }
 }

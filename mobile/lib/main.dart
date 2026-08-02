@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'features/auth/providers/auth_provider.dart';
+import 'features/common/settings/settings_provider.dart';
 
 /// 全局渲染异常兜底页：任何 widget 在 build 期间抛异常时，
 /// 显示可读错误信息而非「无提示空白」或整页红屏崩溃。
@@ -46,11 +48,22 @@ Widget _buildErrorScreen(FlutterErrorDetails details) {
   );
 }
 
-void main() {
+/// 报告条目: P0 #1+#6 — 异步 main()，预热关键 Provider 避免初始化竞态
+void main() async {
+  // 确保 Flutter 引擎初始化（异步 main() 必须调用）
+  WidgetsFlutterBinding.ensureInitialized();
   ErrorWidget.builder = _buildErrorScreen;
+
+  // 创建 ProviderContainer 并预热 authProvider + settingsProvider，
+  // 确保用户态和主题在 runApp 前加载完毕，消除 redirect 竞态和主题闪烁
+  final container = ProviderContainer();
+  await container.read(authProvider.notifier).ensureInitialized();
+  await container.read(settingsProvider.notifier).ensureLoaded();
+
   runApp(
-    const ProviderScope(
-      child: ZhiyuApp(),
+    UncontrolledProviderScope(
+      container: container,
+      child: const ZhiyuApp(),
     ),
   );
 }

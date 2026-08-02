@@ -82,6 +82,12 @@ class AuthApi {
 
   final Dio _dio;
 
+  /// 报告条目: P3 #5 — 释放底层 HTTP 连接，防止资源泄漏
+  /// 接入后端后若注册为 Riverpod Provider，在 ref.onDispose 中调用
+  void dispose() {
+    _dio.close();
+  }
+
   /// 请求后端发送短信验证码
   ///
   /// 请求体只传手机号，符合截图描述。

@@ -19,9 +19,15 @@ class _ReviewScreenState extends State<ReviewScreen> {
   int _currentTab = 0;
   final _scoreController = TextEditingController(text: '85');
 
+  // 报告条目: P1 #7b — 补充评语控制器原为 build() 内联创建，每次 rebuild 泄漏
+  final _commentController = TextEditingController(
+    text: '诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。',
+  );
+
   @override
   void dispose() {
     _scoreController.dispose();
+    _commentController.dispose();
     super.dispose();
   }
 
@@ -430,9 +436,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 borderSide: const BorderSide(color: AppColors.amber),
               ),
             ),
-            controller: TextEditingController(
-              text: '诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。',
-            ),
+            controller: _commentController,
           ),
         ],
       ),

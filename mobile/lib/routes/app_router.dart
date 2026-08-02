@@ -33,6 +33,10 @@ final GoRouter appRouter = GoRouter(
     final loc = state.matchedLocation;
     final goingToLogin = loc == '/login';
 
+    // 报告条目: P0 #9 — 初始化加载中时不做重定向，等待加载完成
+    // （配合 main() 预热，正常情况下此分支不会命中，仅作安全网）
+    if (auth.isLoading) return null;
+
     // 未登录只能进登录页
     if (!auth.isAuthenticated) {
       return goingToLogin ? null : '/login';
