@@ -65,3 +65,13 @@ front/legacy-*/
 .pub_cache/
 .flutter-plugins-dependencies
 .metadata
+
+# ===== Flutter 平台生成代码（可重新生成，勿提交） =====
+/android/
+/ios/
+mobile/ios/
+mobile/linux/
+mobile/macos/
+
+# ===== 工具/临时目录 =====
+.codegraph/
