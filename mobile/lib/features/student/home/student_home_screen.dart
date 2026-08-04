@@ -88,8 +88,6 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             Text(
               displayName,
        style: TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                 fontSize: 28,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
@@ -108,14 +106,12 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Text(
+            Text(
               '23',
               style: TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                 fontSize: 32,
                 fontWeight: FontWeight.w600,
-                color: AppColors.moss,
+                color: AppColors.primaryOf(context),
                 height: 1,
               ),
             ),
@@ -155,8 +151,6 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         Text(
                 '学习热力',
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textOf(context),
@@ -165,10 +159,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               Row(
                 children: [
                   const MonoText('近半年 182 天 · 完成 ', fontSize: 11),
-                  const Text(
+                  Text(
                     '142',
                     style: TextStyle(
-                      color: AppColors.moss,
+                      color: AppColors.primaryOf(context),
                       fontWeight: FontWeight.w600,
                       fontSize: 11,
                       fontFamily: 'JetBrainsMono',
@@ -189,7 +183,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               const SizedBox(width: 6),
               Row(
                 children: [
-                  _heatCell(AppColors.paper2),
+                  _heatCell(AppColors.paper2Of(context)),
                   const SizedBox(width: 3),
                   _heatCell(AppColors.heatL1),
                   const SizedBox(width: 3),
@@ -226,7 +220,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.moss,
+        color: AppColors.primaryOf(context),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Stack(
@@ -237,28 +231,26 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             child:               MonoText(
                 '07.21',
                 fontSize: 10,
-              color: AppColors.paper.withOpacity(0.5),
+              color: AppColors.onPrimaryOf(context).withValues(alpha: 0.5),
               letterSpacing: 0.1,
             ),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const MonoText(
+              MonoText(
                 '每日一例 · No.213',
                 fontSize: 11,
-                color: Color(0xFFB8C9B8),
+                color: AppColors.onPrimarySoftOf(context),
                 letterSpacing: 0.14,
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 '胸痛 2 小时伴大汗\n会是急性冠脉综合征吗？',
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.paper,
+                  color: AppColors.onPrimaryOf(context),
                   height: 1.25,
                   letterSpacing: -0.01,
                 ),
@@ -280,10 +272,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
-                    color: AppColors.paper,
+                    color: AppColors.surfaceOf(context),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
@@ -291,11 +283,11 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: AppColors.moss,
+                          color: AppColors.primaryOf(context),
                         ),
                       ),
                       SizedBox(width: 6),
-                      Icon(Icons.arrow_forward, size: 14, color: AppColors.moss),
+                      Icon(Icons.arrow_forward, size: 14, color: AppColors.primaryOf(context)),
                     ],
                   ),
                 ),
@@ -313,8 +305,8 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         Container(
           width: 4,
           height: 4,
-          decoration: const BoxDecoration(
-            color: Color(0xFFB8C9B8),
+          decoration: BoxDecoration(
+            color: AppColors.onPrimarySoftOf(context),
             shape: BoxShape.circle,
           ),
         ),
@@ -322,7 +314,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         MonoText(
           label,
           fontSize: 11,
-          color: const Color(0xFFB8C9B8),
+          color: AppColors.onPrimarySoftOf(context),
         ),
       ],
     );
@@ -355,7 +347,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           onTap: () => context.pushNamed(RouteNames.chat),
         ),
         _todoItem(
-          tagColor: AppColors.moss,
+          tagColor: AppColors.primaryOf(context),
           title: '肝硬化腹水 · 自主训练',
           metaItems: const ['消化内科', '已完成问诊，待提交病历'],
           onTap: () => AppFeedback.info(context, '该作业已完成问诊，待提交大病历'),
@@ -447,7 +439,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               _weakRow('急性冠脉综合征', 0.42, AppColors.vermilion),
               _weakRow('肺栓塞鉴别', 0.55, AppColors.amber),
               _weakRow('慢性心衰分级', 0.61, AppColors.amber),
-              _weakRow('消化道出血', 0.78, AppColors.moss),
+              _weakRow('消化道出血', 0.78, AppColors.primaryOf(context)),
             ],
           ),
         ),
@@ -518,7 +510,7 @@ class _HeatmapGridState extends State<_HeatmapGrid> {
   @override
   Widget build(BuildContext context) {
     final colors = [
-      AppColors.paper2,
+      AppColors.paper2Of(context),
       AppColors.heatL1,
       AppColors.heatL2,
       AppColors.heatL3,
@@ -537,7 +529,7 @@ class _HeatmapGridState extends State<_HeatmapGrid> {
       itemBuilder: (context, i) {
         return Container(
           decoration: BoxDecoration(
-            color: colors[_levels[i]],
+            color: colors[_levels[i].clamp(0, colors.length - 1)],
             borderRadius: BorderRadius.circular(2),
           ),
         );

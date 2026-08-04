@@ -132,7 +132,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
-                      color: active ? AppColors.moss : Colors.transparent,
+                      color: active ? AppColors.primaryOf(context) : Colors.transparent,
                       width: 2,
                     ),
                   ),
@@ -142,7 +142,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                     tabs[i],
                     style: TextStyle(
                       fontSize: 12,
-                      color: active ? AppColors.moss : AppColors.text3Of(context),
+                      color: active ? AppColors.primaryOf(context) : AppColors.text3Of(context),
                       fontFamily: 'JetBrainsMono',
                       letterSpacing: 0.04,
                       fontWeight: active ? FontWeight.w500 : FontWeight.normal,
@@ -162,19 +162,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.mossTint,
-        border: Border.all(color: AppColors.mossSoft),
+        color: AppColors.mossTintOf(context),
+        border: Border.all(color: AppColors.mossSoftOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         children: [
-          const Icon(Icons.shield, size: 16, color: AppColors.moss),
+          Icon(Icons.shield, size: 16, color: AppColors.primaryOf(context)),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('格式盾牌 · 通过', style: TextStyle(fontSize: 12, color: AppColors.moss, fontWeight: FontWeight.w500)),
+                Text('格式盾牌 · 通过', style: TextStyle(fontSize: 12, color: AppColors.primaryOf(context), fontWeight: FontWeight.w500)),
                 const SizedBox(height: 1),
                 const MonoText('7 项必填段落齐全 · 主诉 18 字 · 过敏史已注明', fontSize: 11),
               ],
@@ -197,7 +197,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SerifText(title, fontSize: 13, color: AppColors.moss),
+          SerifText(title, fontSize: 13, color: AppColors.primaryOf(context)),
           const SizedBox(height: 8),
           _buildHighlightedText(content, highlights ?? []),
         ],
@@ -220,16 +220,16 @@ class _ReviewScreenState extends State<ReviewScreen> {
       Color bg, fg;
       switch (type) {
         case 'err':
-          bg = AppColors.vermilionSoft;
+          bg = AppColors.vermilionSoftOf(context);
           fg = AppColors.vermilion;
           break;
         case 'warn':
-          bg = AppColors.amberSoft;
+          bg = AppColors.amberSoftOf(context);
           fg = AppColors.amber;
           break;
         default:
-          bg = AppColors.mossTint;
-          fg = AppColors.moss;
+          bg = AppColors.mossTintOf(context);
+          fg = AppColors.primaryOf(context);
       }
       spans.add(TextSpan(
         text: word,
@@ -259,10 +259,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [AppColors.moss, AppColors.moss2],
+          colors: [AppColors.primaryOf(context), AppColors.moss2],
         ),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
@@ -271,7 +271,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
           Positioned(
             top: 0,
             right: 0,
-            child: MonoText('AI REVIEW', fontSize: 10, color: AppColors.paper.withOpacity(0.4), letterSpacing: 0.14),
+            child: MonoText('AI REVIEW', fontSize: 10, color: AppColors.onPrimaryOf(context).withValues(alpha: 0.4), letterSpacing: 0.14),
           ),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,21 +280,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  const Text(
+                  Text(
                     '82',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                       fontSize: 36,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.paper,
+                      color: AppColors.onPrimaryOf(context),
                       height: 1,
                       letterSpacing: -0.03,
                     ),
                   ),
-                  const Text(' / 100', style: TextStyle(fontSize: 14, color: Color(0xFFB8C9B8))),
+                  Text(' / 100', style: TextStyle(fontSize: 14, color: AppColors.onPrimarySoftOf(context))),
                   const SizedBox(width: 8),
-                  const Text('良好 · 接近优秀', style: TextStyle(fontSize: 12, color: Color(0xFFD8E0D3), fontStyle: FontStyle.italic)),
+                  Text('良好 · 接近优秀', style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLightOf(context), fontStyle: FontStyle.italic)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -302,7 +300,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 margin: const EdgeInsets.only(bottom: 6),
                 clipBehavior: Clip.hardEdge,
                 decoration: BoxDecoration(
-                  color: AppColors.paper.withOpacity(0.08),
+                  color: AppColors.onPrimaryOf(context).withValues(alpha: 0.08),
                   borderRadius: const BorderRadius.only(
                     topRight: Radius.circular(AppRadius.sm),
                     bottomRight: Radius.circular(AppRadius.sm),
@@ -314,7 +312,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                       left: 0,
                       top: 0,
                       bottom: 0,
-                      child: Container(width: 2, color: const Color(0xFFB8C9B8)),
+                      child: Container(width: 2, color: AppColors.onPrimarySoftOf(context)),
                     ),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -324,9 +322,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                           Expanded(
                             child: RichText(
                               text: TextSpan(
-                                style: const TextStyle(fontSize: 12, color: Color(0xFFD8E0D3), height: 1.5),
+                                style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLightOf(context), height: 1.5),
                                 children: [
-                                  TextSpan(text: '${d.$1} · ', style: const TextStyle(color: AppColors.paper, fontWeight: FontWeight.bold)),
+                                  TextSpan(text: '${d.$1} · ', style: TextStyle(color: AppColors.onPrimaryOf(context), fontWeight: FontWeight.bold)),
                                   TextSpan(text: d.$2),
                                 ],
                               ),
@@ -334,9 +332,9 @@ class _ReviewScreenState extends State<ReviewScreen> {
                           ),
                           Text(
                             d.$3,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontFamily: 'JetBrainsMono',
-                              color: Color(0xFFF3DCD7),
+                              color: AppColors.vermilionSoftOf(context),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -358,7 +356,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.amberSoft,
+        color: AppColors.amberSoftOf(context),
         border: Border.all(color: AppColors.amber, style: BorderStyle.solid),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),

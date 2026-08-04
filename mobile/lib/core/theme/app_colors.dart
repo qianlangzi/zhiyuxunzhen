@@ -124,6 +124,31 @@ class AppColors {
   /// 深色禁用/占位文字
   static const Color darkText4 = Color(0xFF7A7E78);
 
+  /// 深色 mossSoft（浅主色边框暗色变体）
+  static const Color darkMossSoft = Color(0xFF3A4A3E);
+
+  // ========== 深色模式：软色变体 ==========
+  /// 深色 mossTint（深绿底色）
+  static const Color darkMossTint = Color(0xFF1E2820);
+
+  /// 深色 vermilionSoft
+  static const Color darkVermilionSoft = Color(0xFF2E1A16);
+
+  /// 深色 amberSoft
+  static const Color darkAmberSoft = Color(0xFF2A2418);
+
+  /// 深色 indigoSoft
+  static const Color darkIndigoSoft = Color(0xFF1A1C26);
+
+  /// 深色 ruleSoft（与 darkSurfaceEdge 一致）
+  static const Color darkRuleSoft = Color(0xFF2A322C);
+
+  /// 深色 paper2
+  static const Color darkPaper2 = Color(0xFF1A201C);
+
+  /// 深色 paper3
+  static const Color darkPaper3 = Color(0xFF242822);
+
   // ========== 语义色：按主题亮度自适应 ==========
   /// 直接替换硬编码颜色即可让组件/页面跟随深色模式。
   /// light 模式返回原设计值，dark 模式返回护眼夜色，行为完全可控。
@@ -158,4 +183,46 @@ class AppColors {
   /// 主色之上的文字/图标色
   static Color onPrimaryOf(BuildContext context) =>
       Theme.of(context).brightness == Brightness.dark ? darkText : paper;
+
+  // ========== 软色：按主题亮度自适应 ==========
+  /// 极浅主色背景（mossTint）
+  static Color mossTintOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkMossTint : mossTint;
+
+  /// 浅错误背景（vermilionSoft）
+  static Color vermilionSoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkVermilionSoft : vermilionSoft;
+
+  /// 浅警告背景（amberSoft）
+  static Color amberSoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkAmberSoft : amberSoft;
+
+  /// 浅信息背景（indigoSoft）
+  static Color indigoSoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkIndigoSoft : indigoSoft;
+
+  /// 浅分割线（ruleSoft）
+  static Color ruleSoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkRuleSoft : ruleSoft;
+
+  /// 次级背景（paper2）
+  static Color paper2Of(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkPaper2 : paper2;
+
+  /// 三级背景（paper3）
+  static Color paper3Of(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkPaper3 : paper3;
+
+  /// 浅主色边框（mossSoft）
+  static Color mossSoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? darkMossSoft : mossSoft;
+
+  // ========== 主色背景上的柔和文字 ==========
+  /// 主色背景上的柔和文字（用于 hero 次要文字）
+  static Color onPrimarySoftOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2A24) : const Color(0xFFB8C9B8);
+
+  /// 主色背景上的更浅文字（用于 hero 评级描述）
+  static Color onPrimaryLightOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF12180F) : const Color(0xFFD8E0D3);
 }

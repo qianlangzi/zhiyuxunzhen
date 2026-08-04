@@ -19,55 +19,22 @@ const   OsceResultScreen({super.key});
         bottom: false,
         child: Column(
           children: [
-            // 状态栏（绿色背景）
-            Container(
-              color: AppColors.moss,
-              height: 44,
-              padding: const EdgeInsets.only(left: 4, right: 28),
-              child: Row(
-                children: [
-                  AppIconButton(
-                    icon: const Icon(Icons.chevron_left, size: 22, color: AppColors.paper),
-                    onPressed: () => context.canPop()
-                        ? context.pop()
-                        : context.goNamed(RouteNames.studentHome),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    '10:02',
-                    style: TextStyle(
-                      fontFamily: 'JetBrainsMono',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.paper,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    width: 20,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppColors.paper, width: 1),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                    child: FractionallySizedBox(
-                      alignment: Alignment.centerLeft,
-                      widthFactor: 0.68,
-                      child: Container(color: AppColors.paper),
-                    ),
-                  ),
-                ],
-              ),
+            AppBackAppBar(
+              title: 'OSCE 考核结果',
+              onBack: () => context.canPop()
+                  ? context.pop()
+                  : context.goNamed(RouteNames.studentHome),
             ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  _buildHero(),
+                  _buildHero(context),
                   _buildRadarChart(context, ),
                   _buildFeedbackBlock(context, 
                     '主要优点',
-                    AppColors.moss,
+                    AppColors.primaryOf(context),
+                    true,
                     [
                       '主诉采集准确，胸痛性质、部位、放射描述清晰',
                       '及时识别 ST 段抬高与肌钙蛋白升高的关键证据',
@@ -77,6 +44,7 @@ const   OsceResultScreen({super.key});
                   _buildFeedbackBlock(context, 
                     '优先改进点',
                     AppColors.vermilion,
+                    false,
                     [
                       '未询问胸痛诱因（体力活动/情绪），影响 ACS 鉴别',
                       '未采集药物过敏史，存在安全风险',
@@ -102,22 +70,22 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _buildHero() {
+  Widget _buildHero(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      decoration: const BoxDecoration(
-        color: AppColors.moss,
+      decoration: BoxDecoration(
+        color: AppColors.primaryOf(context),
         borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(50),
-          bottomRight: Radius.circular(50),
+          bottomLeft: Radius.circular(AppRadius.xl),
+          bottomRight: Radius.circular(AppRadius.xl),
         ),
       ),
       child: Column(
         children: [
-          const MonoText(
+          MonoText(
             '问诊结束 · OSCE 临床考核',
             fontSize: 11,
-            color: Color(0xFFB8C9B8),
+            color: AppColors.onPrimarySoftOf(context),
             letterSpacing: 0.14,
           ),
           const SizedBox(height: 8),
@@ -126,36 +94,32 @@ const   OsceResultScreen({super.key});
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              const Text(
+              Text(
                 '82',
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 64,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.paper,
+                  color: AppColors.onPrimaryOf(context),
                   height: 1,
                   letterSpacing: -0.04,
                 ),
               ),
-              const Text(
+              Text(
                 ' /100',
                 style: TextStyle(
                   fontSize: 24,
-                  color: Color(0xFFB8C9B8),
+                  color: AppColors.onPrimarySoftOf(context),
                   fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             '良好 — 接近优秀水平',
             style: TextStyle(
-              fontFamily: 'NotoSerifSC',
-              fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
               fontSize: 14,
-              color: Color(0xFFD8E0D3),
+              color: AppColors.onPrimaryLightOf(context),
               fontStyle: FontStyle.italic,
             ),
           ),
@@ -172,7 +136,12 @@ const   OsceResultScreen({super.key});
           SizedBox(
             width: 280,
             height: 280,
-            child: CustomPaint(painter: _RadarPainter(ruleColor: AppColors.ruleOf(context), textColor: AppColors.textOf(context), text3Color: AppColors.text3Of(context))),
+            child: CustomPaint(painter: _RadarPainter(
+            ruleColor: AppColors.ruleOf(context),
+            textColor: AppColors.textOf(context),
+            text3Color: AppColors.text3Of(context),
+            primaryColor: AppColors.primaryOf(context),
+          )),
           ),
           const SizedBox(height: 16),
           _buildRadarLegend(),
@@ -236,7 +205,7 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _buildFeedbackBlock(BuildContext context, String title, Color color, List<String> items) {
+  Widget _buildFeedbackBlock(BuildContext context, String title, Color color, bool isPositive, List<String> items) {
     return Container(
    margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
    padding: EdgeInsets.all(16),
@@ -251,7 +220,7 @@ const   OsceResultScreen({super.key});
           Row(
             children: [
               Icon(
-                color == AppColors.moss ? Icons.check_circle : Icons.error_outline,
+                isPositive ? Icons.check_circle : Icons.error_outline,
                 size: 12,
                 color: color,
               ),
@@ -294,10 +263,10 @@ const   OsceResultScreen({super.key});
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.menu_book, size: 12, color: AppColors.moss),
-              SizedBox(width: 6),
-              MonoText('推荐训练', fontSize: 11, color: AppColors.moss, letterSpacing: 0.1),
+            children: [
+              Icon(Icons.menu_book, size: 12, color: AppColors.primaryOf(context)),
+              const SizedBox(width: 6),
+              MonoText('推荐训练', fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.1),
             ],
           ),
           const SizedBox(height: 8),
@@ -308,7 +277,7 @@ const   OsceResultScreen({super.key});
           Container(
             clipBehavior: Clip.hardEdge,
             decoration: BoxDecoration(
-              color: AppColors.mossTint,
+              color: AppColors.mossTintOf(context),
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(AppRadius.sm),
                 bottomRight: Radius.circular(AppRadius.sm),
@@ -320,19 +289,19 @@ const   OsceResultScreen({super.key});
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  child: Container(width: 2, color: AppColors.moss),
+                  child: Container(width: 2, color: AppColors.primaryOf(context)),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(
-                    children: const [
-                      Icon(Icons.book, size: 10, color: AppColors.moss),
-                      SizedBox(width: 4),
+                    children: [
+                      Icon(Icons.book, size: 10, color: AppColors.primaryOf(context)),
+                      const SizedBox(width: 4),
                       Expanded(
                         child: MonoText(
                           '教材：《内科学》第9版 · 第三篇第七章 · P236-258',
                           fontSize: 11.5,
-                          color: AppColors.moss,
+                          color: AppColors.primaryOf(context),
                         ),
                       ),
                     ],
@@ -350,9 +319,9 @@ const   OsceResultScreen({super.key});
     return Container(
    padding: EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.paper,
+        color: AppColors.bgOf(context),
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.ruleSoft),
+        border: Border.all(color: AppColors.ruleSoftOf(context)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -381,11 +350,13 @@ class _RadarPainter extends CustomPainter {
   final Color ruleColor;
   final Color textColor;
   final Color text3Color;
+  final Color primaryColor;
 
   _RadarPainter({
     required this.ruleColor,
     required this.textColor,
     required this.text3Color,
+    required this.primaryColor,
   });
   @override
   void paint(Canvas canvas, Size size) {
@@ -445,7 +416,7 @@ class _RadarPainter extends CustomPainter {
     final dataPath = Path();
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
-      final score = dimensions[i].$2;
+      final score = dimensions[i].$2.clamp(0, 100);
       final r = radius * score / 100;
       final x = cx + r * cos(angle);
       final y = cy + r * sin(angle);
@@ -460,22 +431,22 @@ class _RadarPainter extends CustomPainter {
     canvas.drawPath(
       dataPath,
       Paint()
-        ..color = AppColors.moss.withOpacity(0.18)
+        ..color = primaryColor.withValues(alpha: 0.18)
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(
       dataPath,
       Paint()
-        ..color = AppColors.moss
+        ..color = primaryColor
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
 
     // 数据点
-    final dotPaint = Paint()..color = AppColors.moss;
+    final dotPaint = Paint()..color = primaryColor;
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
-      final score = dimensions[i].$2;
+      final score = dimensions[i].$2.clamp(0, 100);
       final r = radius * score / 100;
       canvas.drawCircle(
         Offset(cx + r * cos(angle), cy + r * sin(angle)),
@@ -495,8 +466,6 @@ class _RadarPainter extends CustomPainter {
         text: TextSpan(
           text: dimensions[i].$1,
      style: TextStyle(
-            fontFamily: 'NotoSerifSC',
-            fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: textColor,
@@ -520,7 +489,7 @@ class _RadarPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       scoreTp.layout();
-      final scoreR = radius * dimensions[i].$2 / 100;
+      final scoreR = radius * dimensions[i].$2.clamp(0, 100) / 100;
       final sx = cx + scoreR * cos(angle);
       final sy = cy + scoreR * sin(angle);
       scoreTp.paint(canvas, Offset(sx - scoreTp.width / 2, sy - scoreTp.height - 4));
@@ -528,5 +497,9 @@ class _RadarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _RadarPainter old) =>
+      ruleColor != old.ruleColor ||
+      textColor != old.textColor ||
+      text3Color != old.text3Color ||
+      primaryColor != old.primaryColor;
 }

@@ -160,7 +160,7 @@ const   _AgreeBar({
       top: false,
       child: Container(
         decoration: BoxDecoration(
-          color: AppColors.paper,
+          color: AppColors.surfaceOf(context),
           border: Border(top: BorderSide(color: AppColors.ruleOf(context))),
         ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -181,7 +181,7 @@ const   _AgreeBar({
                       child: Checkbox(
                         value: agreed,
                         onChanged: reachedBottom ? onToggle : null,
-                        activeColor: AppColors.moss,
+                        activeColor: AppColors.primaryOf(context),
                         materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                     ),
@@ -229,8 +229,8 @@ class _Bullet extends StatelessWidget {
             margin: const EdgeInsets.only(top: 7),
             width: 5,
             height: 5,
-            decoration: const BoxDecoration(
-              color: AppColors.moss,
+            decoration: BoxDecoration(
+              color: AppColors.primaryOf(context),
               shape: BoxShape.circle,
             ),
           ),

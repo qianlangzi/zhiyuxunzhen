@@ -38,7 +38,7 @@ const   DashboardScreen({super.key});
                     _buildOsceSection(context, ),
                     _buildCommonMissSection(context, ),
                     _buildMisdiagnosisSection(context, ),
-                    _buildRemediation(),
+                    _buildRemediation(context),
                   ],
                 ),
               ),
@@ -62,13 +62,13 @@ const   DashboardScreen({super.key});
       itemCount: 4,
       itemBuilder: (context, i) {
         final stats = [
-          ('作业完成率', '68%', '↑ 12% · 较上周', AppColors.moss),
-          ('平均 OSCE', '82.4', '↑ 4.2 · 较上周', AppColors.moss),
-          ('批阅效率', '2.8min/份', '↓ 71% · 较纯人工', AppColors.moss),
+          ('作业完成率', '68%', '↑ 12% · 较上周', AppColors.primaryOf(context)),
+          ('平均 OSCE', '82.4', '↑ 4.2 · 较上周', AppColors.primaryOf(context)),
+          ('批阅效率', '2.8min/份', '↓ 71% · 较纯人工', AppColors.primaryOf(context)),
           ('过度检查率', '23%', '↑ 5% · 需关注', AppColors.vermilion),
         ];
         final (label, value, trend, color) = stats[i];
-        final isTrendDown = trend.startsWith('↑') && label == '过度检查率';
+        final isNegativeTrend = trend.startsWith('↑') && label == '过度检查率';
         return Container(
      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -84,8 +84,6 @@ const   DashboardScreen({super.key});
               Text(
                 value,
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 22,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textOf(context),
@@ -93,7 +91,7 @@ const   DashboardScreen({super.key});
                 ),
               ),
               const SizedBox(height: 2),
-              MonoText(trend, fontSize: 11, color: isTrendDown ? AppColors.vermilion : AppColors.moss),
+              MonoText(trend, fontSize: 11, color: isNegativeTrend ? AppColors.vermilion : AppColors.primaryOf(context)),
             ],
           ),
         );
@@ -112,20 +110,20 @@ const   DashboardScreen({super.key});
               SizedBox(
                 width: 140,
                 height: 140,
-                child: CustomPaint(painter: _MiniRadarPainter(ruleColor: AppColors.ruleOf(context))),
+                child: CustomPaint(painter: _MiniRadarPainter(ruleColor: AppColors.ruleOf(context), mossColor: AppColors.primaryOf(context))),
               ),
               const SizedBox(width: 20),
               Expanded(
                 child: Column(
                   children: [
-                    _osceRow(context, '病史采集', '85.2', AppColors.moss),
-                    _osceRow(context, '诊断逻辑', '82.6', AppColors.moss),
+                    _osceRow(context, '病史采集', '85.2', AppColors.primaryOf(context)),
+                    _osceRow(context, '诊断逻辑', '82.6', AppColors.primaryOf(context)),
                     _osceRow(context, '沟通技巧', '78.4', AppColors.amber),
-                    _osceRow(context, '人文关怀', '86.8', AppColors.moss),
+                    _osceRow(context, '人文关怀', '86.8', AppColors.primaryOf(context)),
                     _osceRow(context, '检查决策', '80.8', AppColors.moss3),
                     _osceRow(context, '文书规范', '81.6', AppColors.amber),
                     const DottedDivider(),
-                    _osceRow(context, '综合均分', '82.4', AppColors.moss, bold: true),
+                    _osceRow(context, '综合均分', '82.4', AppColors.primaryOf(context), bold: true),
                   ],
                 ),
               ),
@@ -142,12 +140,16 @@ const   DashboardScreen({super.key});
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: bold ? 13 : 12,
-              fontWeight: bold ? FontWeight.w500 : FontWeight.normal,
-              color: AppColors.text2Of(context),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: bold ? 13 : 12,
+                fontWeight: bold ? FontWeight.w500 : FontWeight.normal,
+                color: AppColors.text2Of(context),
+              ),
             ),
           ),
           Text(
@@ -259,22 +261,22 @@ const   DashboardScreen({super.key});
     );
   }
 
-  Widget _buildRemediation() {
+  Widget _buildRemediation(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.moss,
+        color: AppColors.primaryOf(context),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const EyebrowText('REMEDIATION · 课堂补救建议', color: Color(0xFFB8C9B8)),
+          EyebrowText('REMEDIATION · 课堂补救建议', color: AppColors.onPrimarySoftOf(context)),
           const SizedBox(height: 8),
           RichText(
-            text: const TextSpan(
-              style: TextStyle(fontSize: 13, color: AppColors.paper, height: 1.6),
+            text: TextSpan(
+              style: TextStyle(fontSize: 13, color: AppColors.onPrimaryOf(context), height: 1.6),
               children: [
                 TextSpan(text: '建议下次课堂重点讲解：'),
                 TextSpan(text: '胸痛的诱因询问框架', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -292,8 +294,9 @@ const   DashboardScreen({super.key});
 
 class _MiniRadarPainter extends CustomPainter {
   final Color ruleColor;
+  final Color mossColor;
 
-  _MiniRadarPainter({required this.ruleColor});
+  _MiniRadarPainter({required this.ruleColor, required this.mossColor});
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
@@ -339,11 +342,11 @@ class _MiniRadarPainter extends CustomPainter {
       }
     }
     dataPath.close();
-    canvas.drawPath(dataPath, Paint()..color = AppColors.moss.withOpacity(0.15)..style = PaintingStyle.fill);
-    canvas.drawPath(dataPath, Paint()..color = AppColors.moss..style = PaintingStyle.stroke..strokeWidth = 2);
+    canvas.drawPath(dataPath, Paint()..color = mossColor.withValues(alpha: 0.15)..style = PaintingStyle.fill);
+    canvas.drawPath(dataPath, Paint()..color = mossColor..style = PaintingStyle.stroke..strokeWidth = 2);
 
     // 点
-    final dotPaint = Paint()..color = AppColors.moss;
+    final dotPaint = Paint()..color = mossColor;
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
       final r = radius * scores[i];
@@ -352,5 +355,6 @@ class _MiniRadarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _MiniRadarPainter old) =>
+      ruleColor != old.ruleColor || mossColor != old.mossColor;
 }

@@ -284,7 +284,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   Color get _roleColor =>
-      _role == UserRole.student ? AppColors.moss : AppColors.vermilion;
+      _role == UserRole.student ? AppColors.primaryOf(context) : AppColors.vermilion;
 
   Widget _buildActionBar() {
     return Container(
@@ -333,7 +333,7 @@ class _CodeButton extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: disabled ? AppColors.text4Of(context) : AppColors.moss,
+          color: disabled ? AppColors.text4Of(context) : AppColors.primaryOf(context),
         ),
       ),
     );

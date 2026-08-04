@@ -10,7 +10,7 @@ import 'registered_user_store.dart';
 ///
 /// ⚠️ 当前为演示实现：验证码不会真正发到手机，UI 会以「演示验证码：xxxxxx」提示用户。
 /// 接入真实后端时，只需把本文件中的 [requestCode] / [verifyCode] / [register] /
-/// [loginByPassword] / [loginByCode] 替换为对 [AuthApi]（62.234.12.214:8883）的调用即可，
+/// [loginByPassword] / [loginByCode] 替换为对后端 API 的调用即可，
 /// 上层 UI 无需改动。
 class AuthService {
   const AuthService();
