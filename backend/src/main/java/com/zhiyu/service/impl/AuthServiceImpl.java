@@ -8,6 +8,7 @@ import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.AuthService;
 import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RegisterRequest;
 import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
@@ -219,6 +220,25 @@ public class AuthServiceImpl implements AuthService {
                 .authorizedClasses(user.getAuthorizedClasses())
                 .lastLoginAt(user.getLastLoginAt())
                 .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public UserInfoVO updateProfile(Long userId, ProfileUpdateDTO dto) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
+        }
+
+        // 更新可修改的字段
+        if (dto.getAvatarPath() != null) {
+            user.setAvatar(dto.getAvatarPath());
+        }
+
+        userMapper.updateById(user);
+
+        // 返回更新后的用户信息
+        return currentUser(userId);
     }
 
     @Override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
@@ -6,25 +7,29 @@ import '../../../shared/widgets/bottom_tab_bar.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/teacher_service.dart';
 
 /// 病例广场
-class CaseMarketScreen extends StatefulWidget {
+class CaseMarketScreen extends ConsumerStatefulWidget {
   const CaseMarketScreen({super.key});
 
   @override
-  State<CaseMarketScreen> createState() => _CaseMarketScreenState();
+  ConsumerState<CaseMarketScreen> createState() => _CaseMarketScreenState();
 }
 
-class _CaseMarketScreenState extends State<CaseMarketScreen> {
+class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
   int _currentFilter = 0;
   final _filters = ['全部', '心血管', '呼吸', '消化', '内分泌', '官方认证', '高评分'];
   String _query = '';
+  List<_CaseData> _cases = [];
+  bool _isLoading = true;
 
-  final _cases = <_CaseData>[
+  // 默认硬编码数据作为 fallback
+  static final _defaultCases = <_CaseData>[
     _CaseData(
       dept: '心血管', difficulty: '标准',
       title: '急性下壁心梗的\n不典型表现',
-      coverTheme: CoverTheme.moss,
+      coverColor: const Color(0xFFE8F0E8), coverBorderColor: const Color(0xFFC8D8C8), deptColor: const Color(0xFF6A8F6A),
       official: true, author: '王老师', hospital: '附属第一医院', grade: '大四',
       summary: '58 岁建筑工人，搬运水泥时突发胸痛伴上腹痛，需要学生识别 ACS 不典型表现并完成鉴别诊断。',
       refs: 23, rating: 4.8, versionStr: 'v3',
@@ -32,7 +37,7 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
     _CaseData(
       dept: '呼吸', difficulty: '困难',
       title: '慢阻肺急性加重\n伴 II 型呼衰',
-      coverTheme: CoverTheme.amber,
+      coverColor: const Color(0xFFF5EDE0), coverBorderColor: const Color(0xFFE3CFA0), deptColor: const Color(0xFFC4A35A),
       official: false, author: '李老师', hospital: '附属第二医院', grade: '大五/规培',
       summary: '68 岁慢阻肺患者，急性加重伴意识障碍，考察呼吸支持决策和血气分析判读。',
       refs: 15, rating: 4.6, versionStr: 'v2',
@@ -40,14 +45,35 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
     _CaseData(
       dept: '消化', difficulty: '标准',
       title: '肝硬化食管胃底\n静脉曲张出血',
-      coverTheme: CoverTheme.indigo,
+      coverColor: const Color(0xFFE8ECF5), coverBorderColor: const Color(0xFFC4CCE0), deptColor: const Color(0xFF5A6FA0),
       official: true, author: '张老师', hospital: '附属第一医院', grade: '大四',
       summary: '52 岁乙肝肝硬化患者呕血 200ml，考察出血量评估、Rockall 评分和急诊处理决策。',
       refs: 31, rating: 4.9, versionStr: 'v4',
     ),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCases());
+  }
+
+  Future<void> _loadCases() async {
+    final data = await TeacherService().getCaseList();
+    if (mounted) {
+      setState(() {
+        if (data != null && data['cases'] is List) {
+          _cases = (data['cases'] as List).map((c) => _CaseData.fromJson(c as Map<String, dynamic>)).toList();
+        } else {
+          _cases = List.from(_defaultCases);
+        }
+        _isLoading = false;
+      });
+    }
+  }
+
   List<_CaseData> get _filtered {
+    if (_cases.isEmpty) return [];
     final kw = _filters[_currentFilter];
     final q = _query.trim();
     return _cases.where((c) {
@@ -81,43 +107,9 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
     }
   }
 
-  // ---- 封面配色解析：根据 CoverTheme + 主题亮度返回 context-aware 颜色组 ----
-  ({Color bg, Color border, Color dept}) _coverColorsOf(
-    BuildContext context,
-    CoverTheme theme,
-  ) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    switch (theme) {
-      case CoverTheme.moss:
-        return (
-          bg: AppColors.mossTintOf(context),
-          border: AppColors.mossSoftOf(context),
-          dept: AppColors.primaryOf(context),
-        );
-      case CoverTheme.amber:
-        return (
-          bg: AppColors.amberSoftOf(context),
-          // 琥珀色边框：用 amber 适度提亮，深浅模式均可读
-          border: isDark
-              ? const Color(0xFF4A3E2A)
-              : const Color(0xFFE3CFA0),
-          dept: AppColors.amber,
-        );
-      case CoverTheme.indigo:
-        return (
-          bg: AppColors.indigoSoftOf(context),
-          border: isDark
-              ? const Color(0xFF2A2E3A)
-              : const Color(0xFFC4CCE0),
-          dept: AppColors.indigo,
-        );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final list = _filtered;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: AppColors.bgOf(context),
       body: SafeArea(
@@ -148,42 +140,37 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
                 ),
               ),
             Expanded(
-              child: list.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.search_off, size: 40, color: AppColors.text4Of(context)),
-                          const SizedBox(height: 12),
-                          Text('没有匹配的病例', style: TextStyle(fontSize: 14, color: AppColors.text3Of(context))),
-                        ],
-                      ),
-                    )
-                  : ListView(
-                      padding: EdgeInsets.only(
-                        top: 6,
-                        bottom: MediaQuery.paddingOf(context).bottom + 90,
-                      ),
-                      children: list.map((c) {
-                        final colors = _coverColorsOf(context, c.coverTheme);
-                        return _caseCard(
-                          dept: '${c.dept} · ${c.difficulty}',
-                          title: c.title,
-                          coverColor: colors.bg,
-                          coverBorderColor: colors.border,
-                          deptColor: colors.dept,
-                          official: c.official,
-                          author: c.author,
-                          hospital: c.hospital,
-                          grade: c.grade,
-                          summary: c.summary,
-                          refs: c.refs,
-                          rating: c.rating.toStringAsFixed(1),
-                          version: c.versionStr,
-                          isDark: isDark,
-                        );
-                      }).toList(),
-                    ),
+child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : list.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.search_off, size: 40, color: AppColors.text4Of(context)),
+                              const SizedBox(height: 12),
+                              Text('没有匹配的病例', style: TextStyle(fontSize: 14, color: AppColors.text3Of(context))),
+                            ],
+                          ),
+                        )
+                      : ListView(
+                          padding: const EdgeInsets.only(top: 6, bottom: 100),
+                          children: list.map((c) => _caseCard(
+                            dept: '${c.dept} · ${c.difficulty}',
+                            title: c.title,
+                            coverColor: c.coverColor,
+                            coverBorderColor: c.coverBorderColor,
+                            deptColor: c.deptColor,
+                            official: c.official,
+                            author: c.author,
+                            hospital: c.hospital,
+                            grade: c.grade,
+                            summary: c.summary,
+                            refs: c.refs,
+                            rating: c.rating.toStringAsFixed(1),
+                            version: c.versionStr,
+                          )).toList(),
+                        ),
             ),
             TeacherTabBar(
               currentIndex: 2,
@@ -254,7 +241,6 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
     required int refs,
     required String rating,
     required String version,
-    required bool isDark,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
@@ -262,12 +248,9 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
         color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        // 深色模式下用更明显的阴影；浅色模式用极淡阴影保持纸感
         boxShadow: [
           BoxShadow(
-            color: isDark
-                ? Colors.black.withValues(alpha: 0.3)
-                : const Color(0xFF1A1F1C).withValues(alpha: 0.04),
+            color: const Color(0xFF1A1F1C).withValues(alpha: 0.04),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -281,7 +264,11 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
               color: coverColor,
-              border: Border(bottom: BorderSide(color: coverBorderColor, width: 1)),
+border: Border(bottom: BorderSide(color: coverBorderColor)),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(AppRadius.md),
+                topRight: Radius.circular(AppRadius.md),
+              ),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -296,6 +283,8 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
                       Text(
                         title,
                         style: TextStyle(
+                          fontFamily: 'NotoSerifSC',
+                          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: AppColors.textOf(context),
@@ -338,7 +327,7 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
                 const SizedBox(height: 8),
                 Text(summary, style: TextStyle(fontSize: 12.5, color: AppColors.text2Of(context), height: 1.55)),
                 const SizedBox(height: 10),
-                DottedDivider(),
+const DottedDivider(),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -381,15 +370,14 @@ class _CaseMarketScreenState extends State<CaseMarketScreen> {
   }
 }
 
-/// 封面主题色系
-enum CoverTheme { moss, amber, indigo }
-
 /// 病例广场数据
 class _CaseData {
   final String dept;
   final String difficulty;
   final String title;
-  final CoverTheme coverTheme;
+  final Color coverColor;
+  final Color coverBorderColor;
+  final Color deptColor;
   final bool official;
   final String author;
   final String hospital;
@@ -399,11 +387,13 @@ class _CaseData {
   final double rating;
   final String versionStr;
 
-  const _CaseData({
+  _CaseData({
     required this.dept,
     required this.difficulty,
     required this.title,
-    required this.coverTheme,
+    required this.coverColor,
+    required this.coverBorderColor,
+    required this.deptColor,
     this.official = false,
     required this.author,
     required this.hospital,
@@ -413,9 +403,28 @@ class _CaseData {
     required this.rating,
     required this.versionStr,
   });
+
+  factory _CaseData.fromJson(Map<String, dynamic> json) {
+    return _CaseData(
+      dept: json['dept'] as String? ?? '',
+      difficulty: json['difficulty'] as String? ?? '标准',
+      title: json['title'] as String? ?? '',
+      coverColor: Color(json['coverColor'] as int? ?? 0xFFF0F0F0),
+      coverBorderColor: Color(json['coverBorderColor'] as int? ?? 0xFFE0E0E0),
+      deptColor: Color(json['deptColor'] as int? ?? 0xFF6A8F6A),
+      official: json['official'] as bool? ?? false,
+      author: json['author'] as String? ?? '',
+      hospital: json['hospital'] as String? ?? '',
+      grade: json['grade'] as String? ?? '',
+      summary: json['summary'] as String? ?? '',
+      refs: json['refs'] as int? ?? 0,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+      versionStr: json['versionStr'] as String? ?? 'v1',
+    );
+  }
 }
 
-/// 搜索对话框，TextEditingController 随 widget 销毁被 dispose
+/// 搜索对话框
 class _SearchDialog extends StatefulWidget {
   final String initialQuery;
   const _SearchDialog({required this.initialQuery});

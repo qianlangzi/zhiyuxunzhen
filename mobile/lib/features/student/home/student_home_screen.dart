@@ -9,6 +9,7 @@ import '../../../data/models/models.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../student/data/student_service.dart';
 
 /// 学生端首页 · 学习中心
 class StudentHomeScreen extends ConsumerStatefulWidget {
@@ -20,6 +21,39 @@ const   StudentHomeScreen({super.key});
 
 class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   int _currentTab = 0;
+
+  Map<String, dynamic>? _dailyCaseData;
+  Map<String, dynamic>? _assignmentsData;
+  List<dynamic>? _weakPointsData;
+  Map<String, dynamic>? _overviewData;
+  bool _isLoadingDailyCase = true;
+  bool _isLoadingAssignments = true;
+  bool _isLoadingWeaknesses = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadData());
+  }
+
+  Future<void> _loadData() async {
+    final service = StudentService();
+    final dailyCase = await service.getTodayDailyCase();
+    final assignments = await service.getMyAssignments();
+    final weaknesses = await service.getWeaknesses();
+    final overview = await service.getReportOverview();
+    if (mounted) {
+      setState(() {
+        _dailyCaseData = dailyCase;
+        _assignmentsData = assignments;
+        _weakPointsData = weaknesses;
+        _overviewData = overview;
+        _isLoadingDailyCase = false;
+        _isLoadingAssignments = false;
+        _isLoadingWeaknesses = false;
+      });
+    }
+  }
 
   void _onTabTap(int index) {
     if (index == 0) return; // 已在首页
@@ -174,7 +208,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          _HeatmapGrid(),
+          _HeatmapGrid(
+            activityDays: _overviewData?['activityDays'] as List<dynamic>?,
+          ),
           const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -216,6 +252,34 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
 
   // 每日一例卡片
   Widget _buildDailyCard() {
+    if (_isLoadingDailyCase) {
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.moss,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: const Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.paper),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final dateStr = _dailyCaseData?['date'] as String? ?? '07.21';
+    final caseNo = _dailyCaseData?['caseNo'] as int? ?? 213;
+    final title = _dailyCaseData?['title'] as String? ?? '胸痛 2 小时伴大汗\n会是急性冠脉综合征吗？';
+    final department = _dailyCaseData?['department'] as String? ?? '心血管';
+    final estimatedTime = _dailyCaseData?['estimatedTime'] as String? ?? '5 分钟';
+    final difficulty = _dailyCaseData?['difficulty'] as String? ?? '标准';
+
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(20),
@@ -229,8 +293,8 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             top: 0,
             right: 0,
             child:               MonoText(
-                '07.21',
-                fontSize: 10,
+              dateStr,
+              fontSize: 10,
               color: AppColors.onPrimaryOf(context).withValues(alpha: 0.5),
               letterSpacing: 0.1,
             ),
@@ -239,15 +303,17 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               MonoText(
-                '每日一例 · No.213',
+                '每日一例 · No.$caseNo',
                 fontSize: 11,
                 color: AppColors.onPrimarySoftOf(context),
                 letterSpacing: 0.14,
               ),
               const SizedBox(height: 8),
               Text(
-                '胸痛 2 小时伴大汗\n会是急性冠脉综合征吗？',
-                style: TextStyle(
+                title,
+                style: const TextStyle(
+                  fontFamily: 'NotoSerifSC',
+                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 20,
                   fontWeight: FontWeight.w600,
                   color: AppColors.onPrimaryOf(context),
@@ -258,11 +324,11 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  _dailyMetaDot('心血管'),
+                  _dailyMetaDot(department),
                   const SizedBox(width: 12),
-                  _dailyMetaDot('5 分钟'),
+                  _dailyMetaDot(estimatedTime),
                   const SizedBox(width: 12),
-                  _dailyMetaDot('标准'),
+                  _dailyMetaDot(difficulty),
                 ],
               ),
               const SizedBox(height: 16),
@@ -322,6 +388,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
 
   // 待办作业
   Widget _buildTodoSection() {
+    final totalCount = _isLoadingAssignments
+        ? 3
+        : (_assignmentsData?['total'] as int? ?? 3);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -329,31 +399,79 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           number: '01',
           title: '待办作业',
           trailing: AppMoreLink(
-            label: '全部 3 →',
+            label: '全部 $totalCount →',
             onTap: () => AppFeedback.info(context, '作业列表页即将开放'),
           ),
         ),
-        _todoItem(
-          tagColor: AppColors.vermilion,
-          title: '心绞痛病例问诊 · 大病历',
-          metaItems: const ['王老师', '心血管内科', '截止 07.22 23:59'],
-          urgentDeadline: true,
-          onTap: () => context.pushNamed(RouteNames.chat),
-        ),
-        _todoItem(
-          tagColor: AppColors.amber,
-          title: '慢阻肺急性加重 · 鉴别诊断',
-          metaItems: const ['李老师', '呼吸内科', '截止 07.25 23:59'],
-          onTap: () => context.pushNamed(RouteNames.chat),
-        ),
-        _todoItem(
-          tagColor: AppColors.primaryOf(context),
-          title: '肝硬化腹水 · 自主训练',
-          metaItems: const ['消化内科', '已完成问诊，待提交病历'],
-          onTap: () => AppFeedback.info(context, '该作业已完成问诊，待提交大病历'),
-        ),
+if (_isLoadingAssignments)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          )
+        else
+          ..._buildTodoItems(),
       ],
     );
+  }
+
+  List<Widget> _buildTodoItems() {
+    final records = _assignmentsData?['records'] as List<dynamic>?;
+
+    if (records != null && records.isNotEmpty) {
+      return records.map((r) {
+        final item = r as Map<String, dynamic>;
+        final title = item['title'] as String? ?? '（未命名作业）';
+        final teacher = item['teacher'] as String? ?? '';
+        final department = item['department'] as String? ?? '';
+        final deadline = item['deadline'] as String? ?? '';
+        final status = item['status'] as String? ?? '';
+
+        final metaItems = <String>[];
+        if (teacher.isNotEmpty) metaItems.add('$teacher 老师');
+        if (department.isNotEmpty) metaItems.add(department);
+        if (deadline.isNotEmpty) metaItems.add('截止 $deadline');
+
+        final isUrgent = item['urgent'] as bool? ?? false;
+        final tagColor = isUrgent ? AppColors.vermilion : AppColors.moss;
+
+        return _todoItem(
+          tagColor: tagColor,
+          title: title,
+          metaItems: metaItems.isEmpty ? ['待处理'] : metaItems,
+          urgentDeadline: isUrgent,
+          onTap: () => context.pushNamed(RouteNames.chat),
+        );
+      }).toList();
+    }
+
+    // 默认显示（API 返回 null 时使用）
+    return [
+      _todoItem(
+        tagColor: AppColors.vermilion,
+        title: '心绞痛病例问诊 · 大病历',
+        metaItems: const ['王老师', '心血管内科', '截止 07.22 23:59'],
+        urgentDeadline: true,
+        onTap: () => context.pushNamed(RouteNames.chat),
+      ),
+      _todoItem(
+        tagColor: AppColors.amber,
+        title: '慢阻肺急性加重 · 鉴别诊断',
+        metaItems: const ['李老师', '呼吸内科', '截止 07.25 23:59'],
+        onTap: () => context.pushNamed(RouteNames.chat),
+      ),
+      _todoItem(
+        tagColor: AppColors.moss,
+        title: '肝硬化腹水 · 自主训练',
+        metaItems: const ['消化内科', '已完成问诊，待提交病历'],
+        onTap: () => AppFeedback.info(context, '该作业已完成问诊，待提交大病历'),
+      ),
+    ];
   }
 
   Widget _todoItem({
@@ -421,6 +539,47 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
 
   // 薄弱知识点
   Widget _buildWeakPointsSection() {
+    final List<dynamic> weakPoints = _weakPointsData ?? const [];
+    final List<Widget> rows;
+    if (_isLoadingWeaknesses) {
+      rows = [
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 20),
+          child: Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+      ];
+    } else if (weakPoints.isEmpty) {
+      rows = [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Center(
+            child: MonoText(
+              '暂无薄弱知识点数据',
+              fontSize: 12,
+              color: AppColors.text3Of(context),
+            ),
+          ),
+        ),
+      ];
+    } else {
+      rows = weakPoints.map((item) {
+        final m = item as Map<String, dynamic>;
+        final name = m['knowledgeTag'] as String? ?? '';
+        final score = (m['weaknessScore'] as num?)?.toDouble() ?? 0.0;
+        final color = score < 0.5
+            ? AppColors.vermilion
+            : score < 0.7
+                ? AppColors.amber
+                : AppColors.moss;
+        return _weakRow(name, score, color);
+      }).toList();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -434,14 +593,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         ),
         AppPaper(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          child: Column(
-            children: [
-              _weakRow('急性冠脉综合征', 0.42, AppColors.vermilion),
-              _weakRow('肺栓塞鉴别', 0.55, AppColors.amber),
-              _weakRow('慢性心衰分级', 0.61, AppColors.amber),
-              _weakRow('消化道出血', 0.78, AppColors.primaryOf(context)),
-            ],
-          ),
+child: Column(children: rows),
         ),
       ],
     );
@@ -489,6 +641,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
 
 // 热力图网格
 class _HeatmapGrid extends StatefulWidget {
+  final List<dynamic>? activityDays;
+
+  const _HeatmapGrid({this.activityDays});
+
   @override
   State<_HeatmapGrid> createState() => _HeatmapGridState();
 }
@@ -499,12 +655,48 @@ class _HeatmapGridState extends State<_HeatmapGrid> {
   @override
   void initState() {
     super.initState();
-    // 生成模拟数据（26列 × 7行 = 182天）
-    final rnd = [0, 0, 0, 1, 1, 2, 2, 3, 4];
-    _levels = List.generate(
-      26 * 7,
-      (i) => (i * 7 + 3) % 10 > 4 ? rnd[(i * 3 + 1) % rnd.length] : 0,
-    );
+    _levels = _buildLevels();
+  }
+
+  @override
+  void didUpdateWidget(_HeatmapGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activityDays != widget.activityDays) {
+      _levels = _buildLevels();
+    }
+  }
+
+  /// 根据 activityDays 计算近 182 天的热力等级；数据缺失时回退模拟数据。
+  List<int> _buildLevels() {
+    final days = widget.activityDays;
+    if (days == null) {
+      // 加载中或接口失败：使用模拟数据（26列 × 7行 = 182天）
+      final rnd = [0, 0, 0, 1, 1, 2, 2, 3, 4];
+      return List.generate(
+        26 * 7,
+        (i) => (i * 7 + 3) % 10 > 4 ? rnd[(i * 3 + 1) % rnd.length] : 0,
+      );
+    }
+    // date(yyyy-MM-dd) → completedCount
+    final countByDate = <String, int>{};
+    for (final d in days) {
+      final m = d as Map<String, dynamic>;
+      final dateStr = m['date'] as String? ?? '';
+      final count = (m['completedCount'] as num?)?.toInt() ?? 0;
+      if (dateStr.isNotEmpty) countByDate[dateStr] = count;
+    }
+    final today = DateTime.now();
+    return List.generate(26 * 7, (i) {
+      final day = today.subtract(Duration(days: 26 * 7 - 1 - i));
+      final key =
+          '${day.year}-${day.month.toString().padLeft(2, '0')}-${day.day.toString().padLeft(2, '0')}';
+      final count = countByDate[key] ?? 0;
+      if (count == 0) return 0;
+      if (count == 1) return 1;
+      if (count == 2) return 2;
+      if (count <= 4) return 3;
+      return 4;
+    });
   }
 
   @override

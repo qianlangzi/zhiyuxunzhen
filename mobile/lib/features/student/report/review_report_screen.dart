@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
@@ -6,10 +7,35 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/student_service.dart';
 
 /// AI 复盘报告
-class ReviewReportScreen extends StatelessWidget {
-const   ReviewReportScreen({super.key});
+class ReviewReportScreen extends ConsumerStatefulWidget {
+  const ReviewReportScreen({super.key});
+
+  @override
+  ConsumerState<ReviewReportScreen> createState() => _ReviewReportScreenState();
+}
+
+class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
+  Map<String, dynamic>? _reportData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReport());
+  }
+
+  Future<void> _loadReport() async {
+    final data = await StudentService().getReportOverview();
+    if (mounted) {
+      setState(() {
+        _reportData = data;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,39 +53,41 @@ const   ReviewReportScreen({super.key});
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCover(context, ),
-                    const SizedBox(height: 24),
-                    _buildSection(context, '01', '诱因采集：被忽略的鉴别钥匙', '''
-在 6 次胸痛病例中，你4 次 未询问胸痛诱因。诱因是 ACS、肺栓塞、主动脉夹层、气胸鉴别诊断的核心钥匙——体力活动后加重指向 ACS，突发撕裂样痛指向夹层，长期卧床后指向肺栓塞。''', isMoss: true),
-                    const SizedBox(height: 24),
-                    _buildSection(context, '02', '过敏史：被低估的安全阀', '''
-6 次训练中3 次 未采集过敏史。在真实临床中，这可能导致严重的用药错误。养成"主诉—既往—过敏"三段式开场习惯，可显著降低遗漏率。''', isAmber: true),
-                    const SizedBox(height: 24),
-                    _buildSection(context, '03', '检查决策：贵的 ≠ 对的', '''
-你 2 次出现高价检查未配套低价必要检查的情况。例如：开 D-二聚体前未做 Wells 评估，开心肌酶谱同时开肌钙蛋白（重复）。卫生经济学不是抠门，而是用最少的代价获取最有效证据。''', isAmber: true, hasGrid: true),
-                    const SizedBox(height: 24),
-                    _buildNextSteps(context),
-                    const SizedBox(height: 16),
-                    AppPrimaryButton(
-                      label: '导出完整 PDF',
-                      icon: const Icon(Icons.download, size: 14),
-                      fullWidth: true,
-                      onPressed: () async {
-                        AppFeedback.info(context, '正在生成复盘 PDF…');
-                        // 接入后端后替换为 POST /api/v1/student/review-report/export
-                        await Future.delayed(const Duration(milliseconds: 900));
-                        if (!context.mounted) return;
-                        AppFeedback.success(context, '复盘报告已导出（演示版）');
-                      },
+child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildCover(context),
+                          const SizedBox(height: 24),
+                          _buildSection(context, '01', '诱因采集：被忽略的鉴别钥匙', '''
+ 在 6 次胸痛病例中，你4 次 未询问胸痛诱因。诱因是 ACS、肺栓塞、主动脉夹层、气胸鉴别诊断的核心钥匙——体力活动后加重指向 ACS，突发撕裂样痛指向夹层，长期卧床后指向肺栓塞。''', isMoss: true),
+                          const SizedBox(height: 24),
+                          _buildSection(context, '02', '过敏史：被低估的安全阀', '''
+ 6 次训练中3 次 未采集过敏史。在真实临床中，这可能导致严重的用药错误。养成"主诉—既往—过敏"三段式开场习惯，可显著降低遗漏率。''', isAmber: true),
+                          const SizedBox(height: 24),
+                          _buildSection(context, '03', '检查决策：贵的 ≠ 对的', '''
+ 你 2 次出现高价检查未配套低价必要检查的情况。例如：开 D-二聚体前未做 Wells 评估，开心肌酶谱同时开肌钙蛋白（重复）。卫生经济学不是抠门，而是用最少的代价获取最有效证据。''', isAmber: true, hasGrid: true),
+                          const SizedBox(height: 24),
+                          _buildNextSteps(context),
+                          const SizedBox(height: 16),
+                          AppPrimaryButton(
+                            label: '导出完整 PDF',
+                            icon: const Icon(Icons.download, size: 14),
+                            fullWidth: true,
+                            onPressed: () async {
+                              AppFeedback.info(context, '正在生成复盘 PDF…');
+                              // 接入后端后替换为 POST /api/v1/student/review-report/export
+                              await Future.delayed(const Duration(milliseconds: 900));
+                              if (!context.mounted) return;
+                              AppFeedback.success(context, '复盘报告已导出（演示版）');
+                            },
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
             ),
           ],
         ),
@@ -68,6 +96,14 @@ const   ReviewReportScreen({super.key});
   }
 
   Widget _buildCover(BuildContext context) {
+    final sessionCount = _reportData?['completedSessionCount']?.toString() ?? '6';
+    final abilityScores = _reportData?['abilityScores'] as Map<String, dynamic>?;
+    // 从能力评分中找出较低维度作为"关键遗漏"示意
+    int lowScoreCount = 0;
+    if (abilityScores != null) {
+      lowScoreCount = abilityScores.values.where((v) => ((v as num?)?.toInt() ?? 100) < 70).length;
+    }
+    final keyMisses = lowScoreCount > 0 ? lowScoreCount.toString() : '3';
     return Container(
    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -90,14 +126,14 @@ const   ReviewReportScreen({super.key});
             ),
           ),
           const SizedBox(height: 6),
-          const MonoText('基于 7 月共 6 次胸痛相关病例训练', fontSize: 11),
+          MonoText('基于 7 月共 $sessionCount 次胸痛相关病例训练', fontSize: 11),
           const SizedBox(height: 14),
           const DoubleDivider(),
       SizedBox(height: 14),
           Row(
             children: [
-              _coverStat(context, '6', '训练次数', AppColors.textOf(context)),
-              _coverStat(context, '3', '关键遗漏', AppColors.vermilion),
+              _coverStat(context, sessionCount, '训练次数', AppColors.textOf(context)),
+              _coverStat(context, keyMisses, '关键遗漏', AppColors.vermilion),
               _coverStat(context, '2', '过度检查', AppColors.amber),
             ],
           ),

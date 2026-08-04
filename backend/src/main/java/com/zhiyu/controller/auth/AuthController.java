@@ -5,6 +5,7 @@ import com.zhiyu.common.context.UserContext;
 import com.zhiyu.service.AuthService;
 import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RefreshTokenRequest;
 import com.zhiyu.service.dto.RegisterRequest;
 import com.zhiyu.service.dto.SmsCodeRequest;
@@ -19,6 +20,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -79,6 +81,12 @@ public class AuthController {
     @GetMapping("/me")
     public R<UserInfoVO> me() {
         return R.ok(authService.currentUser(UserContext.requireUserId()));
+    }
+
+    @Operation(summary = "更新当前用户个人资料")
+    @PutMapping("/me")
+    public R<UserInfoVO> updateProfile(@RequestBody ProfileUpdateDTO dto) {
+        return R.ok(authService.updateProfile(UserContext.requireUserId(), dto));
     }
 
     @Operation(summary = "登出（客户端清除 token 即可，服务端黑名单见 P2）")

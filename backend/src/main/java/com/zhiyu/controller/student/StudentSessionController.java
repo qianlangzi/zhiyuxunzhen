@@ -2,9 +2,12 @@ package com.zhiyu.controller.student;
 
 import com.zhiyu.common.R;
 import com.zhiyu.service.StudentSessionService;
+import com.zhiyu.service.dto.ChatMessageDTO;
 import com.zhiyu.service.dto.SessionStartDTO;
 import com.zhiyu.vo.SessionStartVO;
 import com.zhiyu.vo.StudentSessionDetailVO;
+
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -45,5 +48,12 @@ public class StudentSessionController {
     public R<Void> finish(@PathVariable Long sessionId) {
         studentSessionService.finish(sessionId);
         return R.ok();
+    }
+
+    @Operation(summary = "发送问诊消息（转发 AI 中台同步接口，返回 SP 回复）")
+    @PostMapping("/{sessionId}/chat")
+    public R<Map<String, Object>> chat(@PathVariable Long sessionId,
+                                       @Valid @RequestBody ChatMessageDTO req) {
+        return R.ok(studentSessionService.chat(sessionId, req.getMessage()));
     }
 }

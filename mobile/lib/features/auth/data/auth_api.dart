@@ -3,6 +3,8 @@ import 'dart:developer';
 import 'package:dio/dio.dart';
 
 import '../../../core/config/api_config.dart';
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_response.dart';
 import '../../../data/models/models.dart';
 
 /// 后端认证服务基础配置
@@ -103,18 +105,7 @@ class RegisterFail extends RegisterResult {
 ///
 /// ⚠️ 密码登录和注册的接口路径/请求体格式为预设值，等你提供接口文档后调整。
 class AuthApi {
-  AuthApi({Dio? dio})
-      : _dio = dio ??
-            Dio(
-              BaseOptions(
-                baseUrl: AuthApiConfig.baseUrl,
-                connectTimeout: AuthApiConfig.timeout,
-                receiveTimeout: AuthApiConfig.timeout,
-                sendTimeout: AuthApiConfig.timeout,
-                contentType: Headers.jsonContentType,
-                responseType: ResponseType.json,
-              ),
-            );
+  AuthApi({Dio? dio}) : _dio = dio ?? ApiClient.instance;
 
   final Dio _dio;
 
@@ -191,6 +182,7 @@ class AuthApi {
       if (parsed == null) {
         return const SmsLoginFail('登录失败：无法解析用户信息');
       }
+      if (parsed.token != null) ApiClient.setToken(parsed.token);
       return SmsLoginOk(parsed.user, token: parsed.token);
     } on DioException catch (e) {
       return SmsLoginFail(_mapDioError(e, '登录'));
@@ -236,6 +228,7 @@ class AuthApi {
       if (parsed == null) {
         return const PasswordLoginFail('登录失败：无法解析用户信息');
       }
+      if (parsed.token != null) ApiClient.setToken(parsed.token);
       return PasswordLoginOk(parsed.user, token: parsed.token);
     } on DioException catch (e) {
       return PasswordLoginFail(_mapDioError(e, '登录'));
@@ -292,6 +285,16 @@ class AuthApi {
     } catch (e) {
       log('register 异常: $e', name: 'auth_api');
       return RegisterFail('注册失败：$e');
+    }
+  }
+
+  /// 更新个人资料
+  Future<ApiResponse<Map<String, dynamic>>> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final resp = await _dio.put<Map<String, dynamic>>('/api/v1/auth/me', data: data);
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapDioError(e, '更新资料'));
     }
   }
 

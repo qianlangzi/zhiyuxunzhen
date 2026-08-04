@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
@@ -6,16 +8,17 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/student_service.dart';
 
 /// AI 问诊室
-class ChatRoomScreen extends StatefulWidget {
+class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key});
 
   @override
-  State<ChatRoomScreen> createState() => _ChatRoomScreenState();
+  ConsumerState<ChatRoomScreen> createState() => _ChatRoomScreenState();
 }
 
-class _ChatRoomScreenState extends State<ChatRoomScreen>
+class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     with TickerProviderStateMixin {
   final _inputController = TextEditingController();
   bool _treePanelOpen = false;
@@ -25,6 +28,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   bool _spTyping = false;
   bool _showScrollToBottom = false;
   bool _sendPressed = false;
+
+  // ---- API 状态（保留以供后续扩展使用） ----
+  // ignore: unused_field
+  bool _isLoading = true;
+  // ignore: unused_field
+  final bool _isSessionActive = true;
+  // ignore: unused_field
+  int? _sessionId;
+  int? _caseId;
+  Map<String, dynamic>? _sessionData;
+  final List<_ChatMessage> _messages = [];
 
   late final AnimationController _typingController;
   late final AnimationController _panelController;
@@ -46,6 +60,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       curve: Curves.easeOutCubic,
     );
     _scrollController.addListener(_onScroll);
+    // 初始化默认消息（硬编码 fallback）
+    _initDefaultMessages();
+    // 尝试加载 API 数据
+    WidgetsBinding.instance.addPostFrameCallback((_) => _initSession());
   }
 
   @override
@@ -56,6 +74,134 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     _typingController.dispose();
     _panelController.dispose();
     super.dispose();
+  }
+
+  // ---- 患者信息 getter（优先从 API 数据读取，fallback 为硬编码） ----
+
+  String get _patientDisplayName {
+    if (_sessionData != null) {
+      final name = _sessionData!['patientName'] as String? ?? '张建国';
+      final age = _sessionData!['patientAge'] as int? ?? 58;
+      final gender = _sessionData!['patientGender'] as String? ?? '男';
+      return '$name · $age 岁 $gender';
+    }
+    return '张建国 · 58 岁 男';
+  }
+
+  String get _patientAvatarChar {
+    if (_sessionData != null) {
+      final name = _sessionData!['patientName'] as String? ?? '张建国';
+      return name.isNotEmpty ? name.characters.first : '张';
+    }
+    return '张';
+  }
+
+  String get _chiefComplaintText {
+    if (_sessionData != null) {
+      final occupation = _sessionData!['occupation'] as String? ?? '建筑工人';
+      final complaint = _sessionData!['chiefComplaint'] as String? ?? '胸痛 2 小时';
+      return '$occupation · 主诉：$complaint';
+    }
+    return '建筑工人 · 主诉：胸痛 2 小时';
+  }
+
+  // ---- 初始化默认消息（硬编码 fallback） ----
+
+  void _initDefaultMessages() {
+    _messages.addAll(const [
+      _ChatMessage(
+        type: _MsgType.mentor,
+        label: 'AI 导师提示',
+        text: '本病例训练重点：胸痛的鉴别诊断。注意询问疼痛性质、放射、诱因、伴随症状，并合理选择检查。',
+      ),
+      _ChatMessage(
+        type: _MsgType.patient,
+        text: '医生……我胸口疼得厉害，出冷汗，刚才干活的时候突然开始的……',
+        time: '09:14',
+      ),
+      _ChatMessage(
+        type: _MsgType.student,
+        text: '张师傅您好，我先了解一下。胸痛具体在哪个位置？能指给我看吗？',
+        time: '09:15',
+      ),
+      _ChatMessage(
+        type: _MsgType.patient,
+        text: '就这里，胸骨后面，（指着胸口）一片都疼，闷闷的压着，像有石头压上来。',
+        time: '09:15',
+      ),
+      _ChatMessage(
+        type: _MsgType.student,
+        text: '疼痛有没有放射到其他地方？比如左肩、下颌或后背？',
+        time: '09:16',
+      ),
+      _ChatMessage(
+        type: _MsgType.patient,
+        text: '好像串到左肩膀去了，左手也有点麻。出了一身汗，有点恶心。',
+        time: '09:16',
+      ),
+      _ChatMessage(
+        type: _MsgType.student,
+        text: '我先给您做个心电图，再查一下心肌酶和肌钙蛋白。',
+        time: '09:18 · 已开检查',
+      ),
+      _ChatMessage(type: _MsgType.examResult),
+    ]);
+  }
+
+  // ---- 启动 / 加载会话 ----
+
+  Future<void> _initSession() async {
+    final service = StudentService();
+    final result = await service.startSession(
+      caseId: _caseId ?? 1,
+      assignmentInstanceId: null,
+    );
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        _sessionId = result['sessionId'] as int?;
+        _sessionData = result;
+        _isLoading = false;
+        // 如果 API 返回了消息数据，替换硬编码消息
+        final apiMessages = result['messages'] as List<dynamic>?;
+        if (apiMessages != null && apiMessages.isNotEmpty) {
+          _messages.clear();
+          for (final msg in apiMessages) {
+            final sender = msg['sender'] as String?;
+            final content = msg['content'] as String?;
+            final time = msg['time'] as String?;
+            if (sender == 'mentor') {
+              _messages.add(
+                _ChatMessage(
+                  type: _MsgType.mentor,
+                  label: msg['label'] as String? ?? 'AI 导师提示',
+                  text: content ?? '',
+                ),
+              );
+            } else if (sender == 'patient') {
+              _messages.add(
+                _ChatMessage(
+                  type: _MsgType.patient,
+                  text: content ?? '',
+                  time: time ?? _now(),
+                ),
+              );
+            } else if (sender == 'student') {
+              _messages.add(
+                _ChatMessage(
+                  type: _MsgType.student,
+                  text: content ?? '',
+                  time: time ?? _now(),
+                ),
+              );
+            } else if (sender == 'exam_result') {
+              _messages.add(const _ChatMessage(type: _MsgType.examResult));
+            }
+          }
+        }
+      });
+    }
+    // 如果 result == null，保留硬编码 fallback 数据
   }
 
   void _onScroll() {
@@ -90,6 +236,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       AppFeedback.info(context, '请输入问诊内容');
       return;
     }
+    if (_sessionId == null) {
+      AppFeedback.error(context, '问诊会话尚未就绪，请稍候');
+      return;
+    }
     setState(() {
       _extra.add(_ExtraMsg(text, _now(), _MsgSender.student));
       _inputController.clear();
@@ -97,31 +247,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     });
     _typingController.repeat();
     _scrollToBottom();
-    // 模拟 SP 流式回复（接入后端后替换为 /api/v1/ai/chat/stream SSE）
-    await Future.delayed(const Duration(milliseconds: 1200));
+    // 调用后端同步问诊接口（Spring Boot 转发至 AI 中台）
+    final data = await StudentService().sendMessage(
+      sessionId: _sessionId!,
+      message: text,
+    );
     if (!mounted) return;
-    final reply = _mockSpReply(text);
     _typingController.stop();
+    final reply = (data?['reply'] as String?) ?? '';
+    setState(() => _spTyping = false);
+    if (reply.isEmpty) {
+      AppFeedback.error(context, '问诊回复失败，请重试');
+      _scrollToBottom();
+      return;
+    }
     setState(() {
-      _spTyping = false;
       _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient));
     });
     _scrollToBottom();
-  }
-
-  String _mockSpReply(String question) {
-    if (question.contains('过敏')) return '我对青霉素过敏，以前打针起过皮疹。';
-    if (question.contains('既往') || question.contains('病史')) {
-      return '高血压 8 年了，没怎么规律吃药。没有糖尿病，不抽烟，偶尔喝点酒。';
-    }
-    if (question.contains('用药')) return '就降压药，有时候吃有时候忘。别的没吃过。';
-    if (question.contains('持续') || question.contains('多久')) {
-      return '疼了得有两个小时了，一直没缓过来，越来越难受。';
-    }
-    if (question.contains('性质') || question.contains('什么样')) {
-      return '闷闷的、压着疼，像有块石头压在胸口，喘不上气。';
-    }
-    return '医生，我也不太会形容……就是胸口难受，出冷汗，您快帮我看看吧。';
   }
 
   void _onQuickAction(String action) {
@@ -226,8 +369,15 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    '张',
-                    style: TextStyle(
+_patientAvatarChar,
+                    style: const TextStyle(
+                      fontFamily: 'NotoSerifSC',
+                      fontFamilyFallback: [
+                        'Songti SC',
+                        'STSong',
+                        'Noto Serif CJK SC',
+                        'Source Han Serif SC',
+                      ],
                       fontWeight: FontWeight.w600,
                       color: AppColors.primaryOf(context),
                       fontSize: 14,
@@ -237,7 +387,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    '张建国 · 58 岁 男',
+                    _patientDisplayName,
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
@@ -282,7 +432,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: MonoText(
-                            '建筑工人 · 主诉：胸痛 2 小时',
+                            _chiefComplaintText,
                             fontSize: 11,
                             color: AppColors.text3Of(context),
                           ),
@@ -358,35 +508,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           controller: _scrollController,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
           children: [
-            _mentorMessage(
-              'AI 导师提示',
-              '本病例训练重点：胸痛的鉴别诊断。注意询问疼痛性质、放射、诱因、伴随症状，并合理选择检查。',
-            ),
-            _patientMessage(
-              '医生……我胸口疼得厉害，出冷汗，刚才干活的时候突然开始的……',
-              '09:14',
-            ),
-            _studentMessage(
-              '张师傅您好，我先了解一下。胸痛具体在哪个位置？能指给我看吗？',
-              '09:15',
-            ),
-            _patientMessage(
-              '就这里，胸骨后面，（指着胸口）一片都疼，闷闷的压着，像有石头压上来。',
-              '09:15',
-            ),
-            _studentMessage(
-              '疼痛有没有放射到其他地方？比如左肩、下颌或后背？',
-              '09:16',
-            ),
-            _patientMessage(
-              '好像串到左肩膀去了，左手也有点麻。出了一身汗，有点恶心。',
-              '09:16',
-            ),
-            _studentMessage(
-              '我先给您做个心电图，再查一下心肌酶和肌钙蛋白。',
-              '09:18 · 已开检查',
-            ),
-            _examResultMessage(),
+            // 动态消息列表（来自 _messages 或 API 数据）
+            ..._messages.map((m) => _buildMessageWidget(m)),
+            // 动态追加的消息（发送按钮触发）
             ..._extra.map((m) {
               if (m.sender == _MsgSender.student) {
                 return _studentMessage(m.text, m.time);
@@ -407,6 +531,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
         if (_treePanelOpen) _buildAnimatedTreePanel(screenWidth),
       ],
     );
+  }
+
+  /// 根据 _ChatMessage 类型渲染对应的消息 widget
+  Widget _buildMessageWidget(_ChatMessage msg) {
+    switch (msg.type) {
+      case _MsgType.mentor:
+        return _mentorMessage(msg.label ?? '', msg.text ?? '');
+      case _MsgType.patient:
+        return _patientMessage(msg.text ?? '', msg.time ?? '');
+      case _MsgType.student:
+        return _studentMessage(msg.text ?? '', msg.time ?? '');
+      case _MsgType.examResult:
+        return _examResultMessage();
+    }
   }
 
   Widget _buildScrollToBottomButton() {
@@ -1251,4 +1389,21 @@ class _ExtraMsg {
   final _MsgSender sender;
 
   const _ExtraMsg(this.text, this.time, this.sender);
+}
+
+/// 统一的消息模型（支持初始消息和 API 消息）
+enum _MsgType { mentor, patient, student, examResult }
+
+class _ChatMessage {
+  final _MsgType type;
+  final String? text;
+  final String? time;
+  final String? label;
+
+  const _ChatMessage({
+    required this.type,
+    this.text,
+    this.time,
+    this.label,
+  });
 }

@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
@@ -7,10 +8,35 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/teacher_service.dart';
 
 /// 学情看板
-class DashboardScreen extends StatelessWidget {
-const   DashboardScreen({super.key});
+class DashboardScreen extends ConsumerStatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  Map<String, dynamic>? _dashboardData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadDashboard());
+  }
+
+  Future<void> _loadDashboard() async {
+    final data = await TeacherService().getDashboardOverview();
+    if (mounted) {
+      setState(() {
+        _dashboardData = data;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,19 +55,21 @@ const   DashboardScreen({super.key});
               ),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildStatGrid(),
-                    _buildOsceSection(context, ),
-                    _buildCommonMissSection(context, ),
-                    _buildMisdiagnosisSection(context, ),
-                    _buildRemediation(context),
-                  ],
-                ),
-              ),
+child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : SingleChildScrollView(
+                      padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildStatGrid(),
+                          _buildOsceSection(context),
+                          _buildCommonMissSection(context),
+                          _buildMisdiagnosisSection(context),
+                          _buildRemediation(context),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -50,10 +78,20 @@ const   DashboardScreen({super.key});
   }
 
   Widget _buildStatGrid() {
+    final data = _dashboardData;
+    final statsRaw = (data?['stats'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    final defaultStats = [
+      ('作业完成率', '68%', '↑ 12% · 较上周', AppColors.moss),
+      ('平均 OSCE', '82.4', '↑ 4.2 · 较上周', AppColors.moss),
+      ('批阅效率', '2.8min/份', '↓ 71% · 较纯人工', AppColors.moss),
+      ('过度检查率', '23%', '↑ 5% · 需关注', AppColors.vermilion),
+    ];
+
     return GridView.builder(
       shrinkWrap: true,
-   physics: NeverScrollableScrollPhysics(),
-   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 8,
         crossAxisSpacing: 8,
@@ -61,16 +99,14 @@ const   DashboardScreen({super.key});
       ),
       itemCount: 4,
       itemBuilder: (context, i) {
-        final stats = [
-          ('作业完成率', '68%', '↑ 12% · 较上周', AppColors.primaryOf(context)),
-          ('平均 OSCE', '82.4', '↑ 4.2 · 较上周', AppColors.primaryOf(context)),
-          ('批阅效率', '2.8min/份', '↓ 71% · 较纯人工', AppColors.primaryOf(context)),
-          ('过度检查率', '23%', '↑ 5% · 需关注', AppColors.vermilion),
-        ];
-        final (label, value, trend, color) = stats[i];
-        final isNegativeTrend = trend.startsWith('↑') && label == '过度检查率';
+final (label, value, trend, color) =
+            statsRaw.length > i
+                ? _parseStat(statsRaw[i])
+                : defaultStats[i];
+
+        final isTrendDown = trend.startsWith('↑') && label == '过度检查率';
         return Container(
-     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.surfaceOf(context),
             border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -80,7 +116,7 @@ const   DashboardScreen({super.key});
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               MonoText(label.toUpperCase(), fontSize: 10, color: AppColors.text3Of(context), letterSpacing: 0.1),
-        SizedBox(height: 4),
+              const SizedBox(height: 4),
               Text(
                 value,
                 style: TextStyle(
@@ -99,7 +135,52 @@ const   DashboardScreen({super.key});
     );
   }
 
+  (String, String, String, Color) _parseStat(Map<String, dynamic> stat) {
+    final label = stat['label'] as String? ?? '';
+    final value = stat['value'] as String? ?? '';
+    final trend = stat['trend'] as String? ?? '';
+    final color = _parseColor(stat['color'] as String?);
+    return (label, value, trend, color);
+  }
+
+  Color _parseColor(String? color) {
+    switch (color) {
+      case 'moss':
+        return AppColors.moss;
+      case 'amber':
+        return AppColors.amber;
+      case 'vermilion':
+        return AppColors.vermilion;
+      case 'indigo':
+        return AppColors.indigo;
+      default:
+        return AppColors.moss;
+    }
+  }
+
   Widget _buildOsceSection(BuildContext context) {
+    final data = _dashboardData;
+    final osceScores = (data?['osceScores'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    final osceAverage = data?['osceAverage'] as String? ?? '82.4';
+
+    final defaultOsceRows = [
+      ('病史采集', '85.2', AppColors.moss),
+      ('诊断逻辑', '82.6', AppColors.moss),
+      ('沟通技巧', '78.4', AppColors.amber),
+      ('人文关怀', '86.8', AppColors.moss),
+      ('检查决策', '80.8', AppColors.moss3),
+      ('文书规范', '81.6', AppColors.amber),
+    ];
+
+    final osceRows = osceScores.isEmpty
+        ? defaultOsceRows
+        : osceScores.map((s) {
+            final label = s['label'] as String? ?? '';
+            final score = s['score'] as String? ?? '0.0';
+            final color = _parseColor(s['color'] as String?);
+            return (label, score, color);
+          }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -116,14 +197,9 @@ const   DashboardScreen({super.key});
               Expanded(
                 child: Column(
                   children: [
-                    _osceRow(context, '病史采集', '85.2', AppColors.primaryOf(context)),
-                    _osceRow(context, '诊断逻辑', '82.6', AppColors.primaryOf(context)),
-                    _osceRow(context, '沟通技巧', '78.4', AppColors.amber),
-                    _osceRow(context, '人文关怀', '86.8', AppColors.primaryOf(context)),
-                    _osceRow(context, '检查决策', '80.8', AppColors.moss3),
-                    _osceRow(context, '文书规范', '81.6', AppColors.amber),
+...osceRows.map((r) => _osceRow(context, r.$1, r.$2, r.$3)),
                     const DottedDivider(),
-                    _osceRow(context, '综合均分', '82.4', AppColors.primaryOf(context), bold: true),
+                    _osceRow(context, '综合均分', osceAverage, AppColors.moss, bold: true),
                   ],
                 ),
               ),
@@ -136,7 +212,7 @@ const   DashboardScreen({super.key});
 
   Widget _osceRow(BuildContext context, String label, String score, Color color, {bool bold = false}) {
     return Padding(
-   padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -167,13 +243,26 @@ const   DashboardScreen({super.key});
   }
 
   Widget _buildCommonMissSection(BuildContext context) {
-    final items = [
+    final data = _dashboardData;
+    final missItems = (data?['commonMissItems'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    final defaultMissItems = [
       ('胸痛诱因（体力活动/情绪）', 21, 0.84),
       ('过敏史', 15, 0.60),
       ('家族史', 12, 0.48),
       ('用药依从性', 9, 0.36),
       ('个人史（吸烟/饮酒）', 7, 0.28),
     ];
+
+    final items = missItems.isEmpty
+        ? defaultMissItems
+        : missItems.map((m) {
+            final name = m['name'] as String? ?? '';
+            final count = m['count'] as int? ?? 0;
+            final barPercent = (m['barPercent'] as num?)?.toDouble() ?? 0.0;
+            return (name, count, barPercent);
+          }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -197,7 +286,7 @@ const   DashboardScreen({super.key});
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
-     Expanded(child: Text(name, style: TextStyle(fontSize: 13, color: AppColors.text2Of(context)))),
+          Expanded(child: Text(name, style: TextStyle(fontSize: 13, color: AppColors.text2Of(context)))),
           const SizedBox(width: 10),
           SizedBox(
             width: 60,
@@ -224,17 +313,38 @@ const   DashboardScreen({super.key});
   }
 
   Widget _buildMisdiagnosisSection(BuildContext context) {
+    final data = _dashboardData;
+    final misdiagnosisItems = (data?['misdiagnosisItems'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    final defaultMisdiagnosis = [
+      ('误诊为胃食管反流', '急性下壁心梗不典型表现', '8 人'),
+      ('漏诊主动脉夹层', '鉴别诊断未列出', '6 人'),
+    ];
+
+    final items = misdiagnosisItems.isEmpty
+        ? defaultMisdiagnosis
+        : misdiagnosisItems.map((m) {
+            final title = m['title'] as String? ?? '';
+            final subtitle = m['subtitle'] as String? ?? '';
+            final count = m['count'] as String? ?? '0';
+            return (title, subtitle, count);
+          }).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(number: '03', title: '共性误诊'),
         AppPaper(
           child: Column(
-            children: [
-              _misdiagRow(context, '误诊为胃食管反流', '急性下壁心梗不典型表现', '8 人'),
-              const DottedDivider(),
-              _misdiagRow(context, '漏诊主动脉夹层', '鉴别诊断未列出', '6 人'),
-            ],
+            children: List.generate(items.length, (i) {
+              final item = items[i];
+              return Column(
+                children: [
+                  if (i > 0) const DottedDivider(),
+                  _misdiagRow(context, item.$1, item.$2, item.$3),
+                ],
+              );
+            }),
           ),
         ),
       ],
@@ -243,14 +353,14 @@ const   DashboardScreen({super.key});
 
   Widget _misdiagRow(BuildContext context, String title, String subtitle, String count) {
     return Padding(
-   padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-       Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
+              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
               const SizedBox(height: 2),
               MonoText(subtitle, fontSize: 11, color: AppColors.text3Of(context)),
             ],
@@ -261,7 +371,10 @@ const   DashboardScreen({super.key});
     );
   }
 
-  Widget _buildRemediation(BuildContext context) {
+Widget _buildRemediation(BuildContext context) {
+    final data = _dashboardData;
+    final remediation = data?['remediationSuggestion'] as String? ??
+        '建议下次课堂重点讲解：胸痛的诱因询问框架、ACS 不典型表现的识别，并安排主动脉夹层鉴别诊断的随堂练习。';
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -274,17 +387,9 @@ const   DashboardScreen({super.key});
         children: [
           EyebrowText('REMEDIATION · 课堂补救建议', color: AppColors.onPrimarySoftOf(context)),
           const SizedBox(height: 8),
-          RichText(
-            text: TextSpan(
-              style: TextStyle(fontSize: 13, color: AppColors.onPrimaryOf(context), height: 1.6),
-              children: [
-                TextSpan(text: '建议下次课堂重点讲解：'),
-                TextSpan(text: '胸痛的诱因询问框架', style: TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: '、'),
-                TextSpan(text: 'ACS 不典型表现的识别', style: TextStyle(fontWeight: FontWeight.bold)),
-                TextSpan(text: '，并安排主动脉夹层鉴别诊断的随堂练习。'),
-              ],
-            ),
+Text(
+            remediation,
+            style: TextStyle(fontSize: 13, color: AppColors.onPrimaryOf(context), height: 1.6),
           ),
         ],
       ),
@@ -355,6 +460,5 @@ class _MiniRadarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MiniRadarPainter old) =>
-      ruleColor != old.ruleColor || mossColor != old.mossColor;
+bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

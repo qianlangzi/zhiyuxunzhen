@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -117,6 +118,35 @@ public class AiPlatformClient {
         } catch (Exception e) {
             log.warn("AI生成报告失败，返回null: sessionId={} error={}", sessionId, e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * 7. 问诊聊天同步转发（PRD 5.2 / 9.3）
+     * POST {ai-base-url}/internal/chat/sync
+     * 解析 JSON 响应，提取 data 字段返回；失败抛 BizException(AI_SERVICE_ERROR)
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> chatSync(Long sessionId, Long studentId, Long caseId, String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("session_id", sessionId);
+        body.put("student_id", studentId);
+        body.put("case_id", caseId);
+        body.put("messages", List.of(Map.of("role", "student", "content", message)));
+        try {
+            String json = post("/internal/chat/sync", body);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode data = root.get("data");
+            if (data != null && data.isObject()) {
+                return objectMapper.convertValue(data, Map.class);
+            }
+            log.warn("AI问诊同步响应中无data字段: sessionId={} resp={}", sessionId, json);
+            throw new BizException(ResultCode.AI_SERVICE_ERROR, "AI问诊返回数据异常");
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("AI问诊同步调用失败: sessionId={} error={}", sessionId, e.getMessage());
+            throw new BizException(ResultCode.AI_SERVICE_ERROR, "AI服务调用异常: " + e.getMessage());
         }
     }
 

@@ -26,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
 
@@ -173,5 +174,21 @@ public class StudentSessionServiceImpl implements StudentSessionService {
                         sessionId, studentId, e.getMessage());
             }
         }
+    }
+
+    @Override
+    public Map<String, Object> chat(Long sessionId, String message) {
+        Long studentId = UserContext.requireUserId();
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
+        }
+        if (!studentId.equals(session.getStudentId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "问诊会话不属于当前学生");
+        }
+        if (!Integer.valueOf(0).equals(session.getStatus())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "问诊会话已结束，无法继续发送消息");
+        }
+        return aiPlatformClient.chatSync(session.getId(), studentId, session.getCaseId(), message);
     }
 }

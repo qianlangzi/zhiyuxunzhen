@@ -2,6 +2,7 @@ package com.zhiyu.service;
 
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.service.dto.LoginRequest;
+import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RegisterRequest;
 import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
@@ -32,6 +33,11 @@ public interface AuthService {
      * 获取当前用户信息
      */
     UserInfoVO currentUser(Long userId);
+
+    /**
+     * 更新当前用户个人资料
+     */
+    UserInfoVO updateProfile(Long userId, ProfileUpdateDTO dto);
 
     /**
      * 更新最后登录时间

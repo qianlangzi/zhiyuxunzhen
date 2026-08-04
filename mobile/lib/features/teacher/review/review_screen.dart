@@ -1,28 +1,46 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/teacher_service.dart';
 
 /// 智能批阅
-class ReviewScreen extends StatefulWidget {
-const   ReviewScreen({super.key});
+class ReviewScreen extends ConsumerStatefulWidget {
+  const ReviewScreen({super.key});
 
   @override
-  State<ReviewScreen> createState() => _ReviewScreenState();
+  ConsumerState<ReviewScreen> createState() => _ReviewScreenState();
 }
 
-class _ReviewScreenState extends State<ReviewScreen> {
+class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   int _currentTab = 0;
   final _scoreController = TextEditingController(text: '85');
-
-  // 报告条目: P1 #7b — 补充评语控制器原为 build() 内联创建，每次 rebuild 泄漏
   final _commentController = TextEditingController(
     text: '诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。',
   );
+
+  Map<String, dynamic>? _reviewData;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadReviews());
+  }
+
+  Future<void> _loadReviews() async {
+    final data = await TeacherService().getReviewList();
+    if (mounted) {
+      setState(() {
+        _reviewData = data;
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -50,7 +68,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
     );
     if (!ok) return;
     // 模拟提交（接入后端后替换为覆盖 AI 批阅的接口）
-  await Future.delayed( Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
     AppFeedback.success(context, '复核已提交 · $score 分');
     context.goNamed(RouteNames.dashboard);
@@ -62,62 +80,80 @@ class _ReviewScreenState extends State<ReviewScreen> {
       backgroundColor: AppColors.bgOf(context),
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            AppBackAppBar(
-              title: '陈思远 · 大病历',
-              onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
-              action: const AppIconButton(icon: Icon(Icons.download_outlined, size: 20)),
-            ),
-            _buildReviewTabs(),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.only(bottom: 90),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : Column(
                 children: [
-                  _buildFormatShieldResult(),
-                  _buildRecordBlock('主诉 · 必填', '胸骨后疼痛 2 小时伴大汗。', highlights: [
-                    ('伴大汗', 'ok'),
-                  ]),
-                  _buildRecordBlock('现病史 · 必填', '''
-患者 2 小时前搬运水泥时突发胸骨后压榨样疼痛，未询问放射部位具体描述，伴大汗、恶心，无呕吐。未记录诱因与体力活动关系。来诊时 BP 90/60，HR 102。''', highlights: [
-                    ('搬运水泥时', 'ok'),
-                    ('未询问', 'err'),
-                    ('未记录', 'warn'),
-                  ]),
-                  _buildRecordBlock('既往史 · 必填', '''
-高血压 8 年，未规律服用降压药。未询问过敏史。未询问家族史。''', highlights: [
-                    ('高血压 8 年', 'ok'),
-                    ('未询问过敏史', 'err'),
-                    ('未询问家族史', 'warn'),
-                  ]),
-                  _buildRecordBlock('辅助检查', '''
+                  _buildAppBar(context),
+                  _buildReviewTabs(),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.only(bottom: 90),
+                      children: [
+                        _buildFormatShieldResult(),
+                        _buildRecordBlock('主诉 · 必填', _getRecordContent('chiefComplaint', '胸骨后疼痛 2 小时伴大汗。'), highlights: [
+                          ('伴大汗', 'ok'),
+                        ]),
+                        _buildRecordBlock('现病史 · 必填', _getRecordContent('presentIllness', '''
+患者 2 小时前搬运水泥时突发胸骨后压榨样疼痛，未询问放射部位具体描述，伴大汗、恶心，无呕吐。未记录诱因与体力活动关系。来诊时 BP 90/60，HR 102。'''), highlights: [
+                          ('搬运水泥时', 'ok'),
+                          ('未询问', 'err'),
+                          ('未记录', 'warn'),
+                        ]),
+                        _buildRecordBlock('既往史 · 必填', _getRecordContent('pastHistory', '''
+高血压 8 年，未规律服用降压药。未询问过敏史。未询问家族史。'''), highlights: [
+                          ('高血压 8 年', 'ok'),
+                          ('未询问过敏史', 'err'),
+                          ('未询问家族史', 'warn'),
+                        ]),
+                        _buildRecordBlock('辅助检查', _getRecordContent('auxExam', '''
 心电图：II、III、aVF 导联 ST 段抬高 0.3mV ✓
 肌钙蛋白 I：3.8 ng/mL ↑ ✓
-心肌酶谱：CK-MB 25 U/L（与肌钙蛋白重复开立）''', highlights: [
-                    ('✓', 'ok'),
-                    ('心肌酶谱：CK-MB 25 U/L（与肌钙蛋白重复开立）', 'warn'),
-                  ]),
-                  _buildRecordBlock('初步诊断 · 必填', '''
+心肌酶谱：CK-MB 25 U/L（与肌钙蛋白重复开立）'''), highlights: [
+                          ('✓', 'ok'),
+                          ('心肌酶谱：CK-MB 25 U/L（与肌钙蛋白重复开立）', 'warn'),
+                        ]),
+                        _buildRecordBlock('初步诊断 · 必填', _getRecordContent('diagnosis', '''
 急性下壁心肌梗死
-鉴别诊断：未列出主动脉夹层、肺栓塞''', highlights: [
-                    ('急性下壁心肌梗死', 'ok'),
-                    ('未列出主动脉夹层', 'err'),
-                  ]),
-                  _buildAiScoreCard(),
-                  _buildOverrideSection(),
+鉴别诊断：未列出主动脉夹层、肺栓塞'''), highlights: [
+                          ('急性下壁心肌梗死', 'ok'),
+                          ('未列出主动脉夹层', 'err'),
+                        ]),
+                        _buildAiScoreCard(),
+                        _buildOverrideSection(),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
-        ),
       ),
+    );
+  }
+
+  String _getRecordContent(String key, String defaultContent) {
+    final data = _reviewData;
+    final records = data?['records'] as Map<String, dynamic>?;
+    if (records != null && records[key] is String) {
+      return records[key] as String;
+    }
+    return defaultContent;
+  }
+
+  Widget _buildAppBar(BuildContext context) {
+    final data = _reviewData;
+    final studentName = data?['studentName'] as String? ?? '陈思远';
+    final assignmentName = data?['assignmentName'] as String? ?? '大病历';
+    return AppBackAppBar(
+      title: '$studentName · $assignmentName',
+      onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
+      action: const AppIconButton(icon: Icon(Icons.download_outlined, size: 20)),
     );
   }
 
   Widget _buildReviewTabs() {
     final tabs = ['大病历', 'AI 批阅', '教师复核', '思维树'];
     return Container(
-   decoration: BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border(bottom: BorderSide(color: AppColors.ruleOf(context))),
       ),
@@ -128,7 +164,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             child: GestureDetector(
               onTap: () => setState(() => _currentTab = i),
               child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
@@ -158,6 +194,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _buildFormatShieldResult() {
+    final data = _reviewData;
+    final shieldPassed = data?['formatShieldPassed'] as bool? ?? true;
+    final shieldDetail = data?['formatShieldDetail'] as String? ?? '7 项必填段落齐全 · 主诉 18 字 · 过敏史已注明';
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -174,9 +214,12 @@ class _ReviewScreenState extends State<ReviewScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('格式盾牌 · 通过', style: TextStyle(fontSize: 12, color: AppColors.primaryOf(context), fontWeight: FontWeight.w500)),
+Text(
+                  '格式盾牌 · ${shieldPassed ? "通过" : "未通过"}',
+                  style: TextStyle(fontSize: 12, color: shieldPassed ? AppColors.moss : AppColors.vermilion, fontWeight: FontWeight.w500),
+                ),
                 const SizedBox(height: 1),
-                const MonoText('7 项必填段落齐全 · 主诉 18 字 · 过敏史已注明', fontSize: 11),
+                MonoText(shieldDetail, fontSize: 11),
               ],
             ),
           ),
@@ -187,8 +230,8 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   Widget _buildRecordBlock(String title, String content, {List<(String, String)>? highlights}) {
     return Container(
-   margin: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-   padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -207,7 +250,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
 
   Widget _buildHighlightedText(String text, List<(String, String)> highlights) {
     if (highlights.isEmpty) {
-   return Text(text, style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.7));
+      return Text(text, style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.7));
     }
     final spans = <InlineSpan>[];
     int start = 0;
@@ -242,19 +285,34 @@ class _ReviewScreenState extends State<ReviewScreen> {
     }
     return Text.rich(
       TextSpan(
-    style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.7),
+        style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.7),
         children: spans,
       ),
     );
   }
 
   Widget _buildAiScoreCard() {
-    final deductions = [
+    final data = _reviewData;
+    final aiScore = data?['aiScore'] as int? ?? 82;
+    final aiScoreLevel = data?['aiScoreLevel'] as String? ?? '良好 · 接近优秀';
+    final deductionsRaw = (data?['deductions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    final defaultDeductions = [
       ('诱因未询问', '现病史缺失体力活动/情绪诱因，影响 ACS 鉴别', '-6'),
       ('过敏史遗漏', '必填项缺失，存在用药安全风险', '-5'),
       ('鉴别诊断不全', '未列出主动脉夹层这一高危鉴别', '-4'),
       ('检查重复', '心肌酶谱与肌钙蛋白重复，违反卫生经济学', '-3'),
     ];
+
+    final deductions = deductionsRaw.isEmpty
+        ? defaultDeductions
+        : deductionsRaw.map((d) {
+            final name = d['name'] as String? ?? '';
+            final desc = d['description'] as String? ?? '';
+            final points = d['points'] as String? ?? '-0';
+            return (name, desc, points);
+          }).toList();
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(16),
@@ -281,8 +339,10 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    '82',
-                    style: TextStyle(
+'$aiScore',
+                    style: const TextStyle(
+                      fontFamily: 'NotoSerifSC',
+                      fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                       fontSize: 36,
                       fontWeight: FontWeight.w600,
                       color: AppColors.onPrimaryOf(context),
@@ -292,7 +352,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                   ),
                   Text(' / 100', style: TextStyle(fontSize: 14, color: AppColors.onPrimarySoftOf(context))),
                   const SizedBox(width: 8),
-                  Text('良好 · 接近优秀', style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLightOf(context), fontStyle: FontStyle.italic)),
+Text(aiScoreLevel, style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLightOf(context), fontStyle: FontStyle.italic)),
                 ],
               ),
               const SizedBox(height: 12),
@@ -352,6 +412,19 @@ class _ReviewScreenState extends State<ReviewScreen> {
   }
 
   Widget _buildOverrideSection() {
+    final data = _reviewData;
+    final defaultScore = data?['defaultScore']?.toString() ?? '85';
+    final defaultComment = data?['defaultComment'] as String? ??
+        '诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。';
+
+    // 如果 API 提供了默认值，更新 controller
+    if (data != null && data['defaultScore'] != null && _scoreController.text == '85') {
+      _scoreController.text = defaultScore;
+    }
+    if (data != null && data['defaultComment'] != null && _commentController.text.contains('诱因遗漏扣分偏重')) {
+      _commentController.text = defaultComment;
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       padding: const EdgeInsets.all(14),
@@ -371,7 +444,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
             ],
           ),
           const SizedBox(height: 8),
-      Text(
+          Text(
             '最终成绩以教师复核为准。所有覆盖操作写入审计日志。',
             style: TextStyle(fontSize: 12, color: AppColors.text2Of(context)),
           ),
@@ -387,7 +460,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 child: TextField(
                   controller: _scoreController,
                   textAlign: TextAlign.center,
-         style: TextStyle(
+                  style: TextStyle(
                     fontFamily: 'JetBrainsMono',
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -407,7 +480,7 @@ class _ReviewScreenState extends State<ReviewScreen> {
                 ),
               ),
               const SizedBox(width: 4),
-        MonoText('/ 100', fontSize: 11, color: AppColors.text3Of(context)),
+             MonoText('/ 100', fontSize: 11, color: AppColors.text3Of(context)),
               const Spacer(),
               AppPrimaryButton(label: '提交复核', small: true, onPressed: _submitReview),
             ],
@@ -417,17 +490,17 @@ class _ReviewScreenState extends State<ReviewScreen> {
           const SizedBox(height: 4),
           TextField(
             maxLines: 3,
-      style: TextStyle(fontSize: 12.5, height: 1.55),
+            style: const TextStyle(fontSize: 12.5, height: 1.55),
             decoration: InputDecoration(
               filled: true,
               fillColor: AppColors.bgOf(context),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: BorderSide(color: AppColors.ruleOf(context)),
+                borderSide: BorderSide(color: AppColors.ruleOf(context)),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: BorderSide(color: AppColors.ruleOf(context)),
+                borderSide: BorderSide(color: AppColors.ruleOf(context)),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(AppRadius.sm),
