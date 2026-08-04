@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:dio/dio.dart';
 
+import '../../../core/config/api_config.dart';
 import '../../../data/models/models.dart';
 
 /// 后端认证服务基础配置
@@ -11,14 +12,14 @@ import '../../../data/models/models.dart';
 class AuthApiConfig {
   const AuthApiConfig._();
 
-  /// 后端 base URL（截图中的 62.234.12.214:8883）
-  static const String baseUrl = 'http://62.234.12.214:8883';
+  /// 后端 base URL（来自 ApiConfig，可通过 `--dart-define=API_BASE_URL=...` 注入）
+  static const String baseUrl = ApiConfig.apiBaseUrl;
 
   /// 发送短信验证码
-  static const String sendSms = '/users/send-sms';
+  static const String sendSms = '/api/v1/auth/sms-code';
 
   /// 短信验证码登录（老用户直接登录 / 新用户自动注册）
-  static const String smsLogin = '/users/sms-login';
+  static const String smsLogin = '/api/v1/auth/login/sms';
 
   /// 网络超时时间
   static const Duration timeout = Duration(seconds: 8);
@@ -61,11 +62,46 @@ class SmsLoginFail extends SmsLoginResult {
   final String message;
 }
 
+/// 登录结果
+sealed class PasswordLoginResult {
+  const PasswordLoginResult();
+}
+
+class PasswordLoginOk extends PasswordLoginResult {
+  const PasswordLoginOk(this.user, {this.token});
+  final UserModel user;
+  final String? token;
+}
+
+class PasswordLoginFail extends PasswordLoginResult {
+  const PasswordLoginFail(this.message);
+  final String message;
+}
+
+/// 注册结果
+sealed class RegisterResult {
+  const RegisterResult();
+}
+
+class RegisterOk extends RegisterResult {
+  const RegisterOk(this.user);
+  final UserModel user;
+}
+
+class RegisterFail extends RegisterResult {
+  const RegisterFail(this.message);
+  final String message;
+}
+
 /// 后端认证 API
 ///
-/// 只暴露两个方法，与截图完全对应：
-/// - [sendSms]  → POST /users/send-sms
-/// - [loginBySms] → POST /users/sms-login
+/// 暴露方法：
+/// - [sendSms]      → POST /users/send-sms
+/// - [loginBySms]   → POST /users/sms-login
+/// - [loginByPassword] → POST /users/password-login
+/// - [register]     → POST /users/register
+///
+/// ⚠️ 密码登录和注册的接口路径/请求体格式为预设值，等你提供接口文档后调整。
 class AuthApi {
   AuthApi({Dio? dio})
       : _dio = dio ??
@@ -164,6 +200,101 @@ class AuthApi {
     }
   }
 
+  /// 账号密码登录
+  ///
+  /// ⚠️ 接口路径/请求体为预设值，等你提供接口文档后调整。
+  Future<PasswordLoginResult> loginByPassword({
+    required String account,
+    required String password,
+    UserRole? role,
+  }) async {
+    final body = <String, dynamic>{
+      'username': account,
+      'password': password,
+    };
+    if (role != null) body['role'] = role.name;
+
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/login/password',
+        data: body,
+      );
+      final data = resp.data;
+      if (data == null) {
+        return const PasswordLoginFail('登录失败：服务端未返回数据');
+      }
+      final code = data['code'] ?? data['error_code'] ?? 0;
+      final msg = data['msg']?.toString() ??
+          data['message']?.toString() ??
+          data['reason']?.toString() ??
+          '登录失败';
+      if (!_isSuccessCode(code)) {
+        return PasswordLoginFail(msg);
+      }
+      final payload = data['data'] ?? data;
+      final parsed = _parseLoginPayload(payload, phone: account, role: role);
+      if (parsed == null) {
+        return const PasswordLoginFail('登录失败：无法解析用户信息');
+      }
+      return PasswordLoginOk(parsed.user, token: parsed.token);
+    } on DioException catch (e) {
+      return PasswordLoginFail(_mapDioError(e, '登录'));
+    } catch (e) {
+      log('loginByPassword 异常: $e', name: 'auth_api');
+      return PasswordLoginFail('登录失败：$e');
+    }
+  }
+
+  /// 注册
+  ///
+  /// ⚠️ 接口路径/请求体为预设值，等你提供接口文档后调整。
+  Future<RegisterResult> register({
+    required String phone,
+    required String code,
+    required String username,
+    required String password,
+    UserRole? role,
+  }) async {
+    final body = <String, dynamic>{
+      'phone': phone,
+      'code': code,
+      'username': username,
+      'password': password,
+      'realName': username,
+      'role': role?.value ?? 0,
+    };
+
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/register',
+        data: body,
+      );
+      final data = resp.data;
+      if (data == null) {
+        return const RegisterFail('注册失败：服务端未返回数据');
+      }
+      final code = data['code'] ?? data['error_code'] ?? 0;
+      final msg = data['msg']?.toString() ??
+          data['message']?.toString() ??
+          data['reason']?.toString() ??
+          '注册失败';
+      if (!_isSuccessCode(code)) {
+        return RegisterFail(msg);
+      }
+      final payload = data['data'] ?? data;
+      final parsed = _parseLoginPayload(payload, phone: phone, role: role);
+      if (parsed == null) {
+        return const RegisterFail('注册失败：无法解析用户信息');
+      }
+      return RegisterOk(parsed.user);
+    } on DioException catch (e) {
+      return RegisterFail(_mapDioError(e, '注册'));
+    } catch (e) {
+      log('register 异常: $e', name: 'auth_api');
+      return RegisterFail('注册失败：$e');
+    }
+  }
+
   bool _isSuccessCode(dynamic code) {
     if (code == null) return true; // 无 code 字段时默认成功
     if (code is int) return code == 0 || code == 200;
@@ -187,11 +318,12 @@ class AuthApi {
 
 /// 解析后端登录响应，兼容多种常见 JSON 结构
 ///
-/// 1. { token, user: { ... } }
-/// 2. { accessToken, user: { ... } }
-/// 3. { data: { token, user } }
-/// 4. 直接把 user 对象放在 payload 根上
-/// 5. JWT 字符串（纯 token）
+/// 1. { token, refreshToken, userId, username, realName, role, ... }  ← 后端 LoginResponse 平铺格式
+/// 2. { token, user: { ... } }
+/// 3. { accessToken, user: { ... } }
+/// 4. { data: { token, user } }
+/// 5. 直接把 user 对象放在 payload 根上
+/// 6. JWT 字符串（纯 token）
 ({UserModel user, String? token})? _parseLoginPayload(
   dynamic payload, {
   required String phone,
@@ -216,12 +348,36 @@ class AuthApi {
   token ??= payload['accessToken']?.toString();
   token ??= payload['access_token']?.toString();
 
-  final userJson = payload['user'] ?? payload['data']?['user'];
-  if (userJson is Map<String, dynamic>) {
-    try {
-      user = UserModel.fromJson(userJson);
-    } catch (e) {
-      log('解析后端 user 失败: $e', name: 'auth_api');
+  // 优先尝试后端 LoginResponse 平铺格式：{ userId, username, realName, role, ... }
+  if (payload.containsKey('userId') || payload.containsKey('user_id')) {
+    final id = (payload['userId'] ?? payload['user_id'] ?? 0) as int;
+    final username = (payload['username'] ?? phone) as String;
+    final realName = (payload['realName'] ?? payload['real_name'] ?? username) as String;
+    final roleVal = payload['role'] as int?;
+    final auditStatus = (payload['auditStatus'] ?? payload['audit_status'] ?? 0) as int;
+    user = UserModel(
+      id: id,
+      username: username,
+      realName: realName,
+      role: roleVal != null
+          ? UserRole.values.firstWhere(
+              (e) => e.value == roleVal,
+              orElse: () => role ?? UserRole.student,
+            )
+          : role ?? UserRole.student,
+      auditStatus: auditStatus,
+    );
+  }
+
+  // 尝试嵌套 user 对象格式：{ user: { ... } }
+  if (user == null) {
+    final userJson = payload['user'] ?? payload['data']?['user'];
+    if (userJson is Map<String, dynamic>) {
+      try {
+        user = UserModel.fromJson(userJson);
+      } catch (e) {
+        log('解析后端 user 失败: $e', name: 'auth_api');
+      }
     }
   }
 

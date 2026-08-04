@@ -1,5 +1,6 @@
 package com.zhiyu.service.impl;
 
+import com.zhiyu.client.JuheSmsClient;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.service.SmsCodeService;
@@ -31,6 +32,7 @@ public class RedisSmsCodeService implements SmsCodeService {
     private final PasswordEncoder passwordEncoder;
     private final Environment environment;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final JuheSmsClient juheSmsClient;
 
     @Value("${zhiyu.sms.provider:}")
     private String provider;
@@ -38,14 +40,8 @@ public class RedisSmsCodeService implements SmsCodeService {
     @Override
     public SmsCodeResponse sendCode(String phone) {
         boolean development = environment.acceptsProfiles(Profiles.of("dev", "test"));
-        if (!development && (provider == null || provider.isBlank())) {
-            throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED);
-        }
-        if (!development) {
-            throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED,
-                    "短信厂商发送器尚未配置，请补充 SMS_PROVIDER 及厂商密钥");
-        }
 
+        // 限流检查
         String cooldownKey = key("cooldown", phone);
         if (Boolean.TRUE.equals(redisTemplate.hasKey(cooldownKey))) {
             throw new BizException(ResultCode.SMS_CODE_TOO_FREQUENT);
@@ -62,10 +58,30 @@ public class RedisSmsCodeService implements SmsCodeService {
         }
 
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
+
+        // 生产环境：通过短信厂商发送
+        if (!development) {
+            if ("juhe".equalsIgnoreCase(provider)) {
+                JuheSmsClient.SendResult result = juheSmsClient.send(phone, code);
+                if (!result.success()) {
+                    throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED,
+                            "短信发送失败：" + result.errorMessage());
+                }
+                log.info("短信已发送 phone={} tplId={}", maskPhone(phone),
+                        "juhe-" + provider);
+            } else {
+                throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED,
+                        "短信厂商发送器尚未配置: provider=" + provider
+                                + "，支持的值: juhe（聚合数据）");
+            }
+        } else {
+            // 开发环境：仅打印日志
+            log.info("开发环境短信验证码 phone={} code={}", maskPhone(phone), code);
+        }
+
         redisTemplate.opsForValue().set(key("code", phone), passwordEncoder.encode(code), CODE_TTL);
         redisTemplate.opsForValue().set(key("attempts", phone), "0", CODE_TTL);
         redisTemplate.opsForValue().set(cooldownKey, "1", COOLDOWN);
-        log.info("开发环境短信验证码 phone={} code={}", maskPhone(phone), code);
         return new SmsCodeResponse(true, Math.toIntExact(CODE_TTL.toSeconds()), code);
     }
 

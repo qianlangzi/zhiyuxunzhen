@@ -178,7 +178,24 @@ public class DailyCaseServiceImpl implements DailyCaseService {
 
     private DailyCaseResultVO evaluateWithAi(Long studentId, DailyCaseSchedule schedule, String answer) {
         try {
-            String raw = aiPlatformClient.evaluateDailyCase(studentId, schedule.getCaseId(), answer);
+            // 获取病例配置，构建完整 AI 判题上下文
+            SpCaseConfig caseConfig = schedule.getCaseId() == null ? null : caseMapper.selectById(schedule.getCaseId());
+            String caseSummary = null;
+            String keyFindings = null;
+            if (caseConfig != null) {
+                StringBuilder summaryBuilder = new StringBuilder();
+                if (caseConfig.getPatientProfile() != null) {
+                    summaryBuilder.append("患者画像：").append(caseConfig.getPatientProfile()).append("\n");
+                }
+                if (caseConfig.getHiddenDisease() != null) {
+                    summaryBuilder.append("潜在疾病：").append(caseConfig.getHiddenDisease());
+                }
+                caseSummary = summaryBuilder.length() > 0 ? summaryBuilder.toString() : null;
+                keyFindings = caseConfig.getPresetExams();
+            }
+            String standardAnswer = schedule.getStandardAnswer();
+            String raw = aiPlatformClient.evaluateDailyCase(studentId, schedule.getCaseId(), answer,
+                    caseSummary, keyFindings, standardAnswer);
             JsonNode data = objectMapper.readTree(raw).path("data");
             if (!data.has("correct")) {
                 throw new IllegalStateException("AI 返回缺少 correct 字段");

@@ -37,6 +37,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 /**
  * 教师作业服务实现（PRD 4.3）
  */
@@ -52,6 +56,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final TeachingClassMapper classMapper;
     private final TeacherClassAuthorizationMapper authorizationMapper;
     private final AssignmentTargetClassMapper targetClassMapper;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -101,12 +106,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         .eq(SysUser::getStatus, 0)
                         .in(SysUser::getClassId, req.getClassIds()));
         if (!students.isEmpty()) {
+            String antiCheatVars = a.getAntiCheatVariables();
+            boolean hasAntiCheat = antiCheatVars != null && !antiCheatVars.isEmpty() && !"{}".equals(antiCheatVars);
             List<AssignmentInstance> instances = students.stream().map(s -> {
                 AssignmentInstance inst = new AssignmentInstance();
                 inst.setAssignmentId(a.getId());
                 inst.setStudentId(s.getId());
                 inst.setCaseId(req.getCaseId());
-                inst.setVariableSnapshotJson("{}");
+                inst.setVariableSnapshotJson(hasAntiCheat ? generateVariableSnapshot(antiCheatVars, s.getId()) : "{}");
                 inst.setStatus(0);
                 return inst;
             }).collect(Collectors.toList());
@@ -114,6 +121,24 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
         log.info("教师{}创建作业{}，生成{}个学生实例", teacherId, a.getId(), students.size());
         return a.getId();
+    }
+
+    /**
+     * 根据教师配置的 antiCheatVariables 模板，生成该学生唯一的变量快照。
+     * 在模板 JSON 中添加 _studentSeed 字段，使每个学生拥有略微不同的变量副本。
+     */
+    private String generateVariableSnapshot(String antiCheatVars, Long studentId) {
+        try {
+            JsonNode root = objectMapper.readTree(antiCheatVars);
+            if (root.isObject()) {
+                ObjectNode copy = (ObjectNode) root.deepCopy();
+                copy.put("_studentSeed", studentId % 10000);
+                return objectMapper.writeValueAsString(copy);
+            }
+        } catch (Exception e) {
+            log.warn("解析 antiCheatVariables 失败，使用空快照: {}", e.getMessage());
+        }
+        return "{}";
     }
 
     @Override

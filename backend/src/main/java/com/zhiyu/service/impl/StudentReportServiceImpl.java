@@ -141,14 +141,16 @@ public class StudentReportServiceImpl implements StudentReportService {
             BigDecimal cost = s.getTotalExamCost() == null ? BigDecimal.ZERO : s.getTotalExamCost();
             costSum = costSum.add(cost);
 
-            // 仅对已完成的会话调用 AI 生成 PDF（PRD 4.11.3 / 9.3）
+            // 仅对已完成的会话调用 AI 生成报告（PRD 4.11.3 / 9.3）
             // AI 不可用时降级返回 null，不阻断报告导出
+            // PDF 生成是未来增强功能，当前仅保留扩展点，pdfUrl 暂为 null
             String pdfUrl = null;
             if (s.getStatus() != null && s.getStatus() == 1) {
                 try {
-                    pdfUrl = aiPlatformClient.generateReviewPdf(s.getId());
+                    Map<String, Object> reportData = aiPlatformClient.generateReviewPdf(s.getId());
+                    // AI 返回的 JSON 报告数据暂不用于前端展示，仅保留扩展点
                 } catch (Exception e) {
-                    log.warn("AI生成PDF失败，降级返回JSON: sessionId={} error={}", s.getId(), e.getMessage());
+                    log.warn("AI生成报告失败，降级处理: sessionId={} error={}", s.getId(), e.getMessage());
                 }
             }
 

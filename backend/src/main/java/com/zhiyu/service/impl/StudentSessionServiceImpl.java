@@ -13,6 +13,7 @@ import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.ChatMessageLogMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.DailyCaseScheduleMapper;
+import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.service.StudentSessionService;
 import com.zhiyu.service.dto.SessionStartDTO;
 import com.zhiyu.vo.SessionStartVO;
@@ -45,6 +46,7 @@ public class StudentSessionServiceImpl implements StudentSessionService {
     private final AssignmentInstanceMapper instanceMapper;
     private final ChatMessageLogMapper messageMapper;
     private final DailyCaseScheduleMapper dailyCaseScheduleMapper;
+    private final AiPlatformClient aiPlatformClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -161,6 +163,15 @@ public class StudentSessionServiceImpl implements StudentSessionService {
             session.setStatus(1);
             session.setEndedAt(LocalDateTime.now());
             sessionMapper.updateById(session);
+
+            // 异步调用 AI 中台评估与归档，失败不影响会话状态变更
+            try {
+                String resp = aiPlatformClient.evaluateAndArchiveSession(sessionId, studentId);
+                log.info("AI评估与归档成功: sessionId={} studentId={} resp={}", sessionId, studentId, resp);
+            } catch (Exception e) {
+                log.warn("AI评估与归档调用失败，不影响会话关闭: sessionId={} studentId={} error={}",
+                        sessionId, studentId, e.getMessage());
+            }
         }
     }
 }

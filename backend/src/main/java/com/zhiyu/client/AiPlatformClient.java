@@ -1,5 +1,7 @@
 package com.zhiyu.client;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.exception.BizException;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import java.util.Map;
 public class AiPlatformClient {
 
     private final RestTemplate restTemplate;
+    private final ObjectMapper objectMapper;
 
     @Value("${zhiyu.ai.base-url}")
     private String baseUrl;
@@ -70,22 +73,51 @@ public class AiPlatformClient {
      * 4. 每日一例评估（PRD 9.3）
      * POST {ai-base-url}/daily_case/evaluate
      */
-    public String evaluateDailyCase(Long studentId, Long caseId, String answer) {
+    public String evaluateDailyCase(Long studentId, Long caseId, String answer,
+                                    String caseSummary, String keyFindings, String standardAnswer) {
         Map<String, Object> body = new HashMap<>();
         body.put("studentId", studentId);
         body.put("caseId", caseId);
         body.put("answer", answer);
+        if (caseSummary != null) body.put("caseSummary", caseSummary);
+        if (keyFindings != null) body.put("keyFindings", keyFindings);
+        if (standardAnswer != null) body.put("standardAnswer", standardAnswer);
         return post("/daily_case/evaluate", body);
+    }
+
+    /**
+     * 6. 会话评估与归档（PRD 9.3）
+     * POST {ai-base-url}/session/evaluate_and_archive
+     */
+    public String evaluateAndArchiveSession(Long sessionId, Long studentId) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("sessionId", sessionId);
+        body.put("studentId", studentId);
+        return post("/session/evaluate_and_archive", body);
     }
 
     /**
      * 5. 生成批阅报告 PDF（PRD 9.3）
      * POST {ai-base-url}/report/generate_review_pdf
+     * 解析 JSON 响应，提取 data 字段返回；AI 不可用时返回 null
      */
-    public String generateReviewPdf(Long sessionId) {
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> generateReviewPdf(Long sessionId) {
         Map<String, Object> body = new HashMap<>();
         body.put("sessionId", sessionId);
-        return post("/report/generate_review_pdf", body);
+        try {
+            String json = post("/report/generate_review_pdf", body);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode data = root.get("data");
+            if (data != null && data.isObject()) {
+                return objectMapper.convertValue(data, Map.class);
+            }
+            log.warn("AI生成报告响应中无data字段: sessionId={} resp={}", sessionId, json);
+            return null;
+        } catch (Exception e) {
+            log.warn("AI生成报告失败，返回null: sessionId={} error={}", sessionId, e.getMessage());
+            return null;
+        }
     }
 
     /**

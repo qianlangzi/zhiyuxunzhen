@@ -41,6 +41,9 @@ zhiyu:
     internal-token: ${AI_INTERNAL_TOKEN:dev-internal-token}
   sms:
     provider: ${SMS_PROVIDER:}
+    juhe:
+      key: ${SMS_JUHE_KEY:}
+      tpl-id: ${SMS_JUHE_TPL_ID:0b7c3395e652840bc2ade53e1214dec1}
   upload:
     max-file-size: 5MB
     allowed-types: jpg,jpeg,png,pdf

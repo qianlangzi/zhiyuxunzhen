@@ -79,7 +79,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     setState(() => _sendingCode = true);
-    final result = _auth.requestCode(phone);
+    final result = await _auth.requestCode(phone);
     if (!mounted) return;
     setState(() => _sendingCode = false);
     if (result.error != null) {
@@ -88,7 +88,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     setState(() => _countdown = 60);
     _startCountdown();
-    AppFeedback.info(context, '演示验证码：${result.code}（真实环境将发送至手机）');
+    if (result.code.isNotEmpty) {
+      AppFeedback.info(context, '演示验证码：${result.code}（真实环境将发送至手机）');
+    }
   }
 
   Future<void> _submit() async {

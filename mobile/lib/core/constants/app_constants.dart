@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../config/api_config.dart';
+
 /// 应用全局常量
 class AppConstants {
   AppConstants._();
@@ -14,11 +16,11 @@ class AppConstants {
   static const String medicalDisclaimer =
       '系统提供内容仅供医学思维训练，不具备真实临床诊疗效力。';
 
-  /// API 基础地址
-  static const String apiBaseUrl = 'https://api.zhiyu.edu.cn/api/v1';
+  /// API 基础地址（来自 ApiConfig，可通过 `--dart-define=API_BASE_URL=...` 注入）
+  static const String apiBaseUrl = ApiConfig.apiBaseUrl;
 
-  /// AI 中台地址
-  static const String aiBaseUrl = 'https://ai.zhiyu.edu.cn/api/v1/ai';
+  /// AI 中台地址（来自 ApiConfig，可通过 `--dart-define=AI_BASE_URL=...` 注入）
+  static const String aiBaseUrl = ApiConfig.aiBaseUrl;
 
   /// 角色
   static const int roleStudent = 0;
