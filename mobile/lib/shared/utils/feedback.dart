@@ -8,15 +8,18 @@ class AppFeedback {
   AppFeedback._();
 
   static void success(BuildContext context, String message) {
-    _snack(context, message, AppColors.moss, Icons.check_circle_outline);
+    _snack(context, message, AppColors.primaryOf(context), Icons.check_circle_outline,
+        const Duration(seconds: 2));
   }
 
   static void error(BuildContext context, String message) {
-    _snack(context, message, AppColors.vermilion, Icons.error_outline);
+    _snack(context, message, AppColors.vermilion, Icons.error_outline,
+        const Duration(seconds: 3));
   }
 
   static void info(BuildContext context, String message) {
-    _snack(context, message, AppColors.amber, Icons.info_outline);
+    _snack(context, message, AppColors.amber, Icons.info_outline,
+        const Duration(milliseconds: 2500));
   }
 
   static void _snack(
@@ -24,23 +27,25 @@ class AppFeedback {
     String message,
     Color color,
     IconData icon,
+    Duration duration,
   ) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
+    final onColor = AppColors.onPrimaryOf(context);
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(icon, size: 18, color: AppColors.paper),
+              Icon(icon, size: 18, color: onColor),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   message,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: AppColors.paper,
+                    color: onColor,
                     height: 1.4,
                   ),
                 ),
@@ -49,8 +54,8 @@ class AppFeedback {
           ),
           backgroundColor: color,
           behavior: SnackBarBehavior.floating,
-     duration: Duration(seconds: 2),
-     margin: EdgeInsets.fromLTRB(16, 0, 16, 16),
+          duration: duration,
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
@@ -60,26 +65,26 @@ class AppFeedback {
 
   /// 展示加载遮罩，返回关闭函数。
   static VoidCallback showLoading(BuildContext context, {String label = '处理中…'}) {
-    final dialog = showDialog<void>(
+    showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => PopScope(
         canPop: false,
         child: Center(
           child: Container(
-      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             decoration: BoxDecoration(
-              color: AppColors.card,
+              color: AppColors.surfaceOf(context),
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-         CircularProgressIndicator(
+                CircularProgressIndicator(
                   strokeWidth: 2.5,
                   color: AppColors.primaryOf(context),
                 ),
-         SizedBox(height: 14),
+                const SizedBox(height: 14),
                 Text(
                   label,
                   style: TextStyle(fontSize: 13, color: AppColors.text2Of(context)),
@@ -91,7 +96,8 @@ class AppFeedback {
       ),
     );
     return () {
-      dialog.then((_) => Navigator.of(context, rootNavigator: true).pop());
+      final navigator = Navigator.of(context, rootNavigator: true);
+      if (navigator.canPop()) navigator.pop();
     };
   }
 

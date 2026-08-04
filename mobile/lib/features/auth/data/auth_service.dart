@@ -10,7 +10,7 @@ import 'registered_user_store.dart';
 ///
 /// 支持两种模式（通过 `ApiConfig.useMockAuth` 控制）：
 ///
-/// **Mock 模式**（默认）：
+/// **Mock 模式**：
 /// 本地生成随机验证码、本地存储用户，无需后端即可运行。
 /// 验证码会以「演示验证码：xxxxxx」的形式在 UI 提示。
 ///

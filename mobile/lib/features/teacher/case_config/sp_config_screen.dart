@@ -171,19 +171,19 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.mossTint,
+        color: AppColors.mossTintOf(context),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.info_outline, size: 14, color: AppColors.moss),
+          Icon(Icons.info_outline, size: 14, color: AppColors.primaryOf(context)),
           const SizedBox(width: 8),
           Expanded(
             child: MonoText(
               'SP = 标准化病人（Standardized Patient）：模拟真实患者，供学生问诊与鉴别诊断训练。',
               fontSize: 11,
-              color: AppColors.moss,
+              color: AppColors.primaryOf(context),
             ),
           ),
         ],
@@ -196,7 +196,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.amberSoft,
+        color: AppColors.amberSoftOf(context),
         border: Border.all(color: AppColors.amber, style: BorderStyle.solid),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
@@ -226,7 +226,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-              MonoText(no, fontSize: 11, color: AppColors.moss, letterSpacing: 0.08),
+              MonoText(no, fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.08),
               const SizedBox(width: 8),
               SerifText(title, fontSize: 15),
               const Spacer(),
@@ -300,7 +300,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.vermilionSoft,
+            color: AppColors.vermilionSoftOf(context),
             border: Border.all(color: AppColors.vermilion, style: BorderStyle.solid),
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
@@ -354,7 +354,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
-          border: Border.all(color: AppColors.ruleSoft),
+          border: Border.all(color: AppColors.ruleSoftOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Row(
@@ -388,7 +388,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(AppRadius.sm),
-      borderSide: const BorderSide(color: AppColors.moss),
+      borderSide: BorderSide(color: AppColors.primaryOf(context)),
     ),
   );
 
@@ -433,15 +433,15 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
               margin: EdgeInsets.only(right: i < 2 ? 6 : 0),
        padding: EdgeInsets.symmetric(vertical: 9),
               decoration: BoxDecoration(
-                color: active ? AppColors.moss : AppColors.surfaceOf(context),
-                border: Border.all(color: active ? AppColors.moss : AppColors.ruleOf(context)),
+                color: active ? AppColors.primaryOf(context) : AppColors.surfaceOf(context),
+                border: Border.all(color: active ? AppColors.primaryOf(context) : AppColors.ruleOf(context)),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
               child: Center(
                 child: MonoText(
                   labels[i],
                   fontSize: 12,
-                  color: active ? AppColors.paper : AppColors.text2Of(context),
+                  color: active ? AppColors.onPrimaryOf(context) : AppColors.text2Of(context),
                 ),
               ),
             ),
@@ -467,16 +467,16 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
           ...items.map((t) => Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             decoration: BoxDecoration(
-              color: AppColors.mossTint,
-              border: Border.all(color: AppColors.mossSoft),
+              color: AppColors.mossTintOf(context),
+              border: Border.all(color: AppColors.mossSoftOf(context)),
               borderRadius: BorderRadius.circular(AppRadius.xs),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                MonoText(t, fontSize: 11, color: AppColors.moss),
+                MonoText(t, fontSize: 11, color: AppColors.primaryOf(context)),
                 const SizedBox(width: 4),
-                const Icon(Icons.close, size: 10, color: AppColors.moss),
+                Icon(Icons.close, size: 10, color: AppColors.primaryOf(context)),
               ],
             ),
           )),

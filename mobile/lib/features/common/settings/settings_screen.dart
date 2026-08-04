@@ -60,7 +60,7 @@ const   SettingsScreen({super.key});
                       ),
                       _SwitchRow(
                         icon: Icons.event_repeat_outlined,
-                        color: AppColors.moss,
+                        color: AppColors.primaryOf(context),
                         label: '训练提醒',
                         subtitle: '每日一例与复习计划提醒',
                         value: settings.trainingReminder,
@@ -85,7 +85,7 @@ const   SettingsScreen({super.key});
                     children: [
                       _SwitchRow(
                         icon: Icons.cloud_download_outlined,
-                        color: AppColors.moss,
+                        color: AppColors.primaryOf(context),
                         label: '离线缓存病例',
                         subtitle: '缓存病例数据，弱网环境可用',
                         value: settings.offlineCache,
@@ -117,7 +117,7 @@ const   SettingsScreen({super.key});
                     children: [
                       _SwitchRow(
                         icon: Icons.fingerprint,
-                        color: AppColors.moss,
+                        color: AppColors.primaryOf(context),
                         label: '生物识别登录',
                         subtitle: '使用指纹 / Face ID 快速登录',
                         value: settings.biometricLogin,
@@ -274,24 +274,17 @@ class _AccountCard extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: AppColors.mossTint,
+                  color: AppColors.mossTintOf(context),
                   border: Border.all(color: AppColors.moss3),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: const TextStyle(
-                    fontFamily: 'NotoSerifSC',
-                    fontFamilyFallback: [
-                      'Songti SC',
-                      'STSong',
-                      'Noto Serif CJK SC',
-                      'Source Han Serif SC',
-                    ],
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.moss,
+                    color: AppColors.primaryOf(context),
                   ),
                 ),
               ),
@@ -303,13 +296,6 @@ class _AccountCard extends StatelessWidget {
                     Text(
                       name,
            style: TextStyle(
-                        fontFamily: 'NotoSerifSC',
-                        fontFamilyFallback: [
-                          'Songti SC',
-                          'STSong',
-                          'Noto Serif CJK SC',
-                          'Source Han Serif SC',
-                        ],
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textOf(context),
@@ -363,11 +349,11 @@ class _Section extends StatelessWidget {
                 for (var i = 0; i < children.length; i++) ...[
                   children[i],
                   if (i != children.length - 1)
-                    const Divider(
+                    Divider(
                       height: 1,
                       thickness: 1,
                       indent: 52,
-                      color: AppColors.ruleSoft,
+                      color: AppColors.ruleSoftOf(context),
                     ),
                 ],
               ],
@@ -419,8 +405,8 @@ class _SwitchRow extends StatelessWidget {
       trailing: Switch(
         value: value,
         onChanged: onChanged,
-        activeTrackColor: AppColors.moss,
-        activeThumbColor: AppColors.paper,
+        activeTrackColor: AppColors.primaryOf(context),
+        activeThumbColor: AppColors.onPrimaryOf(context),
       ),
     );
   }
@@ -482,8 +468,8 @@ class _LogoutButton extends StatelessWidget {
         onPressed: onTap,
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.vermilion,
-          backgroundColor: AppColors.vermilionSoft.withValues(alpha: 0.35),
-          side: BorderSide(color: AppColors.vermilionSoft),
+          backgroundColor: AppColors.vermilionSoftOf(context).withValues(alpha: 0.35),
+          side: BorderSide(color: AppColors.vermilionSoftOf(context)),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),

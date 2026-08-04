@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/app_widgets.dart';
+import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 
 /// 关于「智愈寻真」页面（学生 / 教师共用）
@@ -67,24 +68,17 @@ class _LogoHeader extends StatelessWidget {
           width: 84,
           height: 84,
           decoration: BoxDecoration(
-            color: AppColors.mossTint,
+            color: AppColors.mossTintOf(context),
             border: Border.all(color: AppColors.moss3, width: 1.5),
             shape: BoxShape.circle,
           ),
           alignment: Alignment.center,
-          child: const Text(
+          child: Text(
             '智',
             style: TextStyle(
-              fontFamily: 'NotoSerifSC',
-              fontFamilyFallback: [
-                'Songti SC',
-                'STSong',
-                'Noto Serif CJK SC',
-                'Source Han Serif SC'
-              ],
               fontSize: 40,
               fontWeight: FontWeight.w600,
-              color: AppColors.moss,
+              color: AppColors.primaryOf(context),
             ),
           ),
         ),
@@ -92,13 +86,6 @@ class _LogoHeader extends StatelessWidget {
      Text(
           AppConstants.appName,
           style: TextStyle(
-            fontFamily: 'NotoSerifSC',
-            fontFamilyFallback: [
-              'Songti SC',
-              'STSong',
-              'Noto Serif CJK SC',
-              'Source Han Serif SC'
-            ],
             fontSize: 24,
             fontWeight: FontWeight.w600,
             color: AppColors.textOf(context),
@@ -116,7 +103,7 @@ class _LogoHeader extends StatelessWidget {
         Container(
      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.paper2,
+            color: AppColors.paper2Of(context),
             border: Border.all(color: AppColors.ruleOf(context)),
             borderRadius: BorderRadius.circular(AppRadius.xs),
           ),
@@ -184,8 +171,8 @@ class _FeatureRow extends StatelessWidget {
             margin: const EdgeInsets.only(top: 7),
             width: 5,
             height: 5,
-            decoration: const BoxDecoration(
-              color: AppColors.moss,
+            decoration: BoxDecoration(
+              color: AppColors.primaryOf(context),
               shape: BoxShape.circle,
             ),
           ),
@@ -271,8 +258,8 @@ class _LegalSection extends StatelessWidget {
                 label: '用户协议',
                 onTap: () => onOpenPolicy('agreement'),
               ),
-              const Divider(
-                color: AppColors.ruleSoft,
+              Divider(
+                color: AppColors.ruleSoftOf(context),
                 height: 1,
                 thickness: 1,
                 indent: 52,
@@ -348,8 +335,8 @@ const   _FeedbackFooter();
         AppPaper(
           padding: EdgeInsets.zero,
           child: ListTile(
-            leading: const Icon(Icons.feedback_outlined,
-                size: 20, color: AppColors.moss),
+            leading: Icon(Icons.feedback_outlined,
+                size: 20, color: AppColors.primaryOf(context)),
       title: Text(
               '意见反馈',
               style: TextStyle(fontSize: 14, color: AppColors.text2Of(context)),
@@ -364,11 +351,9 @@ const   _FeedbackFooter();
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
             onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('感谢反馈，请联系 support@zhiyu.edu.cn'),
-                  duration: Duration(seconds: 2),
-                ),
+              AppFeedback.info(
+                context,
+                '感谢反馈，请联系 support@zhiyu.edu.cn',
               );
             },
           ),

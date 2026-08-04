@@ -21,7 +21,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
   final _filters = ['全部 48', '诊断错误 12', '漏问病史 9', '检查错误 7', '文书问题 11', '沟通 9'];
   final Set<int> _expanded = {};
 
-  final _mistakes = <_Mistake>[
+  late final _mistakes = <_Mistake>[
     _Mistake(
       id: 1,
       type: '诊断错误',
@@ -55,7 +55,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
     _Mistake(
       id: 4,
       type: '已掌握',
-      typeColor: AppColors.moss,
+      typeColor: AppColors.primaryOf(context),
       date: '07.15 · 消化',
       title: '消化道出血未评估出血严重程度',
       evidence: '曾经错误：仅凭主诉判断出血量\n已掌握：已能正确使用 Rockall / Glasgow-Blatchford 评分',
@@ -161,7 +161,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
               Container(width: 1, height: 40, color: AppColors.ruleOf(context)),
               _statItem('8', '已复习', AppColors.amber),
               Container(width: 1, height: 40, color: AppColors.ruleOf(context)),
-              _statItem('23', '已掌握', AppColors.moss),
+              _statItem('23', '已掌握', AppColors.primaryOf(context)),
             ],
           ),
           const SizedBox(height: 8),
@@ -178,8 +178,6 @@ class _MistakesScreenState extends State<MistakesScreen> {
           Text(
             num,
             style: TextStyle(
-              fontFamily: 'NotoSerifSC',
-              fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
               fontSize: 24,
               fontWeight: FontWeight.w600,
               color: color,
@@ -220,7 +218,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
                   _filters[i],
                   style: TextStyle(
                     fontSize: 12,
-                    color: active ? AppColors.paper : AppColors.text2Of(context),
+                    color: active ? AppColors.onPrimaryOf(context) : AppColors.text2Of(context),
                     fontFamily: 'JetBrainsMono',
                     letterSpacing: 0.02,
                   ),
@@ -262,7 +260,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(width: 3, color: m.resolved ? AppColors.moss : AppColors.vermilion),
+                child: Container(width: 3, color: m.resolved ? AppColors.primaryOf(context) : AppColors.vermilion),
               ),
               Padding(
                 padding: EdgeInsets.all(16),
@@ -277,7 +275,7 @@ class _MistakesScreenState extends State<MistakesScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: m.resolved ? AppColors.mossTint : AppColors.vermilionSoft,
+                        color: m.resolved ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context),
                         borderRadius: BorderRadius.circular(2),
                       ),
                       child: MonoText(

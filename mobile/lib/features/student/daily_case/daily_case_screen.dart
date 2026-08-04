@@ -77,7 +77,7 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
               AppFeedback.success(context, '已完成今日一例 · No.213');
               context.goNamed(RouteNames.studentHome);
             },
-            child: const Text('完成', style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w600)),
+            child: Text('完成', style: TextStyle(color: AppColors.primaryOf(context), fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -147,7 +147,7 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
     return Container(
    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
    decoration: BoxDecoration(
-        color: AppColors.paper,
+        color: AppColors.bgOf(context),
         border: Border(bottom: BorderSide(color: AppColors.ruleOf(context))),
       ),
       child: Row(
@@ -161,8 +161,6 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
               child: Text(
                 '每日一例 · No.213',
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: AppColors.textOf(context),
@@ -180,22 +178,22 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
     return Container(
    padding: EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
-        color: AppColors.moss,
+        color: AppColors.primaryOf(context),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const EyebrowText('CASE BRIEF · 心血管', color: Color(0xFFB8C9B8)),
+          EyebrowText('CASE BRIEF · 心血管', color: AppColors.onPrimarySoftOf(context)),
           const SizedBox(height: 8),
-          const SerifText('58 岁男性，胸痛 2 小时', fontSize: 18, color: AppColors.paper),
+          SerifText('58 岁男性，胸痛 2 小时', fontSize: 18, color: AppColors.onPrimaryOf(context)),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             '建筑工人，搬运水泥时突发胸骨后压榨样疼痛，伴大汗、恶心，疼痛放射至左肩。既往高血压 8 年。BP 90/60，HR 102。',
             style: TextStyle(
               fontSize: 13,
               height: 1.7,
-              color: Color(0xFFD8E0D3),
+              color: AppColors.onPrimaryLightOf(context),
             ),
           ),
         ],
@@ -244,7 +242,7 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
     int selected, ValueChanged<int> onChanged,
     {int correctIndex = 0, bool isAvoid = false}
   ) {
-    final accentColor = isAvoid ? AppColors.vermilion : AppColors.moss;
+    final accentColor = isAvoid ? AppColors.vermilion : AppColors.primaryOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -252,7 +250,7 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
-            MonoText(no, fontSize: 11, color: AppColors.moss, letterSpacing: 0.08),
+            MonoText(no, fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.08),
             const SizedBox(width: 8),
             SerifText(title, fontSize: 14),
           ],
@@ -261,13 +259,13 @@ class _DailyCaseScreenState extends State<DailyCaseScreen> {
         ...options.asMap().entries.map((e) {
           final isSelected = e.key == selected;
           final bgColor = isSelected
-              ? (isAvoid ? AppColors.vermilionSoft : AppColors.mossTint)
+              ? (isAvoid ? AppColors.vermilionSoftOf(context) : AppColors.mossTintOf(context))
               : AppColors.surfaceOf(context);
           final borderColor = isSelected
-              ? (isAvoid ? AppColors.vermilion : AppColors.moss)
+              ? (isAvoid ? AppColors.vermilion : AppColors.primaryOf(context))
               : AppColors.surfaceEdgeOf(context);
           final textColor = isSelected
-              ? (isAvoid ? AppColors.vermilion : AppColors.moss)
+              ? (isAvoid ? AppColors.vermilion : AppColors.primaryOf(context))
               : AppColors.textOf(context);
           return Padding(
             padding: const EdgeInsets.only(bottom: 6),

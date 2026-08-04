@@ -74,7 +74,7 @@ const   AssignmentScreen({super.key});
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const EyebrowText('ASSIGNMENT · 进行中', color: AppColors.moss),
+          EyebrowText('ASSIGNMENT · 进行中', color: AppColors.primaryOf(context)),
       SizedBox(height: 6),
       SerifText('急性心梗病例问诊 · 大病历', fontSize: 18),
       SizedBox(height: 8),
@@ -97,8 +97,7 @@ const   AssignmentScreen({super.key});
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.amberSoft,
-                  border: Border.all(color: const Color(0xFFE3CFA0)),
+                  color: AppColors.amberSoftOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: const MonoText('3 个变量已配置', fontSize: 11, color: AppColors.amber),
@@ -127,7 +126,7 @@ const   AssignmentScreen({super.key});
       ('8', '已提交', AppColors.indigo),
       ('2', '格式打回', AppColors.vermilion),
       ('12', 'AI 批阅中', AppColors.indigo),
-      ('0', '已完成', AppColors.moss),
+      ('0', '已完成', AppColors.primaryOf(context)),
     ];
     return Container(
    padding: EdgeInsets.all(16),
@@ -142,18 +141,18 @@ const   AssignmentScreen({super.key});
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 6,
-              mainAxisSpacing: 4,
-              crossAxisSpacing: 4,
-              childAspectRatio: 0.7,
+              crossAxisCount: 3,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.3,
             ),
             itemCount: stages.length,
             itemBuilder: (context, i) {
               final (num, label, color) = stages[i];
               return Container(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 decoration: BoxDecoration(
-                  color: AppColors.paper,
+                  color: AppColors.bgOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: Column(
@@ -162,8 +161,6 @@ const   AssignmentScreen({super.key});
                     Text(
                       num,
                       style: TextStyle(
-                        fontFamily: 'NotoSerifSC',
-                        fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: color,
@@ -173,9 +170,8 @@ const   AssignmentScreen({super.key});
                     Text(
                       label,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 11,
                         color: AppColors.text3Of(context),
-                        fontFamily: 'JetBrainsMono',
                         letterSpacing: 0.04,
                       ),
                       textAlign: TextAlign.center,
@@ -196,14 +192,12 @@ const   AssignmentScreen({super.key});
                 children: [
           MonoText('班级完成率', fontSize: 11, color: AppColors.text3Of(context)),
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     '68%',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                       fontSize: 24,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.moss,
+                      color: AppColors.primaryOf(context),
                     ),
                   ),
                 ],
@@ -227,7 +221,7 @@ const   AssignmentScreen({super.key});
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: AppColors.mossTint,
+        color: AppColors.mossTintOf(context),
         borderRadius: const BorderRadius.only(
           topRight: Radius.circular(AppRadius.sm),
           bottomRight: Radius.circular(AppRadius.sm),
@@ -239,14 +233,14 @@ const   AssignmentScreen({super.key});
             left: 0,
             top: 0,
             bottom: 0,
-            child: Container(width: 3, color: AppColors.moss),
+            child: Container(width: 3, color: AppColors.primaryOf(context)),
           ),
           Padding(
             padding: const EdgeInsets.all(14),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MonoText('防作弊机制', fontSize: 11, color: AppColors.moss, letterSpacing: 0.1),
+                MonoText('防作弊机制', fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.1),
                 SizedBox(height: 4),
                 Text(
                   '每名学生获得独立变量快照，AI 批阅以该学生对应快照为标准答案。教师可查看每名学生的变量版本。',

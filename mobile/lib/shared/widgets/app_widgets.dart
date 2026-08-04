@@ -83,6 +83,52 @@ const   AppGhostButton({
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = dashed
+        ? AppColors.ruleOf(context)
+        : AppColors.surfaceEdgeOf(context);
+
+    // dashed 边框用 CustomPainter 绘制，Border.all 不支持虚线
+    if (dashed) {
+      return SizedBox(
+        width: fullWidth ? double.infinity : null,
+        height: small ? 32 : 40,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onPressed,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            child: CustomPaint(
+              foregroundPainter: _DashedBorderPainter(
+                color: borderColor,
+                radius: AppRadius.sm,
+              ),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: small ? 12 : 16,
+                  vertical: small ? 6 : 10,
+                ),
+                child: Row(
+                  mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (icon != null) ...[icon!, SizedBox(width: 6)],
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: small ? 12 : 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.text2Of(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return SizedBox(
       width: fullWidth ? double.infinity : null,
       height: small ? 32 : 40,
@@ -91,10 +137,7 @@ const   AppGhostButton({
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.text2Of(context),
           backgroundColor: Colors.transparent,
-          side: BorderSide(
-            color: dashed ? AppColors.ruleOf(context) : AppColors.surfaceEdgeOf(context),
-            style: dashed ? BorderStyle.solid : BorderStyle.solid,
-          ),
+          side: BorderSide(color: borderColor),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
@@ -119,6 +162,47 @@ const   AppGhostButton({
       ),
     );
   }
+}
+
+/// 虚线边框绘制器
+class _DashedBorderPainter extends CustomPainter {
+  final Color color;
+  final double radius;
+
+  const _DashedBorderPainter({
+    required this.color,
+    this.radius = 6,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const dashWidth = 4.0;
+    const dashGap = 3.0;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..style = PaintingStyle.stroke;
+
+    final rrect = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0.5, 0.5, size.width - 1, size.height - 1),
+      Radius.circular(radius),
+    );
+
+    final path = Path()..addRRect(rrect);
+    final metrics = path.computeMetrics();
+    for (final metric in metrics) {
+      double distance = 0;
+      while (distance < metric.length) {
+        final end = (distance + dashWidth).clamp(0.0, metric.length);
+        canvas.drawPath(metric.extractPath(distance, end), paint);
+        distance += dashWidth + dashGap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter oldDelegate) =>
+      color != oldDelegate.color;
 }
 
 /// 图标按钮
@@ -256,7 +340,7 @@ class AppChip extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(AppRadius.xs),
         border: type == ChipType.default_
-            ? Border.all(color: AppColors.rule)
+            ? Border.all(color: AppColors.ruleOf(context))
             : null,
       ),
       child: Text(
@@ -276,11 +360,11 @@ class AppChip extends StatelessWidget {
       case ChipType.moss:
         return (AppColors.surfaceOf(context), AppColors.primaryOf(context));
       case ChipType.vermilion:
-        return (AppColors.vermilionSoft, AppColors.vermilion);
+        return (AppColors.vermilionSoftOf(context), AppColors.vermilion);
       case ChipType.amber:
-        return (AppColors.amberSoft, AppColors.amber);
+        return (AppColors.amberSoftOf(context), AppColors.amber);
       case ChipType.indigo:
-        return (AppColors.indigoSoft, AppColors.indigo);
+        return (AppColors.indigoSoftOf(context), AppColors.indigo);
       case ChipType.default_:
         return (AppColors.surfaceOf(context), AppColors.text2Of(context));
     }
@@ -330,15 +414,15 @@ class AppStatusBadge extends StatelessWidget {
       case StatusBadgeType.ok:
         return (AppColors.surfaceOf(context), AppColors.primaryOf(context));
       case StatusBadgeType.miss:
-        return (AppColors.vermilionSoft, AppColors.vermilion);
+        return (AppColors.vermilionSoftOf(context), AppColors.vermilion);
       case StatusBadgeType.warn:
-        return (AppColors.amberSoft, AppColors.amber);
+        return (AppColors.amberSoftOf(context), AppColors.amber);
       case StatusBadgeType.info:
-        return (AppColors.indigoSoft, AppColors.indigo);
+        return (AppColors.indigoSoftOf(context), AppColors.indigo);
       case StatusBadgeType.done:
         return (AppColors.surfaceOf(context), AppColors.primaryOf(context));
       case StatusBadgeType.neutral:
-        return (AppColors.ruleSoft, AppColors.text3Of(context));
+        return (AppColors.ruleSoftOf(context), AppColors.text3Of(context));
     }
   }
 }
@@ -386,8 +470,6 @@ class AppSectionHeader extends StatelessWidget {
             child: Text(
               title,
        style: TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
@@ -536,8 +618,6 @@ const   SerifText(
     return Text(
       data,
       style: TextStyle(
-        fontFamily: 'NotoSerifSC',
-        fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
         fontSize: fontSize,
         fontWeight: weight,
         color: color ?? AppColors.textOf(context),
@@ -574,19 +654,38 @@ const   DottedDivider({super.key, this.color});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(
-        60,
-        (i) => Expanded(
-          child: Container(
-            height: 1,
-            margin: EdgeInsets.only(right: i < 59 ? 2 : 0),
-            color: color ?? AppColors.ruleOf(context),
-          ),
-        ),
-      ),
+    return CustomPaint(
+      size: const Size(double.infinity, 1),
+      painter: _DottedLinePainter(color: color ?? AppColors.ruleOf(context)),
     );
   }
+}
+
+/// 虚线绘制器
+class _DottedLinePainter extends CustomPainter {
+  final Color color;
+
+  const _DottedLinePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+
+    const dashWidth = 2.0;
+    const dashGap = 2.0;
+    double x = 0;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, 0), Offset(x + dashWidth, 0), paint);
+      x += dashWidth + dashGap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DottedLinePainter oldDelegate) =>
+      color != oldDelegate.color;
 }
 
 // ============================================================
@@ -656,8 +755,6 @@ const   AppBackAppBar({
             child: Text(
               title,
        style: TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
@@ -706,12 +803,10 @@ const   AppTitleAppBar({
               const SizedBox(height: 2),
               Text(
                 title,
-                style: const TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
+                  color: AppColors.textOf(context),
                   letterSpacing: -0.01,
                 ),
               ),
@@ -755,7 +850,7 @@ const   AppProgressBar({
       child: SizedBox(
         height: height,
         child: LinearProgressIndicator(
-          value: value,
+          value: value.clamp(0.0, 1.0),
           backgroundColor: backgroundColor ?? AppColors.surfaceOf(context),
           valueColor: AlwaysStoppedAnimation(
             foregroundColor ?? AppColors.vermilion,

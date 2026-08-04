@@ -55,8 +55,8 @@ const   ThinkingTreeScreen({super.key});
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.amberSoft,
-    border: Border.all(color: Color(0xFFE3CFA0)),
+        color: AppColors.amberSoftOf(context),
+    border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
@@ -75,8 +75,6 @@ const   ThinkingTreeScreen({super.key});
                   Text(
                     '¥ 680',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textOf(context),
@@ -98,7 +96,7 @@ const   ThinkingTreeScreen({super.key});
           AppProgressBar(
             value: 0.68,
             height: 4,
-            backgroundColor: const Color(0x33B8821E),
+            backgroundColor: AppColors.amber.withValues(alpha: 0.2),
             foregroundColor: AppColors.amber,
             radius: 2,
           ),
@@ -161,14 +159,14 @@ const   ThinkingTreeScreen({super.key});
     String type, String status, String text, StatusBadgeType statusType,
     {String? meta, bool miss = false, bool warn = false, bool neutral = false}
   ) {
-    Color leftColor = AppColors.moss;
+    Color leftColor = AppColors.primaryOf(context);
     Color bgColor = AppColors.surfaceOf(context);
     if (miss) {
       leftColor = AppColors.vermilion;
-      bgColor = AppColors.vermilionSoft;
+      bgColor = AppColors.vermilionSoftOf(context);
     } else if (warn) {
       leftColor = AppColors.amber;
-      bgColor = AppColors.amberSoft;
+      bgColor = AppColors.amberSoftOf(context);
     } else if (neutral) {
       leftColor = AppColors.text4Of(context);
       bgColor = AppColors.surfaceOf(context);
@@ -219,8 +217,8 @@ const   ThinkingTreeScreen({super.key});
     return Container(
    padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.amberSoft,
-        border: Border.all(color: const Color(0xFFE3CFA0)),
+        color: AppColors.amberSoftOf(context),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
@@ -265,8 +263,8 @@ const   ThinkingTreeScreen({super.key});
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.paper,
-                  border: Border.all(color: const Color(0xFFE3CFA0)),
+                  color: AppColors.surfaceOf(context),
+                  border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
                   borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: const Row(
@@ -307,7 +305,7 @@ const   ThinkingTreeScreen({super.key});
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('知道了', style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w600)),
+            child: Text('知道了', style: TextStyle(color: AppColors.primaryOf(context), fontWeight: FontWeight.w600)),
           ),
         ],
       ),

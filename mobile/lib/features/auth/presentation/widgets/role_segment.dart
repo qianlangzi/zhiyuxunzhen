@@ -5,8 +5,8 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../data/models/models.dart';
 
 /// 角色激活色：学生=苔藓绿，教师=朱砂红（有意义的身份色彩区分）
-Color roleActiveColor(UserRole role) =>
-    role == UserRole.student ? AppColors.moss : AppColors.vermilion;
+Color roleActiveColor(UserRole role, BuildContext context) =>
+    role == UserRole.student ? AppColors.primaryOf(context) : AppColors.vermilion;
 
 /// 角色分段选择（学生 / 教师）
 ///
@@ -73,7 +73,7 @@ class _Item extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeColor = roleActiveColor(role);
+    final activeColor = roleActiveColor(role, context);
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -95,7 +95,7 @@ class _Item extends StatelessWidget {
                 Icon(
                   icon,
                   size: 17,
-                  color: active ? AppColors.paper : AppColors.text3Of(context),
+                  color: active ? AppColors.onPrimaryOf(context) : AppColors.text3Of(context),
                 ),
                 const SizedBox(width: 6),
               ],
@@ -104,7 +104,7 @@ class _Item extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: active ? AppColors.paper : AppColors.text3Of(context),
+                  color: active ? AppColors.onPrimaryOf(context) : AppColors.text3Of(context),
                 ),
               ),
             ],

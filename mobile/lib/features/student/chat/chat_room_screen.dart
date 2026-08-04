@@ -220,23 +220,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                 Container(
                   width: 34,
                   height: 34,
-                  decoration: const BoxDecoration(
-                    color: AppColors.mossTint,
+                  decoration: BoxDecoration(
+                    color: AppColors.mossTintOf(context),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
+                  child: Text(
                     '张',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: [
-                        'Songti SC',
-                        'STSong',
-                        'Noto Serif CJK SC',
-                        'Source Han Serif SC',
-                      ],
                       fontWeight: FontWeight.w600,
-                      color: AppColors.moss,
+                      color: AppColors.primaryOf(context),
                       fontSize: 14,
                     ),
                   ),
@@ -246,13 +239,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   child: Text(
                     '张建国 · 58 岁 男',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: const [
-                        'Songti SC',
-                        'STSong',
-                        'Noto Serif CJK SC',
-                        'Source Han Serif SC',
-                      ],
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textOf(context),
@@ -317,24 +303,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: const BoxDecoration(
-          color: AppColors.mossTint,
+        decoration: BoxDecoration(
+          color: AppColors.mossTintOf(context),
           border: Border(
-            top: BorderSide(color: AppColors.mossSoft),
+            top: BorderSide(color: AppColors.mossSoftOf(context)),
           ),
         ),
         child: Row(
           children: [
-            const Icon(
+            Icon(
               Icons.account_tree_outlined,
               size: 14,
-              color: AppColors.moss,
+              color: AppColors.primaryOf(context),
             ),
             const SizedBox(width: 6),
-            const MonoText(
+            MonoText(
               '临床思维树',
               fontSize: 11,
-              color: AppColors.moss,
+              color: AppColors.primaryOf(context),
               letterSpacing: 0.04,
             ),
             const SizedBox(width: 8),
@@ -354,7 +340,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
             Icon(
               Icons.chevron_right,
               size: 16,
-              color: AppColors.moss.withValues(alpha: 0.5),
+              color: AppColors.primaryOf(context).withValues(alpha: 0.5),
             ),
           ],
         ),
@@ -517,7 +503,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.amberSoft,
+              color: AppColors.amberSoftOf(context),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Column(
@@ -582,24 +568,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     return Container(
       width: 26,
       height: 26,
-      decoration: const BoxDecoration(
-        color: AppColors.mossTint,
+      decoration: BoxDecoration(
+        color: AppColors.mossTintOf(context),
         shape: BoxShape.circle,
       ),
       alignment: Alignment.center,
-      child: const Text(
+      child: Text(
         '患',
         style: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: [
-            'Songti SC',
-            'STSong',
-            'Noto Serif CJK SC',
-            'Source Han Serif SC',
-          ],
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          color: AppColors.moss,
+          color: AppColors.primaryOf(context),
         ),
       ),
     );
@@ -677,7 +656,7 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                  color: AppColors.mossTint,
+                  color: AppColors.mossTintOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                 ),
                 child: Text(
@@ -815,10 +794,10 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                           color: AppColors.primaryOf(context),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.arrow_upward,
                           size: 16,
-                          color: AppColors.paper,
+                          color: AppColors.onPrimaryOf(context),
                         ),
                       ),
                     ),
@@ -920,28 +899,21 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                   Container(
                     width: 28,
                     height: 28,
-                    decoration: const BoxDecoration(
-                      color: AppColors.mossTint,
+                    decoration: BoxDecoration(
+                      color: AppColors.mossTintOf(context),
                       shape: BoxShape.circle,
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(
+                    child: Icon(
                       Icons.account_tree,
                       size: 15,
-                      color: AppColors.moss,
+                      color: AppColors.primaryOf(context),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Text(
                     '临床思维树',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: const [
-                        'Songti SC',
-                        'STSong',
-                        'Noto Serif CJK SC',
-                        'Source Han Serif SC',
-                      ],
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textOf(context),
@@ -965,7 +937,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
               _buildTreeSection(
                 '症状 / Symptom',
                 '3 已问',
-                AppColors.moss,
+                AppColors.primaryOf(context),
                 [
                   const _TreeNode(
                     '胸部',
@@ -1073,7 +1045,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.amberSoft,
+        color: AppColors.amberSoftOf(context),
         border: Border.all(
           color: AppColors.amber.withValues(alpha: 0.4),
         ),
@@ -1100,13 +1072,6 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                   Text(
                     '¥ 680',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: const [
-                        'Songti SC',
-                        'STSong',
-                        'Noto Serif CJK SC',
-                        'Source Han Serif SC',
-                      ],
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textOf(context),
@@ -1183,14 +1148,14 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
   }
 
   Widget _buildTreeNode(_TreeNode node) {
-    Color leftColor = AppColors.moss;
+    Color leftColor = AppColors.primaryOf(context);
     Color bgColor = AppColors.surfaceOf(context);
     if (node.miss) {
       leftColor = AppColors.vermilion;
-      bgColor = AppColors.vermilionSoft;
+      bgColor = AppColors.vermilionSoftOf(context);
     } else if (node.warn) {
       leftColor = AppColors.amber;
-      bgColor = AppColors.amberSoft;
+      bgColor = AppColors.amberSoftOf(context);
     } else if (node.neutral) {
       leftColor = AppColors.text4Of(context);
       bgColor = AppColors.surfaceOf(context);

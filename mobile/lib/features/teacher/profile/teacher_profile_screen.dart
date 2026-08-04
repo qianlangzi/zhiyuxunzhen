@@ -67,7 +67,7 @@ const   TeacherProfileScreen({super.key});
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          _statCard(context, '28', '我的病例', AppColors.moss),
+          _statCard(context, '28', '我的病例', AppColors.primaryOf(context)),
       SizedBox(width: 8),
           _statCard(context, '63', '累计引用', AppColors.amber),
       SizedBox(width: 8),
@@ -91,13 +91,6 @@ const   TeacherProfileScreen({super.key});
             Text(
               num,
               style: TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: [
-                  'Songti SC',
-                  'STSong',
-                  'Noto Serif CJK SC',
-                  'Source Han Serif SC',
-                ],
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: color,
@@ -113,11 +106,11 @@ const   TeacherProfileScreen({super.key});
 
   Widget _buildMenuSection(BuildContext context) {
     final menus = [
-      ('我的病例', Icons.folder_outlined, AppColors.moss),
+      ('我的病例', Icons.folder_outlined, AppColors.primaryOf(context)),
       ('学情看板', Icons.dashboard_outlined, AppColors.indigo),
       ('批阅历史', Icons.history_outlined, AppColors.vermilion),
       ('病例广场', Icons.storefront_outlined, AppColors.amber),
-      ('资质认证', Icons.verified_user_outlined, AppColors.moss),
+      ('资质认证', Icons.verified_user_outlined, AppColors.primaryOf(context)),
       ('设置', Icons.settings_outlined, AppColors.text3Of(context)),
       ('关于智愈寻真', Icons.info_outline, AppColors.text3Of(context)),
     ];
@@ -128,8 +121,8 @@ const   TeacherProfileScreen({super.key});
         child: Column(
           children: menus.map((m) {
             return Container(
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: AppColors.ruleSoft)),
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: AppColors.ruleSoftOf(context))),
               ),
               child: ListTile(
                 leading: Icon(m.$2, color: m.$3, size: 20),
@@ -189,10 +182,10 @@ class _ProfileHeader extends StatelessWidget {
       width: 64,
       height: 64,
       decoration: BoxDecoration(
-        color: AppColors.mossTint,
+        color: AppColors.mossTintOf(context),
         border: Border.all(color: AppColors.moss3),
         shape: BoxShape.circle,
-        image: avatarPath != null
+        image: (avatarPath != null && File(avatarPath!).existsSync())
             ? DecorationImage(
                 image: FileImage(File(avatarPath!)),
                 fit: BoxFit.cover,
@@ -200,20 +193,13 @@ class _ProfileHeader extends StatelessWidget {
             : null,
       ),
       alignment: Alignment.center,
-      child: avatarPath == null
+      child: (avatarPath == null || !File(avatarPath!).existsSync())
           ? Text(
               initial,
-              style: const TextStyle(
-                fontFamily: 'NotoSerifSC',
-                fontFamilyFallback: [
-                  'Songti SC',
-                  'STSong',
-                  'Noto Serif CJK SC',
-                  'Source Han Serif SC',
-                ],
+              style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w600,
-                color: AppColors.moss,
+                color: AppColors.primaryOf(context),
               ),
             )
           : null,
@@ -236,13 +222,6 @@ class _ProfileHeader extends StatelessWidget {
                     Text(
                       displayName,
            style: TextStyle(
-                        fontFamily: 'NotoSerifSC',
-                        fontFamilyFallback: [
-                          'Songti SC',
-                          'STSong',
-                          'Noto Serif CJK SC',
-                          'Source Han Serif SC',
-                        ],
                         fontSize: 20,
                         fontWeight: FontWeight.w600,
                         color: AppColors.textOf(context),
@@ -255,13 +234,13 @@ class _ProfileHeader extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.mossTint,
+                        color: AppColors.mossTintOf(context),
                         borderRadius: BorderRadius.circular(AppRadius.xs),
                       ),
-                      child: const MonoText(
+                      child: MonoText(
                         '✓ 已认证',
                         fontSize: 10,
-                        color: AppColors.moss,
+                        color: AppColors.primaryOf(context),
                       ),
                     ),
                   ],
@@ -289,32 +268,17 @@ class _ProfileEditButton extends StatefulWidget {
 }
 
 class _ProfileEditButtonState extends State<_ProfileEditButton> {
-  bool _hovered = false;
-
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: AnimatedContainer(
-    duration: Duration(milliseconds: 150),
-        curve: Curves.easeOut,
-        decoration: BoxDecoration(
-          color: _hovered ? AppColors.mossTint : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-        ),
-        child: IconButton(
-          onPressed: widget.onPressed,
-          hoverColor: Colors.transparent,
-          highlightColor: AppColors.mossTint,
-          splashColor: AppColors.mossSoft,
-          tooltip: '编辑资料',
-          icon: Icon(
-            Icons.edit_outlined,
-            size: 18,
-            color: _hovered ? AppColors.moss : AppColors.text3Of(context),
-          ),
-        ),
+    return IconButton(
+      onPressed: widget.onPressed,
+      highlightColor: AppColors.mossTintOf(context),
+      splashColor: AppColors.mossSoftOf(context),
+      tooltip: '编辑资料',
+      icon: Icon(
+        Icons.edit_outlined,
+        size: 18,
+        color: AppColors.text3Of(context),
       ),
     );
   }

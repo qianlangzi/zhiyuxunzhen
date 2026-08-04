@@ -55,7 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Timer? _timer;
 
   Color get _roleColor =>
-      _role == UserRole.student ? AppColors.moss : AppColors.vermilion;
+      _role == UserRole.student ? AppColors.primaryOf(context) : AppColors.vermilion;
 
   @override
   void dispose() {
@@ -212,11 +212,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         Text(
           AppConstants.appName,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontFamily: 'NotoSerifSC',
+          style: TextStyle(
             fontSize: 30,
             fontWeight: FontWeight.w600,
-            color: AppColors.ink,
+            color: AppColors.textOf(context),
             letterSpacing: -0.02,
           ),
         ),
@@ -256,13 +255,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 children: [
                   const EyebrowText('SIGN IN · 内科教研协同'),
                   const SizedBox(height: 6),
-                  const Text(
+                  Text(
                     '登录',
                     style: TextStyle(
-                      fontFamily: 'NotoSerifSC',
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.ink,
+                      color: AppColors.textOf(context),
                       letterSpacing: -0.01,
                     ),
                   ),
@@ -407,7 +405,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         onPressed: _loggingIn ? null : _submit,
         style: ElevatedButton.styleFrom(
           backgroundColor: _roleColor,
-          foregroundColor: AppColors.paper,
+          foregroundColor: AppColors.onPrimaryOf(context),
           disabledBackgroundColor: _roleColor.withValues(alpha: 0.5),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -419,12 +417,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
         child: _loggingIn
-            ? const SizedBox(
+            ? SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
-                  color: AppColors.paper,
+                  color: AppColors.onPrimaryOf(context),
                 ),
               )
             : const Text('登 录'),
@@ -572,7 +570,7 @@ class _CodeButton extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: disabled ? AppColors.ink4 : AppColors.moss,
+          color: disabled ? AppColors.ink4 : AppColors.primaryOf(context),
         ),
       ),
     );

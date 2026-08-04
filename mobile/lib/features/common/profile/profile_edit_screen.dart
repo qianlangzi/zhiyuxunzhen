@@ -227,10 +227,10 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
               width: 88,
               height: 88,
               decoration: BoxDecoration(
-                color: AppColors.mossTint,
+                color: AppColors.mossTintOf(context),
                 border: Border.all(color: AppColors.moss3),
                 shape: BoxShape.circle,
-                image: _avatarPath != null
+                image: (_avatarPath != null && File(_avatarPath!).existsSync())
                     ? DecorationImage(
                         image: FileImage(File(_avatarPath!)),
                         fit: BoxFit.cover,
@@ -238,20 +238,13 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                     : null,
               ),
               alignment: Alignment.center,
-              child: _avatarPath == null
+              child: (_avatarPath == null || !File(_avatarPath!).existsSync())
                   ? Text(
                       initial,
-                      style: const TextStyle(
-                        fontFamily: 'NotoSerifSC',
-                        fontFamilyFallback: [
-                          'Songti SC',
-                          'STSong',
-                          'Noto Serif CJK SC',
-                          'Source Han Serif SC',
-                        ],
+                      style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.moss,
+                        color: AppColors.primaryOf(context),
                       ),
                     )
                   : null,
@@ -263,14 +256,14 @@ class _ProfileEditScreenState extends ConsumerState<ProfileEditScreen> {
                 width: 28,
                 height: 28,
                 decoration: BoxDecoration(
-                  color: AppColors.moss,
+                  color: AppColors.primaryOf(context),
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.paper, width: 2),
+                  border: Border.all(color: AppColors.onPrimaryOf(context), width: 2),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.camera_alt_outlined,
                   size: 15,
-                  color: AppColors.paper,
+                  color: AppColors.onPrimaryOf(context),
                 ),
               ),
             ),
@@ -368,6 +361,9 @@ class _Field extends StatelessWidget {
               horizontal: 12,
               vertical: 10,
             ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
           ),
         ),
       ],
@@ -390,7 +386,7 @@ class _AvatarSourceSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ListTile(
-            leading: const Icon(Icons.photo_camera_outlined, color: AppColors.moss),
+            leading: Icon(Icons.photo_camera_outlined, color: AppColors.primaryOf(context)),
       title: Text(
               '拍照',
               style: TextStyle(fontSize: 14, color: AppColors.text2Of(context)),
@@ -399,7 +395,7 @@ class _AvatarSourceSheet extends StatelessWidget {
           ),
           ListTile(
             leading:
-                const Icon(Icons.photo_library_outlined, color: AppColors.moss),
+                Icon(Icons.photo_library_outlined, color: AppColors.primaryOf(context)),
       title: Text(
               '从相册选择',
               style: TextStyle(fontSize: 14, color: AppColors.text2Of(context)),

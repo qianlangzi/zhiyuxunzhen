@@ -65,8 +65,6 @@ const   TeacherHomeScreen({super.key});
      Text(
           '下午好，王老师',
           style: TextStyle(
-            fontFamily: 'NotoSerifSC',
-            fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
             fontSize: 26,
             fontWeight: FontWeight.w600,
             color: AppColors.textOf(context),
@@ -97,8 +95,8 @@ const   TeacherHomeScreen({super.key});
       child: Container(
     padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: urgent ? AppColors.vermilionSoft : AppColors.surfaceOf(context),
-          border: Border.all(color: urgent ? AppColors.vermilionSoft : AppColors.surfaceEdgeOf(context)),
+          color: urgent ? AppColors.vermilionSoftOf(context) : AppColors.surfaceOf(context),
+          border: Border.all(color: urgent ? AppColors.vermilionSoftOf(context) : AppColors.surfaceEdgeOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Stack(
@@ -122,8 +120,6 @@ const   TeacherHomeScreen({super.key});
                 Text(
                   num,
                   style: TextStyle(
-                    fontFamily: 'NotoSerifSC',
-                    fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                     fontSize: 24,
                     fontWeight: FontWeight.w600,
                     color: color,
@@ -234,7 +230,7 @@ const   TeacherHomeScreen({super.key});
         AppPaper(
           child: Column(
             children: [
-              _classRow(context, '心血管 03 班 · 32 人', '急性心梗作业 · 截止 07.22', '68%', AppColors.moss),
+              _classRow(context, '心血管 03 班 · 32 人', '急性心梗作业 · 截止 07.22', '68%', AppColors.primaryOf(context)),
               const DottedDivider(),
               _classRow(context, '呼吸 02 班 · 28 人', '慢阻肺作业 · 截止 07.25', '32%', AppColors.amber),
             ],
@@ -264,8 +260,6 @@ const   TeacherHomeScreen({super.key});
               Text(
                 rate,
                 style: TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: color,
@@ -295,7 +289,7 @@ const   TeacherHomeScreen({super.key});
                     const TextSpan(text: '你的病例 '),
            TextSpan(text: '《急性下壁心梗的不典型表现》', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textOf(context))),
                     const TextSpan(text: ' 被引用 '),
-                    const TextSpan(text: '+5', style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w500)),
+                    TextSpan(text: '+5', style: TextStyle(color: AppColors.primaryOf(context), fontWeight: FontWeight.w500)),
                     const TextSpan(text: ' 次'),
                   ],
                 ),

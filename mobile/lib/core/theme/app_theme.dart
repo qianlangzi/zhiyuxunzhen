@@ -119,8 +119,6 @@ class AppTheme {
       textTheme: const TextTheme(
         // Display
         displayLarge: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 32,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
@@ -128,8 +126,6 @@ class AppTheme {
           letterSpacing: -0.02,
         ),
         displayMedium: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 26,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
@@ -137,8 +133,6 @@ class AppTheme {
           letterSpacing: -0.02,
         ),
         displaySmall: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 22,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
@@ -147,23 +141,17 @@ class AppTheme {
         ),
         // Headline
         headlineLarge: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
         ),
         headlineMedium: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
           letterSpacing: -0.01,
         ),
         headlineSmall: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.ink,
@@ -341,8 +329,6 @@ class AppTheme {
 
       textTheme: const TextTheme(
         displayLarge: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 32,
           fontWeight: FontWeight.w600,
           color: darkText,
@@ -350,8 +336,6 @@ class AppTheme {
           letterSpacing: -0.02,
         ),
         displayMedium: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 26,
           fontWeight: FontWeight.w600,
           color: darkText,
@@ -359,8 +343,6 @@ class AppTheme {
           letterSpacing: -0.02,
         ),
         displaySmall: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 22,
           fontWeight: FontWeight.w600,
           color: darkText,
@@ -368,23 +350,17 @@ class AppTheme {
           letterSpacing: -0.01,
         ),
         headlineLarge: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 20,
           fontWeight: FontWeight.w600,
           color: darkText,
         ),
         headlineMedium: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: darkText,
           letterSpacing: -0.01,
         ),
         headlineSmall: TextStyle(
-          fontFamily: 'NotoSerifSC',
-          fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: darkText,
