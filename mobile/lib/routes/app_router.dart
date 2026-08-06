@@ -4,10 +4,15 @@ import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/register_screen.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/student/home/student_home_screen.dart';
+import '../features/student/market/student_case_market_screen.dart';
 import '../features/student/chat/chat_room_screen.dart';
 import '../features/student/tree/thinking_tree_screen.dart';
 import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
+import '../features/student/recommend/recommendation_screen.dart';
+import '../features/student/training/question_training_screen.dart';
+import '../features/student/textbook/textbook_center_screen.dart';
+import '../features/student/search/search_result_screen.dart';
 import '../features/student/report/review_report_screen.dart';
 import '../features/student/daily_case/daily_case_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
@@ -72,6 +77,11 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => StudentHomeScreen(),
     ),
     GoRoute(
+      name: RouteNames.studentCaseMarket,
+      path: '/student/market',
+      builder: (context, state) => StudentCaseMarketScreen(),
+    ),
+    GoRoute(
       name: RouteNames.chat,
       path: '/student/chat',
       builder: (context, state) => ChatRoomScreen(),
@@ -90,6 +100,28 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.mistakes,
       path: '/student/mistakes',
       builder: (context, state) => MistakesScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.recommendation,
+      path: '/student/recommend',
+      builder: (context, state) => RecommendationScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.questionTraining,
+      path: '/student/training',
+      builder: (context, state) => QuestionTrainingScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.textbookCenter,
+      path: '/student/textbooks',
+      builder: (context, state) => TextbookCenterScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.searchResult,
+      path: '/student/search',
+      builder: (context, state) => SearchResultScreen(
+        initialKeyword: state.uri.queryParameters['keyword'] ?? '',
+      ),
     ),
     GoRoute(
       name: RouteNames.reviewReport,

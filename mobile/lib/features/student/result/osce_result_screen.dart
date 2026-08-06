@@ -1,15 +1,52 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/student_service.dart';
 
-/// OSCE 六维雷达图结果页
-class OsceResultScreen extends StatelessWidget {
-const   OsceResultScreen({super.key});
+/// OSCE 四维评分结果页
+class OsceResultScreen extends ConsumerStatefulWidget {
+  const OsceResultScreen({super.key});
+
+  @override
+  ConsumerState<OsceResultScreen> createState() => _OsceResultScreenState();
+}
+
+class _OsceResultScreenState extends ConsumerState<OsceResultScreen> {
+  int? _sessionId;
+  Map<String, dynamic>? _evaluation;
+  bool _isLoading = true;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadEvaluation());
+  }
+
+  Future<void> _loadEvaluation() async {
+    final state = GoRouterState.of(context);
+    final qs = state.uri.queryParameters['sessionId'];
+    final parsed = qs == null ? null : int.tryParse(qs);
+    if (parsed == null || parsed <= 0) {
+      setState(() {
+        _isLoading = false;
+        _errorMsg = '缺少会话 ID';
+      });
+      return;
+    }
+    _sessionId = parsed;
+    final data = await StudentService().getSessionEvaluation(parsed);
+    if (!mounted) return;
+    setState(() {
+      _evaluation = data;
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -26,43 +63,7 @@ const   OsceResultScreen({super.key});
                   : context.goNamed(RouteNames.studentHome),
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildHero(context),
-                  _buildRadarChart(context, ),
-                  _buildFeedbackBlock(context, 
-                    '主要优点',
-                    AppColors.primaryOf(context),
-                    true,
-                    [
-                      '主诉采集准确，胸痛性质、部位、放射描述清晰',
-                      '及时识别 ST 段抬高与肌钙蛋白升高的关键证据',
-                      '对患者"养家"担忧给予共情回应，体现人文关怀',
-                    ],
-                  ),
-                  _buildFeedbackBlock(context, 
-                    '优先改进点',
-                    AppColors.vermilion,
-                    false,
-                    [
-                      '未询问胸痛诱因（体力活动/情绪），影响 ACS 鉴别',
-                      '未采集药物过敏史，存在安全风险',
-                      '心肌酶谱与肌钙蛋白重复开立，违反卫生经济学原则',
-                    ],
-                  ),
-                  _buildRecommendation(context, ),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
-                    child: AppPrimaryButton(
-                      label: '查看 AI 复盘报告',
-                      icon: const Icon(Icons.arrow_forward, size: 14),
-                      fullWidth: true,
-                      onPressed: () => context.pushNamed(RouteNames.reviewReport),
-                    ),
-                  ),
-                ],
-              ),
+              child: _buildBody(),
             ),
           ],
         ),
@@ -70,7 +71,97 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _buildHero(BuildContext context) {
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_evaluation == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 40, color: AppColors.text4Of(context)),
+            const SizedBox(height: 12),
+            Text(_errorMsg ?? '暂无评分数据',
+                style: TextStyle(fontSize: 14, color: AppColors.text3Of(context))),
+            const SizedBox(height: 16),
+            AppGhostButton(
+              label: '返回首页',
+              onPressed: () => context.goNamed(RouteNames.studentHome),
+            ),
+          ],
+        ),
+      );
+    }
+    final scores = _extractScores();
+    final totalScore = _extractTotalScore();
+    final strengths = _extractStringList('strengths');
+    final improvements = _extractStringList('improvements');
+    final finalReport = _evaluation!['finalReport'] as String? ?? '';
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        _buildHero(totalScore),
+        _buildRadarChart(scores),
+        if (strengths.isNotEmpty)
+          _buildFeedbackBlock('主要优点', AppColors.primaryOf(context), true, strengths),
+        if (improvements.isNotEmpty)
+          _buildFeedbackBlock('优先改进点', AppColors.vermilion, false, improvements),
+        if (finalReport.isNotEmpty) _buildFinalReport(finalReport),
+        Padding(
+          padding: const EdgeInsets.only(left: 20, right: 20, bottom: 30),
+          child: AppPrimaryButton(
+            label: '查看 AI 复盘报告',
+            icon: const Icon(Icons.arrow_forward, size: 14),
+            fullWidth: true,
+            onPressed: () => context.pushNamed(RouteNames.reviewReport),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 提取 4 维评分（每维 0-25）
+  List<({String name, double score, String comment})> _extractScores() {
+    final raw = _evaluation?['scores'];
+    final comments = _evaluation?['comments'];
+    const labels = {
+      'history': '病史采集',
+      'logic': '诊断逻辑',
+      'communication': '沟通技巧',
+      'humanity': '人文关怀',
+    };
+    final result = <({String name, double score, String comment})>[];
+    if (raw is! Map) return result;
+    for (final key in ['history', 'logic', 'communication', 'humanity']) {
+      final v = raw[key];
+      final score = (v is num ? v.toDouble() : 0.0).clamp(0.0, 25.0);
+      String comment = '';
+      if (comments is Map) {
+        comment = comments[key]?.toString() ?? '';
+      }
+      result.add((name: labels[key]!, score: score, comment: comment));
+    }
+    return result;
+  }
+
+  double _extractTotalScore() {
+    final v = _evaluation?['totalScore'];
+    if (v is num) return v.toDouble().clamp(0.0, 100.0);
+    // 兜底：4 维相加
+    final scores = _extractScores();
+    final sum = scores.fold<double>(0, (s, e) => s + e.score);
+    return sum.clamp(0.0, 100.0);
+  }
+
+  List<String> _extractStringList(String key) {
+    final v = _evaluation?[key];
+    if (v is! List) return const [];
+    return v.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+  }
+
+  Widget _buildHero(double totalScore) {
+    final level = _scoreLevel(totalScore);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
@@ -95,7 +186,7 @@ const   OsceResultScreen({super.key});
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                '82',
+                totalScore.toStringAsFixed(0),
                 style: TextStyle(
                   fontSize: 64,
                   fontWeight: FontWeight.w600,
@@ -116,7 +207,7 @@ const   OsceResultScreen({super.key});
           ),
           const SizedBox(height: 6),
           Text(
-            '良好 — 接近优秀水平',
+            level,
             style: TextStyle(
               fontSize: 14,
               color: AppColors.onPrimaryLightOf(context),
@@ -128,7 +219,16 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _buildRadarChart(BuildContext context) {
+  String _scoreLevel(double score) {
+    if (score >= 90) return '优秀 — 临床胜任力达标';
+    if (score >= 75) return '良好 — 接近优秀水平';
+    if (score >= 60) return '合格 — 基本掌握要领';
+    return '待加强 — 建议复盘重练';
+  }
+
+  Widget _buildRadarChart(
+      List<({String name, double score, String comment})> scores) {
+    if (scores.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -136,43 +236,48 @@ const   OsceResultScreen({super.key});
           SizedBox(
             width: 280,
             height: 280,
-            child: CustomPaint(painter: _RadarPainter(
-            ruleColor: AppColors.ruleOf(context),
-            textColor: AppColors.textOf(context),
-            text3Color: AppColors.text3Of(context),
-            primaryColor: AppColors.primaryOf(context),
-          )),
+            child: CustomPaint(
+              painter: _RadarPainter(
+                dimensions: scores
+                    .map((s) => (name: s.name, score: s.score, maxScore: 25.0))
+                    .toList(),
+                ruleColor: AppColors.ruleOf(context),
+                textColor: AppColors.textOf(context),
+                text3Color: AppColors.text3Of(context),
+                primaryColor: AppColors.primaryOf(context),
+              ),
+            ),
           ),
           const SizedBox(height: 16),
-          _buildRadarLegend(),
+          _buildRadarLegend(scores),
         ],
       ),
     );
   }
 
-  Widget _buildRadarLegend() {
-    final items = [
-      ('病史采集', 88, AppColors.chart1),
-      ('诊断逻辑', 85, AppColors.chart2),
-      ('沟通技巧', 79, AppColors.chart3),
-      ('人文关怀', 90, AppColors.chart4),
-      ('检查决策', 76, AppColors.moss3),
-      ('文书规范', 82, AppColors.amber),
+  Widget _buildRadarLegend(
+      List<({String name, double score, String comment})> scores) {
+    final colors = [
+      AppColors.chart1,
+      AppColors.chart2,
+      AppColors.chart3,
+      AppColors.chart4,
     ];
     return GridView.builder(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 10,
         crossAxisSpacing: 16,
         childAspectRatio: 3.5,
       ),
-      itemCount: items.length,
+      itemCount: scores.length,
       itemBuilder: (context, i) {
-        final (name, score, color) = items[i];
+        final s = scores[i];
+        final color = colors[i % colors.length];
         return Container(
-     padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: AppColors.surfaceOf(context),
             border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -187,11 +292,13 @@ const   OsceResultScreen({super.key});
               ),
               const SizedBox(width: 8),
               Expanded(
-        child: Text(name, style: TextStyle(fontSize: 12, color: AppColors.text2Of(context))),
+                child: Text(s.name,
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.text2Of(context))),
               ),
               Text(
-                '$score',
-        style: TextStyle(
+                '${s.score.toStringAsFixed(0)}',
+                style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -205,10 +312,11 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _buildFeedbackBlock(BuildContext context, String title, Color color, bool isPositive, List<String> items) {
+  Widget _buildFeedbackBlock(
+      String title, Color color, bool isPositive, List<String> items) {
     return Container(
-   margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-   padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -225,35 +333,39 @@ const   OsceResultScreen({super.key});
                 color: color,
               ),
               const SizedBox(width: 6),
-              MonoText(title.toUpperCase(), fontSize: 11, color: color, letterSpacing: 0.1),
+              MonoText(title.toUpperCase(),
+                  fontSize: 11, color: color, letterSpacing: 0.1),
             ],
           ),
           const SizedBox(height: 8),
           ...items.map((item) => Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('•', style: TextStyle(color: color, fontSize: 13)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    item,
-          style: TextStyle(fontSize: 13, color: AppColors.text2Of(context), height: 1.55),
-                  ),
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('•', style: TextStyle(color: color, fontSize: 13)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.text2Of(context),
+                            height: 1.55),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          )),
+              )),
         ],
       ),
     );
   }
 
-  Widget _buildRecommendation(BuildContext context) {
+  Widget _buildFinalReport(String report) {
     return Container(
-   margin: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-   padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -264,50 +376,24 @@ const   OsceResultScreen({super.key});
         children: [
           Row(
             children: [
-              Icon(Icons.menu_book, size: 12, color: AppColors.primaryOf(context)),
+              Icon(Icons.description_outlined,
+                  size: 12, color: AppColors.primaryOf(context)),
               const SizedBox(width: 6),
-              MonoText('推荐训练', fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.1),
+              MonoText('AI 总结评语',
+                  fontSize: 11,
+                  color: AppColors.primaryOf(context),
+                  letterSpacing: 0.1),
             ],
           ),
-          const SizedBox(height: 8),
-          _recoItem(context, '不稳定型心绞痛 · 鉴别诊断', '心血管 · 标准 · 引用 23 次'),
-          const SizedBox(height: 8),
-          _recoItem(context, '主动脉夹层 · 急诊识别', '心血管 · 困难 · 引用 15 次'),
-          const SizedBox(height: 12),
-          Container(
-            clipBehavior: Clip.hardEdge,
-            decoration: BoxDecoration(
-              color: AppColors.mossTintOf(context),
-              borderRadius: const BorderRadius.only(
-                topRight: Radius.circular(AppRadius.sm),
-                bottomRight: Radius.circular(AppRadius.sm),
+          const SizedBox(height: 10),
+          Text.rich(
+            TextSpan(
+              children: _parseRichText(report),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.text2Of(context),
+                height: 1.6,
               ),
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: Container(width: 2, color: AppColors.primaryOf(context)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.book, size: 10, color: AppColors.primaryOf(context)),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: MonoText(
-                          '教材：《内科学》第9版 · 第三篇第七章 · P236-258',
-                          fontSize: 11.5,
-                          color: AppColors.primaryOf(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
             ),
           ),
         ],
@@ -315,69 +401,54 @@ const   OsceResultScreen({super.key});
     );
   }
 
-  Widget _recoItem(BuildContext context, String title, String subtitle) {
-    return Container(
-   padding: EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.bgOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.ruleSoftOf(context)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-       Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
-              const SizedBox(height: 2),
-              MonoText(subtitle, fontSize: 11, color: AppColors.text3Of(context)),
-            ],
-          ),
-          Builder(builder: (ctx) => AppGhostButton(
-            label: '开始',
-            small: true,
-            onPressed: () => ctx.pushNamed(RouteNames.chat),
-          )),
-        ],
-      ),
-    );
+  List<InlineSpan> _parseRichText(String text) {
+    final spans = <InlineSpan>[];
+    final boldRegex = RegExp(r'\*\*(.+?)\*\*');
+    int start = 0;
+    for (final match in boldRegex.allMatches(text)) {
+      if (match.start > start) {
+        spans.add(TextSpan(text: text.substring(start, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ));
+      start = match.end;
+    }
+    if (start < text.length) {
+      spans.add(TextSpan(text: text.substring(start)));
+    }
+    return spans;
   }
 }
 
-/// 雷达图 Painter
+/// 雷达图 Painter（支持任意维度，按 maxScore 归一化）
 class _RadarPainter extends CustomPainter {
+  final List<({String name, double score, double maxScore})> dimensions;
   final Color ruleColor;
   final Color textColor;
   final Color text3Color;
   final Color primaryColor;
 
   _RadarPainter({
+    required this.dimensions,
     required this.ruleColor,
     required this.textColor,
     required this.text3Color,
     required this.primaryColor,
   });
+
   @override
   void paint(Canvas canvas, Size size) {
+    if (dimensions.isEmpty) return;
     final cx = size.width / 2;
     final cy = size.height / 2;
     final radius = size.width * 0.4;
 
-    // 6 个维度
-    final dimensions = [
-      ('病史采集', 88),
-      ('诊断逻辑', 85),
-      ('沟通技巧', 79),
-      ('人文关怀', 90),
-      ('检查决策', 76),
-      ('文书规范', 82),
-    ];
-
     final n = dimensions.length;
     final angleStep = 2 * pi / n;
 
-    // 网格（4层）
+    // 网格（4 层）
     final gridPaint = Paint()
       ..color = ruleColor
       ..style = PaintingStyle.stroke
@@ -412,12 +483,12 @@ class _RadarPainter extends CustomPainter {
       );
     }
 
-    // 数据多边形
+    // 数据多边形（按 maxScore 归一化到 0-1）
     final dataPath = Path();
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
-      final score = dimensions[i].$2.clamp(0, 100);
-      final r = radius * score / 100;
+      final ratio = (dimensions[i].score / dimensions[i].maxScore).clamp(0.0, 1.0);
+      final r = radius * ratio;
       final x = cx + r * cos(angle);
       final y = cy + r * sin(angle);
       if (i == 0) {
@@ -446,8 +517,8 @@ class _RadarPainter extends CustomPainter {
     final dotPaint = Paint()..color = primaryColor;
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
-      final score = dimensions[i].$2.clamp(0, 100);
-      final r = radius * score / 100;
+      final ratio = (dimensions[i].score / dimensions[i].maxScore).clamp(0.0, 1.0);
+      final r = radius * ratio;
       canvas.drawCircle(
         Offset(cx + r * cos(angle), cy + r * sin(angle)),
         4,
@@ -455,7 +526,7 @@ class _RadarPainter extends CustomPainter {
       );
     }
 
-    // 轴标签
+    // 轴标签 + 分数
     for (var i = 0; i < n; i++) {
       final angle = -pi / 2 + i * angleStep;
       final labelR = radius + 18;
@@ -464,8 +535,8 @@ class _RadarPainter extends CustomPainter {
 
       final tp = TextPainter(
         text: TextSpan(
-          text: dimensions[i].$1,
-     style: TextStyle(
+          text: dimensions[i].name,
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
             color: textColor,
@@ -479,8 +550,8 @@ class _RadarPainter extends CustomPainter {
       // 分数
       final scoreTp = TextPainter(
         text: TextSpan(
-          text: '${dimensions[i].$2}',
-     style: TextStyle(
+          text: '${dimensions[i].score.toStringAsFixed(0)}',
+          style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 10,
             color: text3Color,
@@ -489,10 +560,12 @@ class _RadarPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       );
       scoreTp.layout();
-      final scoreR = radius * dimensions[i].$2.clamp(0, 100) / 100;
+      final ratio = (dimensions[i].score / dimensions[i].maxScore).clamp(0.0, 1.0);
+      final scoreR = radius * ratio;
       final sx = cx + scoreR * cos(angle);
       final sy = cy + scoreR * sin(angle);
-      scoreTp.paint(canvas, Offset(sx - scoreTp.width / 2, sy - scoreTp.height - 4));
+      scoreTp.paint(
+          canvas, Offset(sx - scoreTp.width / 2, sy - scoreTp.height - 4));
     }
   }
 
@@ -501,5 +574,6 @@ class _RadarPainter extends CustomPainter {
       ruleColor != old.ruleColor ||
       textColor != old.textColor ||
       text3Color != old.text3Color ||
-      primaryColor != old.primaryColor;
+      primaryColor != old.primaryColor ||
+      dimensions.length != old.dimensions.length;
 }

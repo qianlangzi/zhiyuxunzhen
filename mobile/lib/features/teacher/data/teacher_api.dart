@@ -167,6 +167,82 @@ class TeacherApi {
     }
   }
 
+  // ========= AI 辅助 =========
+
+  /// AI 生成 SP 病例草稿
+  Future<ApiResponse<Map<String, dynamic>>> getCaseDraft(Map<String, dynamic> data) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/case-draft',
+        data: data,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 班级学情洞察
+  Future<ApiResponse<Map<String, dynamic>>> getClassInsight() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/class-insight',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 复核辅助
+  Future<ApiResponse<Map<String, dynamic>>> getReviewAssist(int instanceId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/review-assist/$instanceId',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 推荐作业病例
+  Future<ApiResponse<Map<String, dynamic>>> getRecommendCases(int classId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/recommend-cases',
+        queryParameters: {'classId': classId},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 病例质检
+  Future<ApiResponse<Map<String, dynamic>>> getQualityCheck(int caseId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/quality-check/$caseId',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 自动生成练习题
+  Future<ApiResponse<Map<String, dynamic>>> getPracticeQuestions(int caseId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/practice-questions/$caseId',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   String _mapError(DioException e) {
     log('TeacherApi error: ${e.message}', name: 'teacher_api');
     return switch (e.type) {

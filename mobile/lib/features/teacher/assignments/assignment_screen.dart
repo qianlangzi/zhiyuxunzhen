@@ -20,6 +20,7 @@ class AssignmentScreen extends ConsumerStatefulWidget {
 class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
   Map<String, dynamic>? _assignmentData;
   bool _isLoading = true;
+  bool _aiRecommendLoading = false;
 
   @override
   void initState() {
@@ -35,6 +36,119 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// AI 推荐作业病例（按班级薄弱点匹配病例库）
+  Future<void> _recommendCases() async {
+    if (_aiRecommendLoading) return;
+    setState(() => _aiRecommendLoading = true);
+    final data = _assignmentData;
+    final classId = (data?['classId'] as num?)?.toInt() ?? 3;
+    final result = await TeacherService().getRecommendCases(classId);
+    if (!mounted) return;
+    setState(() => _aiRecommendLoading = false);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，无法推荐病例');
+      return;
+    }
+    final recommendations =
+        (result['recommendations'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    _showRecommendSheet(recommendations);
+  }
+
+  void _showRecommendSheet(List<Map<String, dynamic>> recommendations) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.85,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: SerifText('AI 推荐作业病例', fontSize: 17)),
+                  const AppChip(label: 'AI', type: ChipType.moss),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('依据班级薄弱知识点，从你的病例库中匹配', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: recommendations.isEmpty
+                    ? const Center(child: MonoText('暂无可推荐的病例', fontSize: 12, color: Colors.grey))
+                    : ListView(
+                        controller: scrollController,
+                        children: recommendations.asMap().entries.map((e) {
+                          final item = e.value;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceOf(context),
+                              border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 24,
+                                      height: 24,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryOf(context),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: MonoText('${e.key + 1}', fontSize: 11,
+                                          color: AppColors.onPrimaryOf(context)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: MonoText('病例 #${item['caseId'] ?? ''}',
+                                          fontSize: 11, color: AppColors.primaryOf(context)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text('${item['reason'] ?? ''}',
+                                    style: TextStyle(
+                                        fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+                                if ((item['matchedWeakness'] as String?)?.isNotEmpty ?? false)
+                                  MonoText('针对薄弱点：${item['matchedWeakness']}',
+                                      fontSize: 11, color: AppColors.amber),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -84,27 +198,38 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
   }
 
   Widget _buildActionButtons(BuildContext context) {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: AppGhostButton(
-            label: '催交提醒',
-            icon: const Icon(Icons.notifications_active_outlined, size: 14),
-            fullWidth: true,
-            onPressed: () {
-              final data = _assignmentData;
-              final unsubmittedCount = data?['unsubmittedCount']?.toString() ?? '5';
-              AppFeedback.success(context, '已向 $unsubmittedCount 名未提交学生发送催交通知');
-            },
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: AppGhostButton(
+                label: '催交提醒',
+                icon: const Icon(Icons.notifications_active_outlined, size: 14),
+                fullWidth: true,
+                onPressed: () {
+                  final data = _assignmentData;
+                  final unsubmittedCount = data?['unsubmittedCount']?.toString() ?? '5';
+                  AppFeedback.success(context, '已向 $unsubmittedCount 名未提交学生发送催交通知');
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AppPrimaryButton(
+                label: '查看详情 →',
+                fullWidth: true,
+                onPressed: () => context.pushNamed(RouteNames.review),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: AppPrimaryButton(
-            label: '查看详情 →',
-            fullWidth: true,
-            onPressed: () => context.pushNamed(RouteNames.review),
-          ),
+        const SizedBox(height: 8),
+        AppGhostButton(
+          label: _aiRecommendLoading ? 'AI 推荐中…' : 'AI 推荐作业病例',
+          icon: const Icon(Icons.auto_awesome, size: 14),
+          fullWidth: true,
+          onPressed: _aiRecommendLoading ? null : _recommendCases,
         ),
       ],
     );

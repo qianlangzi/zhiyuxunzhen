@@ -13,7 +13,7 @@ import '../../student/data/student_service.dart';
 
 /// 学生端首页 · 学习中心
 class StudentHomeScreen extends ConsumerStatefulWidget {
-const   StudentHomeScreen({super.key});
+  const StudentHomeScreen({super.key});
 
   @override
   ConsumerState<StudentHomeScreen> createState() => _StudentHomeScreenState();
@@ -24,11 +24,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
 
   Map<String, dynamic>? _dailyCaseData;
   Map<String, dynamic>? _assignmentsData;
-  List<dynamic>? _weakPointsData;
   Map<String, dynamic>? _overviewData;
-  bool _isLoadingDailyCase = true;
+  Map<String, dynamic>? _questionStats;
   bool _isLoadingAssignments = true;
-  bool _isLoadingWeaknesses = true;
 
   @override
   void initState() {
@@ -40,26 +38,37 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     final service = StudentService();
     final dailyCase = await service.getTodayDailyCase();
     final assignments = await service.getMyAssignments();
-    final weaknesses = await service.getWeaknesses();
     final overview = await service.getReportOverview();
+    final stats = await service.getQuestionStats();
     if (mounted) {
       setState(() {
         _dailyCaseData = dailyCase;
         _assignmentsData = assignments;
-        _weakPointsData = weaknesses;
         _overviewData = overview;
-        _isLoadingDailyCase = false;
+        _questionStats = stats;
         _isLoadingAssignments = false;
-        _isLoadingWeaknesses = false;
       });
     }
   }
 
   void _onTabTap(int index) {
     if (index == 0) return; // 已在首页
-    if (index == 1) context.goNamed(RouteNames.chat);
+    if (index == 1) context.goNamed(RouteNames.studentCaseMarket);
     if (index == 2) context.goNamed(RouteNames.mistakes);
     if (index == 3) context.goNamed(RouteNames.studentProfile);
+  }
+
+  Future<void> _openGlobalSearch() async {
+    final keyword = await showDialog<String>(
+      context: context,
+      builder: (ctx) => const _HomeSearchDialog(),
+    );
+    if (keyword != null && keyword.trim().isNotEmpty) {
+      context.pushNamed(
+        RouteNames.searchResult,
+        queryParameters: {'keyword': keyword.trim()},
+      );
+    }
   }
 
   @override
@@ -90,9 +99,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                     _buildGreeting(user),
                     const SizedBox(height: 20),
                     _buildHeatmap(),
-                    _buildDailyCard(),
-                    _buildTodoSection(),
-                    _buildWeakPointsSection(),
+                    const SizedBox(height: 16),
+                    _buildSearchBar(),
+                    const SizedBox(height: 16),
+                    _buildEntryGrid(),
                     const MedicalDisclaimer(),
                   ],
                 ),
@@ -121,7 +131,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           children: [
             Text(
               displayName,
-       style: TextStyle(
+              style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
@@ -129,7 +139,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 letterSpacing: -0.02,
               ),
             ),
-       SizedBox(height: 4),
+            const SizedBox(height: 4),
             MonoText(
               subtitle,
               fontSize: 12,
@@ -152,7 +162,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             const SizedBox(height: 2),
             Text(
               '连续训练天数',
-       style: TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 color: AppColors.text3Of(context),
                 fontFamily: 'JetBrainsMono',
@@ -168,7 +178,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   // 学习热力图
   Widget _buildHeatmap() {
     return Container(
-   padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
@@ -182,7 +192,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.baseline,
             textBaseline: TextBaseline.alphabetic,
             children: [
-        Text(
+              Text(
                 '学习热力',
                 style: TextStyle(
                   fontSize: 14,
@@ -250,111 +260,182 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     );
   }
 
-  // 每日一例卡片
-  Widget _buildDailyCard() {
-    if (_isLoadingDailyCase) {
-      return Container(
-        margin: const EdgeInsets.only(top: 16),
-        padding: const EdgeInsets.all(20),
+  // 智能检索入口
+  Widget _buildSearchBar() {
+    return GestureDetector(
+      onTap: _openGlobalSearch,
+      child: Container(
+        height: 42,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: AppColors.moss,
+          color: AppColors.surfaceOf(context),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.manage_search, size: 18, color: AppColors.primaryOf(context)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '智能检索 · 教材 / 基础题 / 病例',
+                style: TextStyle(fontSize: 13, color: AppColors.text4Of(context)),
+              ),
+            ),
+            MonoText('SEARCH', fontSize: 10, color: AppColors.text4Of(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 四块功能入口（bento 网格：同一水平两个、大小与配色各不相同）
+  Widget _buildEntryGrid() {
+    return Column(
+      children: [
+        // 第一行：教材中心（较窄，靛蓝）+ 每日一例（较宽，主色）
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 3, child: _textbookBlock()),
+            const SizedBox(width: 12),
+            Expanded(flex: 4, child: _dailyCaseBlock()),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // 第二行：待办作业（较宽，琥珀）+ 基础题训练（较窄，苔藓绿）
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 4, child: _todoBlock()),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: _trainingBlock()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _blockShell({
+    required Color bg,
+    required VoidCallback onTap,
+    required Widget child,
+    double? height,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: height,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bg,
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: const Center(
-          child: SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.paper),
-            ),
-          ),
-        ),
-      );
-    }
+        child: child,
+      ),
+    );
+  }
 
-    final dateStr = _dailyCaseData?['date'] as String? ?? '07.21';
-    final caseNo = _dailyCaseData?['caseNo'] as int? ?? 213;
-    final title = _dailyCaseData?['title'] as String? ?? '胸痛 2 小时伴大汗\n会是急性冠脉综合征吗？';
+  // 教材中心（靛蓝）
+  Widget _textbookBlock() {
+    return _blockShell(
+      bg: AppColors.indigoSoftOf(context),
+      height: 150,
+      onTap: () => context.pushNamed(RouteNames.textbookCenter),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _blockIcon(AppColors.indigo, Icons.menu_book_rounded),
+              const Spacer(),
+              Icon(Icons.chevron_right, size: 16, color: AppColors.indigo),
+            ],
+          ),
+          const Spacer(),
+          SerifText('教材中心', fontSize: 15, color: AppColors.textOf(context)),
+          const SizedBox(height: 3),
+          MonoText('按知识点匹配教材', fontSize: 10, color: AppColors.text3Of(context)),
+        ],
+      ),
+    );
+  }
+
+  // 每日一例（主色，突出）
+  Widget _dailyCaseBlock() {
+    final no = _dailyCaseData?['scheduleId'] as int? ?? 213;
+    final title = _dailyCaseData?['caseTitle'] as String? ?? '每日一例训练';
     final department = _dailyCaseData?['department'] as String? ?? '心血管';
     final estimatedTime = _dailyCaseData?['estimatedTime'] as String? ?? '5 分钟';
-    final difficulty = _dailyCaseData?['difficulty'] as String? ?? '标准';
 
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.primaryOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Stack(
+    return _blockShell(
+      bg: AppColors.primaryOf(context),
+      height: 150,
+      onTap: () => context.goNamed(RouteNames.studentCaseMarket),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Positioned(
-            top: 0,
-            right: 0,
-            child:               MonoText(
-              dateStr,
-              fontSize: 10,
-              color: AppColors.onPrimaryOf(context).withValues(alpha: 0.5),
-              letterSpacing: 0.1,
-            ),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
               MonoText(
-                '每日一例 · No.$caseNo',
-                fontSize: 11,
+                '每日一例 · No.$no',
+                fontSize: 10,
                 color: AppColors.onPrimarySoftOf(context),
-                letterSpacing: 0.14,
+                letterSpacing: 0.1,
               ),
-              const SizedBox(height: 8),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontFamily: 'NotoSerifSC',
-                  fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.onPrimaryOf(context),
-                  height: 1.25,
-                  letterSpacing: -0.01,
+              const Spacer(),
+              GestureDetector(
+                onTap: () => context.goNamed(RouteNames.studentCaseMarket),
+                child: Row(
+                  children: [
+                    Text(
+                      '病例中心',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: AppColors.onPrimarySoftOf(context),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, size: 14, color: AppColors.onPrimarySoftOf(context)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _dailyMetaDot(department),
-                  const SizedBox(width: 12),
-                  _dailyMetaDot(estimatedTime),
-                  const SizedBox(width: 12),
-                  _dailyMetaDot(difficulty),
-                ],
-              ),
-              const SizedBox(height: 16),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'NotoSerifSC',
+              fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: AppColors.onPrimaryOf(context),
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              MonoText('$department · $estimatedTime',
+                  fontSize: 10, color: AppColors.onPrimarySoftOf(context)),
+              const Spacer(),
               GestureDetector(
-                onTap: () => context.goNamed(RouteNames.dailyCase),
+                onTap: () => context.pushNamed(RouteNames.dailyCase),
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: AppColors.surfaceOf(context),
+                    color: AppColors.onPrimaryOf(context),
                     borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '开始训练',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.primaryOf(context),
-                        ),
-                      ),
-                      SizedBox(width: 6),
-                      Icon(Icons.arrow_forward, size: 14, color: AppColors.primaryOf(context)),
-                    ],
+                  child: Text(
+                    '开始训练',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -365,276 +446,156 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     );
   }
 
-  Widget _dailyMetaDot(String label) {
-    return Row(
-      children: [
-        Container(
-          width: 4,
-          height: 4,
-          decoration: BoxDecoration(
-            color: AppColors.onPrimarySoftOf(context),
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 4),
-        MonoText(
-          label,
-          fontSize: 11,
-          color: AppColors.onPrimarySoftOf(context),
-        ),
-      ],
-    );
-  }
-
-  // 待办作业
-  Widget _buildTodoSection() {
-    final totalCount = _isLoadingAssignments
+  // 待办作业（琥珀）
+  Widget _todoBlock() {
+    final total = _isLoadingAssignments
         ? 3
         : (_assignmentsData?['total'] as int? ?? 3);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionHeader(
-          number: '01',
-          title: '待办作业',
-          trailing: AppMoreLink(
-            label: '全部 $totalCount →',
-            onTap: () => AppFeedback.info(context, '作业列表页即将开放'),
-          ),
-        ),
-if (_isLoadingAssignments)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
+    return _blockShell(
+      bg: AppColors.amberSoftOf(context),
+      height: 110,
+      onTap: () => AppFeedback.info(context, '作业列表页即将开放'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _blockIcon(AppColors.amber, Icons.task_alt_rounded),
+              const Spacer(),
+              Text(
+                '$total',
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.amber,
+                ),
               ),
-            ),
-          )
-        else
-          ..._buildTodoItems(),
-      ],
+            ],
+          ),
+          const Spacer(),
+          SerifText('待办作业', fontSize: 14, color: AppColors.textOf(context)),
+          MonoText('$total 项未完成', fontSize: 10, color: AppColors.text3Of(context)),
+        ],
+      ),
     );
   }
 
-  List<Widget> _buildTodoItems() {
-    final records = _assignmentsData?['records'] as List<dynamic>?;
-
-    if (records != null && records.isNotEmpty) {
-      return records.map((r) {
-        final item = r as Map<String, dynamic>;
-        final title = item['title'] as String? ?? '（未命名作业）';
-        final teacher = item['teacher'] as String? ?? '';
-        final department = item['department'] as String? ?? '';
-        final deadline = item['deadline'] as String? ?? '';
-        final status = item['status'] as String? ?? '';
-
-        final metaItems = <String>[];
-        if (teacher.isNotEmpty) metaItems.add('$teacher 老师');
-        if (department.isNotEmpty) metaItems.add(department);
-        if (deadline.isNotEmpty) metaItems.add('截止 $deadline');
-
-        final isUrgent = item['urgent'] as bool? ?? false;
-        final tagColor = isUrgent ? AppColors.vermilion : AppColors.moss;
-
-        return _todoItem(
-          tagColor: tagColor,
-          title: title,
-          metaItems: metaItems.isEmpty ? ['待处理'] : metaItems,
-          urgentDeadline: isUrgent,
-          onTap: () => context.pushNamed(RouteNames.chat),
-        );
-      }).toList();
-    }
-
-    // 默认显示（API 返回 null 时使用）
-    return [
-      _todoItem(
-        tagColor: AppColors.vermilion,
-        title: '心绞痛病例问诊 · 大病历',
-        metaItems: const ['王老师', '心血管内科', '截止 07.22 23:59'],
-        urgentDeadline: true,
-        onTap: () => context.pushNamed(RouteNames.chat),
+  // 基础题训练（苔藓绿）
+  Widget _trainingBlock() {
+    final accuracy = ((_questionStats?['accuracy'] as num?)?.toDouble() ?? 0.0);
+    final answered = (_questionStats?['totalAnswered'] as num?)?.toInt() ?? 0;
+    return _blockShell(
+      bg: AppColors.mossTintOf(context),
+      height: 110,
+      onTap: () => context.pushNamed(RouteNames.questionTraining),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _blockIcon(AppColors.primaryOf(context), Icons.quiz_rounded),
+              const Spacer(),
+              Text(
+                accuracy == 0 ? '--' : '${(accuracy * 100).round()}%',
+                style: TextStyle(
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.primaryOf(context),
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          SerifText('基础题训练', fontSize: 14, color: AppColors.textOf(context)),
+          MonoText('已做 $answered 题', fontSize: 10, color: AppColors.text3Of(context)),
+        ],
       ),
-      _todoItem(
-        tagColor: AppColors.amber,
-        title: '慢阻肺急性加重 · 鉴别诊断',
-        metaItems: const ['李老师', '呼吸内科', '截止 07.25 23:59'],
-        onTap: () => context.pushNamed(RouteNames.chat),
-      ),
-      _todoItem(
-        tagColor: AppColors.moss,
-        title: '肝硬化腹水 · 自主训练',
-        metaItems: const ['消化内科', '已完成问诊，待提交病历'],
-        onTap: () => AppFeedback.info(context, '该作业已完成问诊，待提交大病历'),
-      ),
-    ];
+    );
   }
 
-  Widget _todoItem({
-    required Color tagColor,
-    required String title,
-    required List<String> metaItems,
-    bool urgentDeadline = false,
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-   margin: EdgeInsets.only(bottom: 8),
-   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  Widget _blockIcon(Color color, IconData icon) {
+    return Container(
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        borderRadius: BorderRadius.circular(AppRadius.md),
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            decoration: BoxDecoration(
-              color: tagColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-            constraints: const BoxConstraints(minHeight: 36),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-         style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textOf(context),
-                  ),
-                ),
-         SizedBox(height: 4),
-                Wrap(
-                  spacing: 10,
-                  children: metaItems.map((m) {
-                    final isUrgent = urgentDeadline && m.contains('截止');
-                    return MonoText(
-                      m,
-                      fontSize: 11,
-                      color: isUrgent ? AppColors.vermilion : AppColors.text3Of(context),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-      Icon(Icons.chevron_right, size: 14, color: AppColors.text3Of(context)),
-        ],
-      ),
-      ),
+      child: Icon(icon, size: 18, color: color),
     );
   }
+}
 
-  // 薄弱知识点
-  Widget _buildWeakPointsSection() {
-    final List<dynamic> weakPoints = _weakPointsData ?? const [];
-    final List<Widget> rows;
-    if (_isLoadingWeaknesses) {
-      rows = [
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 20),
-          child: Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
+/// 首页全局检索对话框
+class _HomeSearchDialog extends StatefulWidget {
+  const _HomeSearchDialog();
+
+  @override
+  State<_HomeSearchDialog> createState() => _HomeSearchDialogState();
+}
+
+class _HomeSearchDialogState extends State<_HomeSearchDialog> {
+  final _ctl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surfaceOf(context),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md)),
+      title: Text(
+        '智能检索',
+        style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textOf(context)),
+      ),
+      content: TextField(
+        controller: _ctl,
+        autofocus: true,
+        decoration: InputDecoration(
+          hintText: '教材 / 知识点 / 题目 / 病例',
+          hintStyle: TextStyle(color: AppColors.text4Of(context)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderSide: BorderSide(color: AppColors.surfaceEdgeOf(context)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderSide: BorderSide(color: AppColors.surfaceEdgeOf(context)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderSide: BorderSide(color: AppColors.primaryOf(context), width: 1.5),
           ),
         ),
-      ];
-    } else if (weakPoints.isEmpty) {
-      rows = [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          child: Center(
-            child: MonoText(
-              '暂无薄弱知识点数据',
-              fontSize: 12,
-              color: AppColors.text3Of(context),
-            ),
-          ),
+        style: TextStyle(color: AppColors.textOf(context)),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(''),
+          child: Text('取消',
+              style: TextStyle(color: AppColors.text3Of(context))),
         ),
-      ];
-    } else {
-      rows = weakPoints.map((item) {
-        final m = item as Map<String, dynamic>;
-        final name = m['knowledgeTag'] as String? ?? '';
-        final score = (m['weaknessScore'] as num?)?.toDouble() ?? 0.0;
-        final color = score < 0.5
-            ? AppColors.vermilion
-            : score < 0.7
-                ? AppColors.amber
-                : AppColors.moss;
-        return _weakRow(name, score, color);
-      }).toList();
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionHeader(
-          number: '02',
-          title: '薄弱知识点',
-          trailing: AppMoreLink(
-            label: '补救路径 →',
-            onTap: () => context.pushNamed(RouteNames.reviewReport),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_ctl.text),
+          child: Text(
+            '搜索',
+            style: TextStyle(
+                color: AppColors.primaryOf(context),
+                fontWeight: FontWeight.w600),
           ),
-        ),
-        AppPaper(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-child: Column(children: rows),
         ),
       ],
-    );
-  }
-
-  Widget _weakRow(String name, double score, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              name,
-       style: TextStyle(fontSize: 13, color: AppColors.text2Of(context)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: AppProgressBar(
-              value: score,
-              height: 6,
-              foregroundColor: color,
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 36,
-            child: Text(
-              score.toStringAsFixed(2),
-              textAlign: TextAlign.right,
-       style: TextStyle(
-                fontFamily: 'JetBrainsMono',
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.text2Of(context),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

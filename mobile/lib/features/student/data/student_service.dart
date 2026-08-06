@@ -209,6 +209,122 @@ class StudentService {
     }
     return resp.data;
   }
+
+  /// 教材分页列表
+  Future<Map<String, dynamic>?> getTextbooks({
+    int pageNum = 1,
+    int pageSize = 20,
+    String? department,
+    String? keyword,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getTextbooks(
+      pageNum: pageNum,
+      pageSize: pageSize,
+      department: department,
+      keyword: keyword,
+    );
+    if (!resp.isSuccess) {
+      log('getTextbooks failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 教材详情
+  Future<Map<String, dynamic>?> getTextbookDetail(int id) async {
+    if (_isMock) return null;
+    final resp = await _api.getTextbookDetail(id);
+    if (!resp.isSuccess) {
+      log('getTextbookDetail failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 基础题分页列表
+  Future<Map<String, dynamic>?> getQuestions({
+    int pageNum = 1,
+    int pageSize = 20,
+    String? knowledgeTag,
+    int? difficulty,
+    String? questionType,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestions(
+      pageNum: pageNum,
+      pageSize: pageSize,
+      knowledgeTag: knowledgeTag,
+      difficulty: difficulty,
+      questionType: questionType,
+    );
+    if (!resp.isSuccess) {
+      log('getQuestions failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 提交基础题答案
+  Future<Map<String, dynamic>?> submitQuestion({
+    required int questionId,
+    required String selectedAnswer,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.submitQuestion(
+      questionId: questionId,
+      selectedAnswer: selectedAnswer,
+    );
+    if (!resp.isSuccess) {
+      log('submitQuestion failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 我的训练统计
+  Future<Map<String, dynamic>?> getQuestionStats() async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestionStats();
+    if (!resp.isSuccess) {
+      log('getQuestionStats failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 单个薄弱知识点推荐
+  Future<Map<String, dynamic>?> getRecommendation(String knowledgeTag) async {
+    if (_isMock) return null;
+    final resp = await _api.getRecommendation(knowledgeTag);
+    if (!resp.isSuccess) {
+      log('getRecommendation failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 全部薄弱知识点推荐列表
+  Future<List<dynamic>?> getRecommendations() async {
+    if (_isMock) return null;
+    final resp = await _api.getRecommendations();
+    if (!resp.isSuccess) {
+      log('getRecommendations failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 全局检索
+  Future<Map<String, dynamic>?> searchResources(String keyword) async {
+    if (_isMock) return null;
+    final resp = await _api.searchResources(keyword);
+    if (!resp.isSuccess) {
+      log('searchResources failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
 }
 
 final studentServiceProvider = Provider<StudentService>((ref) {

@@ -15,6 +15,7 @@ import '../providers/auth_provider.dart';
 import '../data/auth_service.dart';
 import '../presentation/widgets/role_segment.dart';
 import '../presentation/widgets/auth_field.dart';
+import '../presentation/widgets/captcha_widget.dart';
 
 /// 登录方式
 enum _LoginMethod { password, code }
@@ -38,6 +39,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _auth = const AuthService();
   final _formKey = GlobalKey<FormState>();
+  final GlobalKey<CaptchaWidgetState> _captchaKey = GlobalKey();
 
   UserRole _role = UserRole.student;
   _LoginMethod _method = _LoginMethod.password;
@@ -75,6 +77,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _method = method;
       _error = null;
     });
+    // 切换登录方式时刷新图形验证码，避免使用过期/无效题目
+    _captchaKey.currentState?.refresh();
   }
 
   String _roleLabel(UserRole r) => r == UserRole.student ? '学生' : '教师';
@@ -104,11 +108,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _error = '请输入有效的手机号');
       return;
     }
+    final captcha = _captchaKey.currentState?.current();
+    if (captcha == null) {
+      AppFeedback.error(context, '请先完成图形验证');
+      return;
+    }
     setState(() {
       _sendingCode = true;
       _error = null;
     });
-    final result = await _auth.requestCode(phone);
+    final result = await _auth.requestCode(
+      phone,
+      captchaId: captcha.captchaId,
+      captchaAnswer: captcha.answer,
+    );
     if (!mounted) return;
     if (result.error != null) {
       setState(() {
@@ -116,6 +129,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         _error = result.error;
       });
       AppFeedback.error(context, result.error!);
+      // 验证码校验失败或发送失败，刷新图形验证码
+      _captchaKey.currentState?.refresh();
       return;
     }
     setState(() {
@@ -323,6 +338,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           (v == null || v.isEmpty) ? '请输入密码' : null,
                     ),
                   ] else ...[
+                    CaptchaWidget(
+                      key: _captchaKey,
+                      accentColor: _roleColor,
+                    ),
+                    const SizedBox(height: 16),
                     AuthField(
                       label: '手机号',
                       required: true,

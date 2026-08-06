@@ -218,6 +218,122 @@ class StudentApi {
     }
   }
 
+  /// 教材分页列表
+  Future<ApiResponse<Map<String, dynamic>>> getTextbooks({
+    int pageNum = 1,
+    int pageSize = 20,
+    String? department,
+    String? keyword,
+  }) async {
+    try {
+      final params = <String, dynamic>{'pageNum': pageNum, 'pageSize': pageSize};
+      if (department != null && department.isNotEmpty) params['department'] = department;
+      if (keyword != null && keyword.isNotEmpty) params['keyword'] = keyword;
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/textbooks',
+        queryParameters: params,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 教材详情
+  Future<ApiResponse<Map<String, dynamic>>> getTextbookDetail(int id) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/textbooks/$id');
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 基础题分页列表
+  Future<ApiResponse<Map<String, dynamic>>> getQuestions({
+    int pageNum = 1,
+    int pageSize = 20,
+    String? knowledgeTag,
+    int? difficulty,
+    String? questionType,
+  }) async {
+    try {
+      final params = <String, dynamic>{'pageNum': pageNum, 'pageSize': pageSize};
+      if (knowledgeTag != null && knowledgeTag.isNotEmpty) params['knowledgeTag'] = knowledgeTag;
+      if (difficulty != null) params['difficulty'] = difficulty;
+      if (questionType != null && questionType.isNotEmpty) params['questionType'] = questionType;
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/questions',
+        queryParameters: params,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 提交基础题答案
+  Future<ApiResponse<Map<String, dynamic>>> submitQuestion({
+    required int questionId,
+    required String selectedAnswer,
+  }) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/questions/submit',
+        data: {'questionId': questionId, 'selectedAnswer': selectedAnswer},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 我的训练统计
+  Future<ApiResponse<Map<String, dynamic>>> getQuestionStats() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/questions/stats');
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 单个薄弱知识点推荐（基础题 + 教材）
+  Future<ApiResponse<Map<String, dynamic>>> getRecommendation(String knowledgeTag) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/recommend/weakness',
+        queryParameters: {'knowledgeTag': knowledgeTag},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 全部薄弱知识点推荐列表
+  Future<ApiResponse<List<dynamic>>> getRecommendations() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/recommend/weaknesses');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 全局检索（教材 + 基础题 + 病例）
+  Future<ApiResponse<Map<String, dynamic>>> searchResources(String keyword) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/recommend/search',
+        queryParameters: {'keyword': keyword},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   String _mapError(DioException e) {
     log('StudentApi error: ${e.message}', name: 'student_api');
     return switch (e.type) {

@@ -133,4 +133,72 @@ class TeacherService {
     }
     return resp.data;
   }
+
+  // ========= AI 辅助 =========
+
+  /// AI 生成 SP 病例草稿
+  Future<Map<String, dynamic>?> getCaseDraft(Map<String, dynamic> data) async {
+    if (_isMock) return null;
+    final resp = await _api.getCaseDraft(data);
+    if (!resp.isSuccess) {
+      log('getCaseDraft failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 班级学情洞察
+  Future<Map<String, dynamic>?> getClassInsight() async {
+    if (_isMock) return null;
+    final resp = await _api.getClassInsight();
+    if (!resp.isSuccess) {
+      log('getClassInsight failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 复核辅助
+  Future<Map<String, dynamic>?> getReviewAssist(int instanceId) async {
+    if (_isMock) return null;
+    final resp = await _api.getReviewAssist(instanceId);
+    if (!resp.isSuccess) {
+      log('getReviewAssist failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 推荐作业病例
+  Future<Map<String, dynamic>?> getRecommendCases(int classId) async {
+    if (_isMock) return null;
+    final resp = await _api.getRecommendCases(classId);
+    if (!resp.isSuccess) {
+      log('getRecommendCases failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 病例质检
+  Future<Map<String, dynamic>?> getQualityCheck(int caseId) async {
+    if (_isMock) return null;
+    final resp = await _api.getQualityCheck(caseId);
+    if (!resp.isSuccess) {
+      log('getQualityCheck failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 自动生成练习题
+  Future<Map<String, dynamic>?> getPracticeQuestions(int caseId) async {
+    if (_isMock) return null;
+    final resp = await _api.getPracticeQuestions(caseId);
+    if (!resp.isSuccess) {
+      log('getPracticeQuestions failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
 }

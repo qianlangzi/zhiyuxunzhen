@@ -18,6 +18,7 @@ class ReviewScreen extends ConsumerStatefulWidget {
 
 class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   int _currentTab = 0;
+  bool _aiAssistLoading = false;
   final _scoreController = TextEditingController(text: '85');
   final _commentController = TextEditingController(
     text: '诱因遗漏扣分偏重，调整为 -3。整体诊断思路清晰，鉴别诊断虽未列夹层但已识别肺栓塞，给 85 分。',
@@ -40,6 +41,148 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  /// AI 复核辅助（复核建议 + 评语草稿，RAG 教材锚点）
+  Future<void> _assistReview() async {
+    if (_aiAssistLoading) return;
+    setState(() => _aiAssistLoading = true);
+    final data = _reviewData;
+    final instanceId = (data?['instanceId'] as num?)?.toInt() ?? 1;
+    final result = await TeacherService().getReviewAssist(instanceId);
+    if (!mounted) return;
+    setState(() => _aiAssistLoading = false);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，无法生成复核建议');
+      return;
+    }
+    final commentDraft = result['commentDraft'] as String? ?? '';
+    final suggestions = (result['suggestions'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+    if (commentDraft.isNotEmpty) {
+      _commentController.text = commentDraft;
+    }
+    _showAssistSheet(suggestions, commentDraft);
+  }
+
+  void _showAssistSheet(List<Map<String, dynamic>> suggestions, String commentDraft) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: SerifText('AI 复核辅助 · 仅供参考', fontSize: 17)),
+                  const AppChip(label: 'AI', type: ChipType.moss),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('逐条复核 AI 批阅项，评语草稿已填入下方，可修改后再提交', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    if (suggestions.isNotEmpty) ...[
+                      _assistBlock('复核建议', ''),
+                      ...suggestions.asMap().entries.map((e) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceOf(context),
+                          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: MonoText('${e.value['scoreItem'] ?? '批阅项'}',
+                                      fontSize: 11, color: AppColors.primaryOf(context)),
+                                ),
+                                _verdictChip('${e.value['verdict'] ?? ''}'),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Text('${e.value['reason'] ?? ''}',
+                                style: TextStyle(
+                                    fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+                            if ((e.value['textbookRef'] as String?)?.isNotEmpty ?? false)
+                              MonoText('教材：${e.value['textbookRef']}',
+                                  fontSize: 11, color: AppColors.text3Of(context)),
+                          ],
+                        ),
+                      )),
+                    ],
+                    if (commentDraft.isNotEmpty)
+                      _assistBlock('评语草稿', commentDraft),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _verdictChip(String verdict) {
+    final (label, chipType) = switch (verdict) {
+      'agree' => ('同意', ChipType.moss),
+      'disagree' => ('争议', ChipType.vermilion),
+      'uncertain' => ('存疑', ChipType.amber),
+      _ => (verdict, ChipType.default_),
+    };
+    return AppChip(label: label, type: chipType!, fontSize: 10);
+  }
+
+  Widget _assistBlock(String title, String content) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoText(title.toUpperCase(), fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.06),
+          if (content.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(content,
+                style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+          ],
+        ],
+      ),
+    );
   }
 
   @override
@@ -340,7 +483,7 @@ Text(
                 children: [
                   Text(
 '$aiScore',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'NotoSerifSC',
                       fontFamilyFallback: ['Songti SC', 'STSong', 'Noto Serif CJK SC', 'Source Han Serif SC'],
                       fontSize: 36,
@@ -437,10 +580,17 @@ Text(aiScoreLevel, style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLigh
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.edit, size: 12, color: AppColors.amber),
-              SizedBox(width: 6),
-              MonoText('教师复核 · 可覆盖', fontSize: 11, color: AppColors.amber, letterSpacing: 0.1),
+            children: [
+              const Icon(Icons.edit, size: 12, color: AppColors.amber),
+              const SizedBox(width: 6),
+              Expanded(
+                child: MonoText('教师复核 · 可覆盖', fontSize: 11, color: AppColors.amber, letterSpacing: 0.1),
+              ),
+              AppGhostButton(
+                label: _aiAssistLoading ? 'AI 复核中…' : 'AI 复核辅助',
+                small: true,
+                onPressed: _aiAssistLoading ? null : _assistReview,
+              ),
             ],
           ),
           const SizedBox(height: 8),

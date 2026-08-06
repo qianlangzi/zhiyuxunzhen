@@ -35,11 +35,19 @@ class AuthService {
 
   /// 向手机号下发验证码
   ///
-  /// Mock 模式：返回本地随机 6 位码，UI 会提示用户。
-  /// 真实模式：调用后端 `/users/send-sms`，验证码由后端真实发送到手机。
-  Future<({String code, String? error})> requestCode(String phone) async {
+  /// Mock 模式：返回本地随机 6 位码，UI 会提示用户（captcha 参数被忽略）。
+  /// 真实模式：调用后端 `/api/v1/auth/sms-code`，先校验图形验证码再发短信。
+  Future<({String code, String? error})> requestCode(
+    String phone, {
+    required String captchaId,
+    required String captchaAnswer,
+  }) async {
     if (_isMock) return _mockRequestCode(phone);
-    return _realRequestCode(phone);
+    return _realRequestCode(
+      phone,
+      captchaId: captchaId,
+      captchaAnswer: captchaAnswer,
+    );
   }
 
   Future<({String code, String? error})> _mockRequestCode(String phone) {
@@ -56,9 +64,17 @@ class AuthService {
     return Future.value((code: code, error: null));
   }
 
-  Future<({String code, String? error})> _realRequestCode(String phone) async {
+  Future<({String code, String? error})> _realRequestCode(
+    String phone, {
+    required String captchaId,
+    required String captchaAnswer,
+  }) async {
     final api = AuthApi();
-    final result = await api.sendSms(phone);
+    final result = await api.sendSms(
+      phone,
+      captchaId: captchaId,
+      captchaAnswer: captchaAnswer,
+    );
     return switch (result) {
       SmsSendOk() => (code: '', error: null),
       SmsSendFail(:final message) => (code: '', error: message),
@@ -90,19 +106,40 @@ class AuthService {
 
   /// 注册
   ///
-  /// Mock 模式：本地存储用户到 SharedPreferences。
-  /// 真实模式：调用后端 `/users/register`。
+  /// Mock 模式：本地存储用户到 SharedPreferences（忽略新增字段）。
+  /// 真实模式：调用后端 `/api/v1/auth/register`，透传 realName/schoolName/
+  /// grade/className/certificateNo/department/teacherCertificateImage。
   Future<({UserModel? user, String? error})> register({
     required String phone,
     required String code,
     required String username,
     required String password,
     required UserRole role,
+    String? realName,
+    String? schoolName,
+    String? grade,
+    String? className,
+    String? certificateNo,
+    String? department,
+    String? teacherCertificateImage,
   }) async {
     if (_isMock) {
       return _mockRegister(phone, code, username, password, role);
     }
-    return _realRegister(phone, code, username, password, role);
+    return _realRegister(
+      phone,
+      code,
+      username,
+      password,
+      role,
+      realName: realName,
+      schoolName: schoolName,
+      grade: grade,
+      className: className,
+      certificateNo: certificateNo,
+      department: department,
+      teacherCertificateImage: teacherCertificateImage,
+    );
   }
 
   Future<({UserModel? user, String? error})> _mockRegister(
@@ -138,8 +175,15 @@ class AuthService {
     String code,
     String username,
     String password,
-    UserRole role,
-  ) async {
+    UserRole role, {
+    String? realName,
+    String? schoolName,
+    String? grade,
+    String? className,
+    String? certificateNo,
+    String? department,
+    String? teacherCertificateImage,
+  }) async {
     final api = AuthApi();
     final result = await api.register(
       phone: phone,
@@ -147,6 +191,13 @@ class AuthService {
       username: username,
       password: password,
       role: role,
+      realName: realName,
+      schoolName: schoolName,
+      grade: grade,
+      className: className,
+      certificateNo: certificateNo,
+      department: department,
+      teacherCertificateImage: teacherCertificateImage,
     );
     return switch (result) {
       RegisterOk(:final user) => (user: user, error: null),

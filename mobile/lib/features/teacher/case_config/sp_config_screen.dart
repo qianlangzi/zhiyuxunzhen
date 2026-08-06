@@ -6,6 +6,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../data/teacher_service.dart';
 
 /// SP 配置台
 class SpConfigScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
   int _difficulty = 1; // 0=简单, 1=标准, 2=困难
   final _tags = ['ACS', '心电图判读', '鉴别诊断'];
   bool _saving = false;
+  bool _aiLoading = false;
 
   // 必填字段控制器（hoist 到 state，便于校验与读取）
   final _titleCtl = TextEditingController(text: '急性下壁心肌梗死 · 不典型表现');
@@ -107,6 +109,151 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     context.pushNamed(RouteNames.chat);
   }
 
+  /// AI 生成 SP 病例草稿（RAG 教材锚点，防幻觉）
+  Future<void> _generateDraft() async {
+    final err = _validate();
+    if (err != null) {
+      AppFeedback.error(context, err);
+      return;
+    }
+    setState(() => _aiLoading = true);
+    final result = await TeacherService().getCaseDraft({
+      'chiefComplaint': _complaintCtl.text.trim(),
+      'department': '心血管内科',
+      'difficulty': _difficulty + 1, // 0/1/2 -> 1/2/3
+      'teachingGoals': _tags,
+    });
+    if (!mounted) return;
+    setState(() => _aiLoading = false);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，请稍后重试或手动填写病例');
+      return;
+    }
+    _showDraftSheet(result);
+  }
+
+  void _showDraftSheet(Map<String, dynamic> result) {
+    final patientProfile = result['patientProfile'] as String? ?? '（未生成）';
+    final hiddenDisease = result['hiddenDisease'] as String? ?? '（未生成）';
+    final standardPath = (result['standardPath'] as List<dynamic>?)?.cast<String>() ?? [];
+    final exams = (result['presetExams'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    final knowledgeTags = (result['knowledgeTags'] as List<dynamic>?)?.cast<String>() ?? [];
+    final citations = (result['citations'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.82,
+        maxChildSize: 0.92,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SerifText('AI 病例草稿 · 待审核', fontSize: 17),
+                  ),
+                  AppGhostButton(
+                    label: '填入本表单',
+                    small: true,
+                    onPressed: () {
+                      _pathCtl.text = standardPath.join('\n');
+                      if (knowledgeTags.isNotEmpty) {
+                        _tags
+                          ..clear()
+                          ..addAll(knowledgeTags.take(8));
+                      }
+                      Navigator.pop(ctx);
+                      setState(() {});
+                      AppFeedback.success(context, 'AI 草稿已填入，请审核后保存');
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('仅教师可见 · 涉及医学事实均附教材溯源', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    _draftBlock('患者画像', patientProfile),
+                    _draftBlock('隐藏疾病 / 真实诊断', hiddenDisease, vermilion: true),
+                    if (standardPath.isNotEmpty)
+                      _draftBlock('标准路径', standardPath.asMap().entries
+                          .map((e) => '${e.key + 1}. ${e.value}')
+                          .join('\n')),
+                    if (exams.isNotEmpty)
+                      _draftBlock('检查项目', exams
+                          .map((e) => '${e['name']} · ¥${e['cost']}'
+                              '${e['isKey'] == true ? " · 关键" : ""}')
+                          .join('\n')),
+                    if (knowledgeTags.isNotEmpty)
+                      _draftBlock('知识点', knowledgeTags.join('、')),
+                    if (citations.isNotEmpty)
+                      _draftBlock(
+                        '教材溯源',
+                        citations.map((c) {
+                          final book = c['book_name'] as String? ?? '';
+                          final chapter = c['chapter'] as String? ?? '';
+                          final page = c['page_number'];
+                          return '《$book》${chapter.isNotEmpty ? '·$chapter' : ''}'
+                              '${page != null ? '·P$page' : ''}';
+                        }).join('\n'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _draftBlock(String title, String content, {bool vermilion = false}) {
+    final accent = vermilion ? AppColors.vermilion : AppColors.primaryOf(context);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoText(title.toUpperCase(), fontSize: 11, color: accent, letterSpacing: 0.06),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,10 +265,21 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
             AppBackAppBar(
               title: 'SP 配置台',
               onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
-              action: AppGhostButton(
-                label: _saving ? '处理中…' : '预览试诊',
-                small: true,
-                onPressed: _saving ? null : _preview,
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppGhostButton(
+                    label: _aiLoading ? '生成中…' : 'AI 生成草稿',
+                    small: true,
+                    onPressed: _aiLoading || _saving ? null : _generateDraft,
+                  ),
+                  const SizedBox(width: 8),
+                  AppGhostButton(
+                    label: _saving ? '处理中…' : '预览试诊',
+                    small: true,
+                    onPressed: _saving ? null : _preview,
+                  ),
+                ],
               ),
             ),
             _buildSpHint(),

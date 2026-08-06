@@ -29,16 +29,19 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   bool _showScrollToBottom = false;
   bool _sendPressed = false;
 
-  // ---- API 状态（保留以供后续扩展使用） ----
-  // ignore: unused_field
+  // ---- API 状态 ----
   bool _isLoading = true;
-  // ignore: unused_field
-  final bool _isSessionActive = true;
-  // ignore: unused_field
   int? _sessionId;
   int? _caseId;
   Map<String, dynamic>? _sessionData;
   final List<_ChatMessage> _messages = [];
+  // 思维树 / 阶段 / 苏格拉底提示（来自 chat_workflow SSE 聚合）
+  List<Map<String, dynamic>> _treeNodes = [];
+  List<Map<String, dynamic>> _treeEdges = [];
+  String _stage = '主诉采集';
+  String? _socratesHint;
+  double _totalExamCost = 0.0;
+  bool _isFinishing = false;
 
   late final AnimationController _typingController;
   late final AnimationController _panelController;
@@ -150,7 +153,32 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
 
   // ---- 启动 / 加载会话 ----
 
+  /// 从路由 queryParameters / extra 读取 caseId
+  void _readCaseIdFromRoute() {
+    if (_caseId != null) return;
+    final state = GoRouterState.of(context);
+    final qs = state.uri.queryParameters['caseId'];
+    if (qs != null && qs.isNotEmpty) {
+      final parsed = int.tryParse(qs);
+      if (parsed != null && parsed > 0) {
+        _caseId = parsed;
+        return;
+      }
+    }
+    final extra = state.extra;
+    if (extra is Map) {
+      final cid = extra['caseId'];
+      if (cid is int) {
+        _caseId = cid;
+      } else if (cid is String) {
+        final parsed = int.tryParse(cid);
+        if (parsed != null && parsed > 0) _caseId = parsed;
+      }
+    }
+  }
+
   Future<void> _initSession() async {
+    _readCaseIdFromRoute();
     final service = StudentService();
     final result = await service.startSession(
       caseId: _caseId ?? 1,
@@ -162,6 +190,24 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         _sessionId = result['sessionId'] as int?;
         _sessionData = result;
         _isLoading = false;
+        // 接口可能返回初始 stage / 思维树
+        final stage = result['stage'] as String?;
+        if (stage != null && stage.isNotEmpty) _stage = stage;
+        final nodes = result['treeNodes'] as List<dynamic>?;
+        if (nodes != null) {
+          _treeNodes = nodes
+              .map((n) => Map<String, dynamic>.from(n as Map))
+              .toList();
+          _totalExamCost = _computeExamCost();
+        }
+        final edges = result['treeEdges'] as List<dynamic>?;
+        if (edges != null) {
+          _treeEdges = edges
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        }
+        final socrates = result['socratesHint'] as String?;
+        if (socrates != null && socrates.isNotEmpty) _socratesHint = socrates;
         // 如果 API 返回了消息数据，替换硬编码消息
         final apiMessages = result['messages'] as List<dynamic>?;
         if (apiMessages != null && apiMessages.isNotEmpty) {
@@ -200,8 +246,37 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
           }
         }
       });
+    } else {
+      setState(() => _isLoading = false);
     }
     // 如果 result == null，保留硬编码 fallback 数据
+  }
+
+  /// 结束问诊 → 跳转 OSCE 结果页
+  Future<void> _finishSession() async {
+    if (_sessionId == null) {
+      AppFeedback.error(context, '问诊会话尚未就绪，请稍候');
+      return;
+    }
+    final ok = await AppFeedback.confirm(
+      context,
+      title: '结束问诊',
+      content: '结束后将生成 OSCE 评分报告，本次问诊不可再继续。确认结束？',
+      confirmText: '结束问诊',
+    );
+    if (!ok || !mounted) return;
+    setState(() => _isFinishing = true);
+    final success = await StudentService().finishSession(_sessionId!);
+    if (!mounted) return;
+    setState(() => _isFinishing = false);
+    if (success) {
+      context.pushReplacementNamed(
+        RouteNames.osceResult,
+        queryParameters: {'sessionId': _sessionId.toString()},
+      );
+    } else {
+      AppFeedback.error(context, '结束问诊失败，请稍后重试');
+    }
   }
 
   void _onScroll() {
@@ -263,6 +338,28 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     }
     setState(() {
       _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient));
+      // 解析思维树 / 阶段 / 苏格拉底提示
+      final nodes = data?['treeNodes'] as List<dynamic>?;
+      if (nodes != null) {
+        _treeNodes = nodes
+            .map((n) => Map<String, dynamic>.from(n as Map))
+            .toList();
+        _totalExamCost = _computeExamCost();
+      }
+      final edges = data?['treeEdges'] as List<dynamic>?;
+      if (edges != null) {
+        _treeEdges = edges
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      final stage = data?['stage'] as String?;
+      if (stage != null && stage.isNotEmpty) _stage = stage;
+      final socrates = data?['socratesHint'] as String?;
+      if (socrates != null && socrates.isNotEmpty) {
+        _socratesHint = socrates;
+        // 苏格拉底提示作为导师消息插入聊天流
+        _extra.add(_ExtraMsg(socrates, _now(), _MsgSender.mentor));
+      }
     });
     _scrollToBottom();
   }
@@ -370,7 +467,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                   alignment: Alignment.center,
                   child: Text(
 _patientAvatarChar,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'NotoSerifSC',
                       fontFamilyFallback: [
                         'Songti SC',
@@ -395,6 +492,36 @@ _patientAvatarChar,
                     ),
                   ),
                 ),
+                // 结束问诊按钮
+                GestureDetector(
+                  onTap: _isFinishing ? null : _finishSession,
+                  behavior: HitTestBehavior.opaque,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: AppColors.vermilionSoftOf(context),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: _isFinishing
+                        ? const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(AppColors.vermilion),
+                            ),
+                          )
+                        : const MonoText(
+                            '结束问诊',
+                            fontSize: 11,
+                            color: AppColors.vermilion,
+                            weight: FontWeight.w600,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 4),
                 GestureDetector(
                   onTap: () => setState(
                     () => _headerCollapsed = !_headerCollapsed,
@@ -415,7 +542,7 @@ _patientAvatarChar,
               ],
             ),
           ),
-          // 展开内容：主诉 + 思维树
+          // 展开内容：主诉 + 阶段进度 + 思维树
           AnimatedSize(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
@@ -438,6 +565,7 @@ _patientAvatarChar,
                           ),
                         ),
                       ),
+                      _buildStageProgress(),
                       _buildTreeToggle(),
                     ],
                   ),
@@ -447,7 +575,101 @@ _patientAvatarChar,
     );
   }
 
+  /// 问诊阶段进度条（主诉采集 → 诊断 共 8 阶段）
+  Widget _buildStageProgress() {
+    const stages = [
+      '主诉采集',
+      '现病史',
+      '既往史',
+      '过敏史',
+      '家族史',
+      '个人史',
+      '查体',
+      '诊断',
+    ];
+    final currentIdx = stages.indexOf(_stage);
+    final activeIdx = currentIdx < 0 ? 0 : currentIdx;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border(
+          top: BorderSide(color: AppColors.ruleSoftOf(context)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              MonoText('问诊阶段',
+                  fontSize: 10,
+                  color: AppColors.text3Of(context),
+                  letterSpacing: 0.08),
+              MonoText(_stage,
+                  fontSize: 11,
+                  color: AppColors.primaryOf(context),
+                  weight: FontWeight.w600),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: List.generate(stages.length * 2 - 1, (i) {
+              if (i.isOdd) {
+                final filled = i ~/ 2 < activeIdx;
+                return Expanded(
+                  child: Container(
+                    height: 2,
+                    color: filled
+                        ? AppColors.primaryOf(context)
+                        : AppColors.ruleSoftOf(context),
+                  ),
+                );
+              }
+              final idx = i ~/ 2;
+              final done = idx < activeIdx;
+              final current = idx == activeIdx;
+              final color = done || current
+                  ? AppColors.primaryOf(context)
+                  : AppColors.text4Of(context);
+              return Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: current
+                      ? AppColors.primaryOf(context)
+                      : (done
+                          ? AppColors.primaryOf(context).withValues(alpha: 0.15)
+                          : AppColors.ruleSoftOf(context)),
+                  shape: BoxShape.circle,
+                  border: current
+                      ? null
+                      : Border.all(color: color, width: 1),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${idx + 1}',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontFamily: 'JetBrainsMono',
+                    color: current
+                        ? AppColors.onPrimaryOf(context)
+                        : color,
+                  ),
+                ),
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTreeToggle() {
+    final nodeCount = _treeNodes.length;
+    final missCount =
+        _treeNodes.where((n) => _isMissStatus(n['status'] as String?)).length;
     return GestureDetector(
       onTap: _openTreePanel,
       behavior: HitTestBehavior.opaque,
@@ -474,18 +696,19 @@ _patientAvatarChar,
               letterSpacing: 0.04,
             ),
             const SizedBox(width: 8),
-            const MonoText(
-              '8 问 · 2 排除',
+            MonoText(
+              '$nodeCount 节点 · $missCount 遗漏',
               fontSize: 10,
               color: AppColors.moss3,
             ),
             const Spacer(),
-            const MonoText(
-              '¥ 680',
-              fontSize: 11,
-              color: AppColors.amber,
-              weight: FontWeight.w600,
-            ),
+            if (_totalExamCost > 0)
+              MonoText(
+                '¥ ${_totalExamCost.toStringAsFixed(0)}',
+                fontSize: 11,
+                color: AppColors.amber,
+                weight: FontWeight.w600,
+              ),
             const SizedBox(width: 4),
             Icon(
               Icons.chevron_right,
@@ -495,6 +718,19 @@ _patientAvatarChar,
           ],
         ),
       ),
+    );
+  }
+
+  bool _isMissStatus(String? status) {
+    if (status == null) return false;
+    final s = status.toLowerCase();
+    return s.contains('遗漏') || s.contains('未采集') || s.contains('未询问');
+  }
+
+  double _computeExamCost() {
+    return _treeNodes.fold<double>(
+      0,
+      (sum, n) => sum + ((n['cost'] as num?)?.toDouble() ?? 0),
     );
   }
 
@@ -514,6 +750,9 @@ _patientAvatarChar,
             ..._extra.map((m) {
               if (m.sender == _MsgSender.student) {
                 return _studentMessage(m.text, m.time);
+              }
+              if (m.sender == _MsgSender.mentor) {
+                return _mentorMessage('AI 导师提示', m.text);
               }
               return _patientMessage(m.text, m.time);
             }),
@@ -1068,117 +1307,172 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
         ),
         // 面板内容
         Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildCostCard(),
-              _buildTreeSection(
-                '症状 / Symptom',
-                '3 已问',
-                AppColors.primaryOf(context),
-                [
-                  const _TreeNode(
-                    '胸部',
-                    '已询问',
-                    '胸骨后压榨样疼痛 2h，放射至左肩',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '伴随',
-                    '已询问',
-                    '大汗、恶心、左手麻木',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '诱因',
-                    '关键遗漏',
-                    '未询问体力活动、情绪、饱餐等诱因',
-                    StatusBadgeType.miss,
-                    meta: '⚠ 高危遗漏 · 影响鉴别诊断',
-                    miss: true,
-                  ),
-                ],
-              ),
-              _buildTreeSection(
-                '病史 / History',
-                '1 遗漏',
-                AppColors.vermilion,
-                [
-                  const _TreeNode(
-                    '既往',
-                    '已采集',
-                    '高血压 8 年，未规律服药',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '过敏史',
-                    '未采集',
-                    '未询问药物过敏史',
-                    StatusBadgeType.miss,
-                    miss: true,
-                  ),
-                ],
-              ),
-              _buildTreeSection(
-                '检查 / Exam',
-                '1 过度',
-                AppColors.amber,
-                [
-                  const _TreeNode(
-                    '心电图',
-                    '关键 · 已开',
-                    '18 导联 · ¥120',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '肌钙蛋白',
-                    '关键 · 已开',
-                    'cTnI · ¥280',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '心肌酶谱',
-                    '建议复查',
-                    '¥280 · 与肌钙蛋白重复，可优化',
-                    StatusBadgeType.warn,
-                    warn: true,
-                  ),
-                ],
-              ),
-              _buildTreeSection(
-                '诊断 / Diagnosis',
-                '待鉴别',
-                AppColors.text3Of(context),
-                [
-                  const _TreeNode(
-                    'ACS',
-                    '高度怀疑',
-                    '急性下壁+右室心梗可能',
-                    StatusBadgeType.ok,
-                  ),
-                  const _TreeNode(
-                    '主动脉夹层',
-                    '待排除',
-                    '需 D-二聚体 / 胸主动脉 CTA 排除',
-                    StatusBadgeType.warn,
-                  ),
-                  const _TreeNode(
-                    '肺栓塞',
-                    '可能性低',
-                    '无危险因素，待 Wells 评估',
-                    StatusBadgeType.neutral,
-                    neutral: true,
-                  ),
-                ],
-              ),
-            ],
-          ),
+          child: _treeNodes.isEmpty
+              ? _buildEmptyTree()
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: _buildTreeSections(),
+                ),
         ),
       ],
     );
   }
 
+  Widget _buildEmptyTree() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.account_tree_outlined,
+              size: 40, color: AppColors.text4Of(context)),
+          const SizedBox(height: 12),
+          Text('思维树将在问诊后生成',
+              style: TextStyle(fontSize: 13, color: AppColors.text3Of(context))),
+          if (_socratesHint != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.amberSoftOf(context),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const MonoText('苏格拉底提示',
+                      fontSize: 10,
+                      color: AppColors.amber,
+                      letterSpacing: 0.1),
+                  const SizedBox(height: 6),
+                  Text(_socratesHint!,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textOf(context),
+                          height: 1.5)),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildTreeSections() {
+    final widgets = <Widget>[];
+    // 费用卡（基于节点 cost 累计）
+    widgets.add(_buildCostCard());
+    // 苏格拉底提示
+    if (_socratesHint != null && _socratesHint!.isNotEmpty) {
+      widgets.add(_buildSocratesCard());
+    }
+    // 按 type 分组渲染
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (final n in _treeNodes) {
+      final type = (n['type'] as String?) ?? 'symptom';
+      groups.putIfAbsent(type, () => []).add(n);
+    }
+    const typeMeta = <String, (String, Color)>{
+      'symptom': ('症状 / Symptom', AppColors.moss3),
+      'history': ('病史 / History', AppColors.vermilion),
+      'exam': ('检查 / Exam', AppColors.amber),
+      'diagnosis': ('诊断 / Diagnosis', AppColors.indigo),
+      'cost': ('费用 / Cost', AppColors.amber),
+    };
+    for (final entry in groups.entries) {
+      final meta = typeMeta[entry.key] ?? ('${entry.key}', AppColors.text3Of(context));
+      final nodes = entry.value.map(_mapNodeToTreeNode).toList();
+      final missCnt =
+          nodes.where((n) => n.miss).length;
+      final countStr = missCnt > 0 ? '$missCnt 遗漏' : '${nodes.length} 已采集';
+      widgets.add(_buildTreeSection(
+        meta.$1,
+        countStr,
+        meta.$2,
+        nodes,
+      ));
+    }
+    return widgets;
+  }
+
+  Widget _buildSocratesCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.amberSoftOf(context),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb_outline, size: 12, color: AppColors.amber),
+              const SizedBox(width: 4),
+              const MonoText('苏格拉底提示',
+                  fontSize: 10,
+                  color: AppColors.amber,
+                  letterSpacing: 0.1),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(_socratesHint!,
+              style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textOf(context),
+                  height: 1.5)),
+        ],
+      ),
+    );
+  }
+
+  /// 将 mentor 返回的节点 Map 转换为 _TreeNode
+  _TreeNode _mapNodeToTreeNode(Map<String, dynamic> n) {
+    final label = (n['label'] as String?) ?? '';
+    final status = (n['status'] as String?) ?? '';
+    final evidence = n['evidence'] as String?;
+    final cost = (n['cost'] as num?)?.toDouble() ?? 0;
+    final textBuf = StringBuffer(label);
+    if (cost > 0) textBuf.write(' · ¥${cost.toStringAsFixed(0)}');
+    final meta = (evidence != null && evidence.isNotEmpty) ? evidence : null;
+    final lower = status.toLowerCase();
+    final isMiss = lower.contains('遗漏') ||
+        lower.contains('未采集') ||
+        lower.contains('未询问');
+    final isWarn = lower.contains('过度') ||
+        lower.contains('复查') ||
+        lower.contains('待排除') ||
+        lower.contains('错误');
+    final isNeutral = lower.contains('已排除') || lower.contains('可能性低');
+    final badgeType = isMiss
+        ? StatusBadgeType.miss
+        : isWarn
+            ? StatusBadgeType.warn
+            : isNeutral
+                ? StatusBadgeType.neutral
+                : StatusBadgeType.ok;
+    return _TreeNode(
+      label.isEmpty ? (n['id'] as String? ?? '节点') : label,
+      status.isEmpty ? '已采集' : status,
+      textBuf.toString(),
+      badgeType,
+      meta: meta,
+      miss: isMiss,
+      warn: isWarn,
+      neutral: isNeutral,
+    );
+  }
+
   Widget _buildCostCard() {
+    // 从节点累计费用（type=exam 或带 cost 字段）
+    final total = _computeExamCost();
+    const threshold = 1000.0;
+    final ratio = total / threshold;
+    final examCount =
+        _treeNodes.where((n) => (n['type'] as String?) == 'exam').length;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -1208,7 +1502,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '¥ 680',
+                    '¥ ${total.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w600,
@@ -1221,13 +1515,13 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   MonoText(
-                    '阈值 ¥1,000',
+                    '阈值 ¥${threshold.toStringAsFixed(0)}',
                     fontSize: 11,
                     color: AppColors.text3Of(context),
                   ),
                   const SizedBox(height: 2),
-                  const MonoText(
-                    '68% 已用',
+                  MonoText(
+                    '${(ratio * 100).clamp(0, 999).toStringAsFixed(0)}% 已用',
                     fontSize: 11,
                     color: AppColors.amber,
                   ),
@@ -1237,15 +1531,15 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
           ),
           const SizedBox(height: 8),
           AppProgressBar(
-            value: 0.68,
+            value: ratio.clamp(0.0, 1.0),
             height: 4,
             backgroundColor: AppColors.amber.withValues(alpha: 0.2),
             foregroundColor: AppColors.amber,
             radius: 2,
           ),
           const SizedBox(height: 6),
-          const MonoText(
-            '已开 3 项检查 · 心电图 / 心肌酶 / 肌钙蛋白（模拟费用 · 不真实扣费）',
+          MonoText(
+            '已开 $examCount 项检查（模拟费用 · 不真实扣费）',
             fontSize: 11,
           ),
         ],
@@ -1381,7 +1675,7 @@ class _TreeNode {
 }
 
 /// 动态追加的问诊消息（发送按钮触发）
-enum _MsgSender { student, patient }
+enum _MsgSender { student, patient, mentor }
 
 class _ExtraMsg {
   final String text;

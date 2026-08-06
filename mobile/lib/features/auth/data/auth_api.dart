@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 
@@ -6,6 +7,26 @@ import '../../../core/config/api_config.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../data/models/models.dart';
+
+/// 图形验证码数据（数学题防盗刷）
+///
+/// 由 `GET /api/v1/auth/captcha` 返回，发送短信验证码前需先获取并让用户作答。
+class CaptchaData {
+  const CaptchaData({
+    required this.captchaId,
+    required this.question,
+    required this.expiresIn,
+  });
+
+  /// 验证码唯一标识，提交短信接口时回传给后端
+  final String captchaId;
+
+  /// 数学题题面，如 `"3 + 5 = ?"`
+  final String question;
+
+  /// 有效期（秒）
+  final int expiresIn;
+}
 
 /// 后端认证服务基础配置
 ///
@@ -115,14 +136,47 @@ class AuthApi {
     _dio.close();
   }
 
+  /// 获取图形验证码（数学题，防盗刷）
+  ///
+  /// `GET /api/v1/auth/captcha` → `{code:0, data:{captchaId, question, expiresIn}}`
+  /// 失败返回 null，由调用方决定重试策略。
+  Future<CaptchaData?> getCaptcha() async {
+    try {
+      final resp =
+          await _dio.get<Map<String, dynamic>>('/api/v1/auth/captcha');
+      final data = resp.data;
+      if (data == null) return null;
+      final code = data['code'] ?? 0;
+      if (code != 0) return null;
+      final payload = data['data'] as Map<String, dynamic>?;
+      if (payload == null) return null;
+      return CaptchaData(
+        captchaId: payload['captchaId'] as String,
+        question: payload['question'] as String,
+        expiresIn: payload['expiresIn'] as int? ?? 300,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// 请求后端发送短信验证码
   ///
-  /// 请求体只传手机号，符合截图描述。
-  Future<SmsSendResult> sendSms(String phone) async {
+  /// 请求体包含手机号与图形验证码校验信息：后端先校验图形验证码，
+  /// 通过才发短信。图形验证码校验失败返回 code=2011（CAPTCHA_INVALID）。
+  Future<SmsSendResult> sendSms(
+    String phone, {
+    required String captchaId,
+    required String captchaAnswer,
+  }) async {
     try {
       final resp = await _dio.post<Map<String, dynamic>>(
         AuthApiConfig.sendSms,
-        data: {'phone': phone},
+        data: {
+          'phone': phone,
+          'captchaId': captchaId,
+          'captchaAnswer': captchaAnswer,
+        },
       );
       final data = resp.data;
       if (data == null) {
@@ -240,22 +294,39 @@ class AuthApi {
 
   /// 注册
   ///
-  /// ⚠️ 接口路径/请求体为预设值，等你提供接口文档后调整。
+  /// 新增字段：realName（姓名，回退 username）、schoolName、grade、className、
+  /// certificateNo、department、teacherCertificateImage（教师资质证书图片路径）。
+  /// 仅非空字段会加入请求体。
   Future<RegisterResult> register({
     required String phone,
     required String code,
     required String username,
     required String password,
     UserRole? role,
+    String? realName,
+    String? schoolName,
+    String? grade,
+    String? className,
+    String? certificateNo,
+    String? department,
+    String? teacherCertificateImage,
   }) async {
     final body = <String, dynamic>{
       'phone': phone,
       'code': code,
       'username': username,
       'password': password,
-      'realName': username,
+      'realName': realName ?? username,
       'role': role?.value ?? 0,
     };
+    if (schoolName != null) body['schoolName'] = schoolName;
+    if (grade != null) body['grade'] = grade;
+    if (className != null) body['className'] = className;
+    if (certificateNo != null) body['certificateNo'] = certificateNo;
+    if (department != null) body['department'] = department;
+    if (teacherCertificateImage != null) {
+      body['teacherCertificateImage'] = teacherCertificateImage;
+    }
 
     try {
       final resp = await _dio.post<Map<String, dynamic>>(
@@ -295,6 +366,41 @@ class AuthApi {
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapDioError(e, '更新资料'));
+    }
+  }
+
+  /// 上传教师资质证书
+  ///
+  /// `POST /api/v1/auth/upload`（multipart/form-data，字段名 `file`）
+  /// 仅支持 jpg/jpeg/png/pdf，最大 5MB。
+  /// 成功返回 `(url: 路径, error: null)`，失败返回 `(url: null, error: 原因)`。
+  Future<({String? url, String? error})> uploadCertificate(File file) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: file.path.split(RegExp(r'[/\\]')).last,
+        ),
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/auth/upload',
+        data: form,
+      );
+      final data = resp.data;
+      if (data == null) return (url: null, error: '上传失败：服务端未返回数据');
+      final code = data['code'] ?? 0;
+      if (code != 0) {
+        final msg = data['message']?.toString() ?? '上传失败';
+        return (url: null, error: msg);
+      }
+      final payload = data['data'] as Map<String, dynamic>?;
+      final url = payload?['url']?.toString();
+      if (url == null) return (url: null, error: '上传失败：未返回路径');
+      return (url: url, error: null);
+    } on DioException catch (e) {
+      return (url: null, error: _mapDioError(e, '上传'));
+    } catch (e) {
+      return (url: null, error: '上传失败：$e');
     }
   }
 

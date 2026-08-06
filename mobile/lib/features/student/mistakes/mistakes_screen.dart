@@ -5,7 +5,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/bottom_tab_bar.dart';
 import '../../../shared/utils/feedback.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/student_service.dart';
@@ -97,6 +96,7 @@ List<Map<String, dynamic>> _mistakes = [];
             ),
             _buildStats(),
             _buildFilterBar(),
+            _buildRecommendEntry(),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -233,6 +233,59 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
             ),
           );
         },
+      ),
+    );
+  }
+
+  // 薄弱知识点推荐入口
+  Widget _buildRecommendEntry() {
+    return GestureDetector(
+      onTap: () => context.pushNamed(RouteNames.recommendation),
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primaryOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: AppColors.onPrimaryOf(context).withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Icon(Icons.auto_awesome, size: 18, color: AppColors.onPrimaryOf(context)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '薄弱知识点智能推荐',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.onPrimaryOf(context),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '针对薄弱点推荐基础题与对应教材',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.onPrimarySoftOf(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.onPrimaryOf(context)),
+          ],
+        ),
       ),
     );
   }

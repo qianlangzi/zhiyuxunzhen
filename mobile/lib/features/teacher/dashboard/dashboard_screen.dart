@@ -21,6 +21,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Map<String, dynamic>? _dashboardData;
   bool _isLoading = true;
+  bool _aiInsightLoading = false;
 
   @override
   void initState() {
@@ -38,6 +39,151 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
+  /// AI 班级学情洞察（纯统计归纳，无新增数据）
+  Future<void> _loadInsight() async {
+    if (_aiInsightLoading) return;
+    setState(() => _aiInsightLoading = true);
+    final result = await TeacherService().getClassInsight();
+    if (!mounted) return;
+    setState(() => _aiInsightLoading = false);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，无法生成学情洞察');
+      return;
+    }
+    _showInsightSheet(result);
+  }
+
+  void _showInsightSheet(Map<String, dynamic> result) {
+    final weaknessAnalysis = result['weaknessAnalysis'] as String? ?? '';
+    final focus = result['recommendedFocus'] as String? ?? '';
+    final suggestions = (result['teachingSuggestions'] as List<dynamic>?)
+            ?.cast<Map<String, dynamic>>() ??
+        [];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SerifText('AI 教学洞察 · 基于真实数据', fontSize: 17),
+                  ),
+                  const AppChip(label: 'AI', type: ChipType.moss),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('仅归纳看板真实统计，不新增任何数字', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    if (weaknessAnalysis.isNotEmpty)
+                      _insightBlock('薄弱点分析', weaknessAnalysis),
+                    if (suggestions.isNotEmpty) ...[
+                      _insightBlock('教学建议', ''),
+                      ...suggestions.asMap().entries.map((e) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceOf(context),
+                          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            MonoText('建议 ${e.key + 1} · ${e.value['topic'] ?? ''}',
+                                fontSize: 11, color: AppColors.primaryOf(context)),
+                            const SizedBox(height: 6),
+                            Text('${e.value['suggestion'] ?? ''}',
+                                style: TextStyle(
+                                    fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+                            const SizedBox(height: 4),
+                            MonoText('依据：${e.value['evidence'] ?? ''}',
+                                fontSize: 11, color: AppColors.text3Of(context)),
+                          ],
+                        ),
+                      )),
+                    ],
+                    if (focus.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOf(context),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            EyebrowText('优先整改方向', color: AppColors.onPrimarySoftOf(context)),
+                            const SizedBox(height: 6),
+                            Text(focus,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.onPrimaryOf(context),
+                                    height: 1.6)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _insightBlock(String title, String content) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoText(title.toUpperCase(), fontSize: 11, color: AppColors.primaryOf(context), letterSpacing: 0.06),
+          if (content.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(content,
+                style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+          ],
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,9 +195,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             AppBackAppBar(
               title: '学情看板 · 心血管 03',
               onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
-              action: AppIconButton(
-                icon: const Icon(Icons.download_outlined, size: 20),
-                onPressed: () => AppFeedback.info(context, '学情报表导出功能即将开放（演示版）'),
+              action: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppGhostButton(
+                    label: _aiInsightLoading ? '洞察中…' : 'AI 教学洞察',
+                    small: true,
+                    onPressed: _aiInsightLoading ? null : _loadInsight,
+                  ),
+                  const SizedBox(width: 8),
+                  AppIconButton(
+                    icon: const Icon(Icons.download_outlined, size: 20),
+                    onPressed: () => AppFeedback.info(context, '学情报表导出功能即将开放（演示版）'),
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -105,6 +262,7 @@ final (label, value, trend, color) =
                 : defaultStats[i];
 
         final isTrendDown = trend.startsWith('↑') && label == '过度检查率';
+        final isNegativeTrend = isTrendDown || trend.startsWith('↓');
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
