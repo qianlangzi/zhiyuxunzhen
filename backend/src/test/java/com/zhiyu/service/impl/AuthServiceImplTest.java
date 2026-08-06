@@ -98,6 +98,7 @@ class AuthServiceImplTest {
         RegisterRequest req = registration(1);
         req.setCertificateNo("CERT-2026-001");
         req.setDepartment("心内科");
+        req.setTeacherCertificateImage("/uploads/certificates/cert_test.png");
         RegistrationResponse response = authService.register(req);
 
         verify(userMapper).insert(argThat(user ->
@@ -145,6 +146,11 @@ class AuthServiceImplTest {
         req.setPhone("18500000003");
         req.setCode("123456");
         req.setRole(role);
+        req.setSchoolName("测试医科大学");
+        if (role == 0) {
+            req.setGrade("大四");
+            req.setClassName("临床2101班");
+        }
         return req;
     }
 

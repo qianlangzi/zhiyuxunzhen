@@ -37,9 +37,28 @@ public class RegisterRequest {
     @Max(value = 1, message = "注册身份无效")
     private Integer role;
 
+    /** 学校名称（学生与教师均必填） */
+    @NotBlank(message = "学校不能为空")
+    @Size(max = 100, message = "学校名称不能超过 100 位")
+    private String schoolName;
+
+    /** 学生年级（学生必填） */
+    @Size(max = 20, message = "年级不能超过 20 位")
+    private String grade;
+
+    /** 学生班级名称（学生必填） */
+    @Size(max = 50, message = "班级名称不能超过 50 位")
+    private String className;
+
+    /** 教师资质编号（教师必填） */
     @Size(max = 100, message = "资质编号不能超过 100 位")
     private String certificateNo;
 
+    /** 教师所属科室（教师必填） */
     @Size(max = 100, message = "科室名称不能超过 100 位")
     private String department;
+
+    /** 教师资质证书图片路径（教师必填，由上传接口返回） */
+    @Size(max = 255, message = "证书图片路径过长")
+    private String teacherCertificateImage;
 }

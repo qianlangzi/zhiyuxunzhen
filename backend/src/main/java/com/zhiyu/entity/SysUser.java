@@ -43,6 +43,18 @@ public class SysUser extends BaseEntity {
 
     private String department;
 
+    /** 学校名称（学生与教师注册时填写） */
+    private String schoolName;
+
+    /** 学生年级（如：大四） */
+    private String grade;
+
+    /** 学生班级名称（如：临床2101班） */
+    private String className;
+
+    /** 教师资质证书图片路径 */
+    private String teacherCertificateImage;
+
     private String avatar;
 
     /** 教师授权班级（JSON 数组，如 [1,2,3]） */

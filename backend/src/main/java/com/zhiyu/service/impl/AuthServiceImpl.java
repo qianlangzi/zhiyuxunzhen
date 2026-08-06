@@ -51,9 +51,26 @@ public class AuthServiceImpl implements AuthService {
         ensureRegistrationAvailable(username, phone);
 
         boolean teacher = req.getRole() == 1;
-        if (teacher && (!StringUtils.hasText(req.getCertificateNo())
-                || !StringUtils.hasText(req.getDepartment()))) {
-            throw new BizException(ResultCode.VALIDATION_FAILED, "教师注册必须填写资质编号和所属科室");
+
+        // 学校必填（学生与教师）
+        if (!StringUtils.hasText(req.getSchoolName())) {
+            throw new BizException(ResultCode.VALIDATION_FAILED, "学校不能为空");
+        }
+
+        if (teacher) {
+            // 教师：资质编号、科室、证书图片必填
+            if (!StringUtils.hasText(req.getCertificateNo())
+                    || !StringUtils.hasText(req.getDepartment())
+                    || !StringUtils.hasText(req.getTeacherCertificateImage())) {
+                throw new BizException(ResultCode.VALIDATION_FAILED,
+                        "教师注册必须填写资质编号、所属科室并上传资质证书");
+            }
+        } else {
+            // 学生：年级、班级必填
+            if (!StringUtils.hasText(req.getGrade()) || !StringUtils.hasText(req.getClassName())) {
+                throw new BizException(ResultCode.VALIDATION_FAILED,
+                        "学生注册必须填写年级和班级");
+            }
         }
 
         smsCodeService.verifyAndConsume(phone, req.getCode());
@@ -67,9 +84,14 @@ public class AuthServiceImpl implements AuthService {
         user.setAuditStatus(teacher ? 1 : 0);
         user.setStatus(0);
         user.setIsDeleted(0);
+        user.setSchoolName(req.getSchoolName().trim());
         if (teacher) {
             user.setTeacherCertificateNo(req.getCertificateNo().trim());
             user.setDepartment(req.getDepartment().trim());
+            user.setTeacherCertificateImage(req.getTeacherCertificateImage().trim());
+        } else {
+            user.setGrade(req.getGrade().trim());
+            user.setClassName(req.getClassName().trim());
         }
 
         try {

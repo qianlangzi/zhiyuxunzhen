@@ -4,8 +4,10 @@ import com.zhiyu.interceptor.InternalApiInterceptor;
 import com.zhiyu.interceptor.JwtAuthInterceptor;
 import com.zhiyu.interceptor.PermissionInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -24,12 +26,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Autowired
     private InternalApiInterceptor internalApiInterceptor;
 
+    @Value("${zhiyu.upload.dir:./uploads}")
+    private String uploadDir;
+
     /** 不需要 JWT 鉴权的路径 */
     private static final String[] JWT_EXCLUDE = {
             "/api/v1/auth/login",
             "/api/v1/auth/login/**",
             "/api/v1/auth/register",
             "/api/v1/auth/sms-code",
+            "/api/v1/auth/captcha",
+            "/api/v1/auth/upload",
             "/api/v1/auth/refresh",
             "/api/v1/health",
             "/api/internal/**",
@@ -37,7 +44,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
             "/swagger-ui.html",
             "/v3/api-docs/**",
             "/actuator/**",
-            "/error"
+            "/error",
+            "/uploads/**"
     };
 
     /** 内部接口（FastAPI 回调）路径 */
@@ -61,5 +69,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(JWT_EXCLUDE)
                 .order(20);
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        // 上传的证书图片以静态资源方式暴露访问
+        String location = uploadDir.endsWith("/") ? uploadDir : uploadDir + "/";
+        registry.addResourceHandler("/uploads/**")
+                .addResourceLocations("file:" + location);
     }
 }

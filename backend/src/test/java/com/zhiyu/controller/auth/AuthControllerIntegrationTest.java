@@ -26,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -66,7 +67,8 @@ class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"student02\",\"password\":\"study2026\","
                                 + "\"realName\":\"李同学\",\"phone\":\"18500000003\","
-                                + "\"code\":\"123456\",\"role\":0}"))
+                                + "\"code\":\"123456\",\"role\":0,"
+                                + "\"schoolName\":\"测试医科大学\",\"grade\":\"大四\",\"className\":\"临床2101班\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(0))
                 .andExpect(jsonPath("$.data.userId").value(21))
@@ -80,7 +82,8 @@ class AuthControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"student02\",\"password\":\"12345678\","
                                 + "\"realName\":\"李同学\",\"phone\":\"18500000003\","
-                                + "\"code\":\"123456\",\"role\":0}"))
+                                + "\"code\":\"123456\",\"role\":0,"
+                                + "\"schoolName\":\"测试医科大学\",\"grade\":\"大四\",\"className\":\"临床2101班\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(1422));
     }
@@ -155,12 +158,12 @@ class AuthControllerIntegrationTest {
     @Test
     @DisplayName("POST /sms-code 开发模式返回 devCode")
     void should_request_sms_code() throws Exception {
-        when(smsCodeService.sendCode("18500000002"))
+        when(smsCodeService.sendCode(eq("18500000002"), anyString(), anyString(), any()))
                 .thenReturn(new SmsCodeResponse(true, 300, "654321"));
 
         mockMvc.perform(post("/api/v1/auth/sms-code")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"phone\":\"18500000002\"}"))
+                        .content("{\"phone\":\"18500000002\",\"captchaId\":\"c1\",\"captchaAnswer\":\"8\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.sent").value(true))
                 .andExpect(jsonPath("$.data.devCode").value("654321"));
