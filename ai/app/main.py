@@ -16,7 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import chat, daily_case, embed, health, knowledge, learning_path, report, review, session, tasks, vision
+from app.api import chat, daily_case, embed, health, knowledge, learning_path, report, review, session, tasks, teacher, vision
 from app.core import lifecycle
 from app.core.config import settings
 from app.core.errors import ApiError
@@ -98,6 +98,7 @@ app.include_router(report.router, tags=["report"])
 app.include_router(tasks.router, tags=["tasks"])
 app.include_router(knowledge.router, tags=["knowledge"])
 app.include_router(session.router, tags=["session"])
+app.include_router(teacher.router, tags=["teacher"])
 
 
 @app.get("/")

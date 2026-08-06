@@ -5,6 +5,7 @@ Spring Boot 调用，需 X-Internal-Token 鉴权。
 
 编排 evaluator_agent 评估后，依次调用 archive_session / sync_mistakes 回调业务中台。
 """
+import json
 import uuid
 
 from fastapi import APIRouter, Depends
@@ -16,6 +17,7 @@ from app.core.logging import get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.models.common import R
 from app.services.backend_client import backend_client
+from app.workflows.chat_workflow import build_history
 from logging import INFO, WARNING
 
 logger = get_logger(__name__)
@@ -44,11 +46,17 @@ async def evaluate_and_archive(
                       trace_id=trace_id, session_id=req.sessionId)
             return R(code=404, message="获取会话上下文失败", data=None)
 
-        case_context = context.get("case_context", "")
-        messages = context.get("messages", [])
+        case_context = json.dumps({
+            "title": context.get("title"),
+            "patientProfile": context.get("patientProfile"),
+            "hiddenDisease": context.get("hiddenDisease"),
+            "standardPath": context.get("standardPathJson"),
+            "presetExams": context.get("presetExams"),
+        }, ensure_ascii=False)
+        history = build_history(context.get("messages", []))
 
         # 2. AI 评估
-        result = await evaluator_evaluate(case_context, messages, trace_id)
+        result = await evaluator_evaluate(case_context, history, trace_id)
         scores = result["scores"]
 
         # 3. 归档会话（不阻塞响应）

@@ -22,7 +22,7 @@ async def chat_stream(req: ChatRequest, student_id: int = Depends(require_mobile
     )
 
 
-@router.post("/v1/internal/chat/sync")
+@router.post("/internal/chat/sync")
 async def chat_sync(req: ChatRequest, _t: None = Depends(require_internal_token)):
     """内部同步问诊接口（供 Spring Boot 转发，X-Internal-Token 鉴权）。
 
@@ -38,6 +38,8 @@ async def chat_sync(req: ChatRequest, _t: None = Depends(require_internal_token)
     citations: list = []
     safety_blocked = False
     safety_reason: str | None = None
+    socrates_hint: str | None = None
+    stage: str | None = None
     error_message: str | None = None
 
     async for event in chat_workflow.run(req, req.student_id):
@@ -58,6 +60,10 @@ async def chat_sync(req: ChatRequest, _t: None = Depends(require_internal_token)
             if payload.get("blocked"):
                 safety_blocked = True
                 safety_reason = payload.get("reason")
+        elif ev == "socrates":
+            socrates_hint = payload.get("hint")
+        elif ev == "stage":
+            stage = payload.get("stage")
         elif ev == "error":
             error_message = payload.get("message", "AI问诊处理失败")
 
@@ -72,5 +78,7 @@ async def chat_sync(req: ChatRequest, _t: None = Depends(require_internal_token)
             "citations": citations,
             "safetyBlocked": safety_blocked,
             "safetyReason": safety_reason,
+            "socratesHint": socrates_hint,
+            "stage": stage,
         },
     }

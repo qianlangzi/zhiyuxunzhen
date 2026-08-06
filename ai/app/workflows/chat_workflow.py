@@ -87,8 +87,12 @@ class ChatWorkflow:
             if not settings.llm_configured:
                 yield sse("status", {"degraded": True, "message": "当前未配置大模型，回复为规则降级结果。"})
 
+            # 问诊阶段（默认主诉采集，由 mentor 增量更新推进）
+            stage = "主诉采集"
+            yield sse("stage", {"stage": stage})
+
             parts: list[str] = []
-            async for delta in sp_reply_stream(case_context, history, trace_id=trace_id):
+            async for delta in sp_reply_stream(case_context, history, trace_id=trace_id, stage=stage):
                 parts.append(delta)
                 yield sse("message", {"delta": delta})
             reply = "".join(parts)
@@ -114,6 +118,11 @@ class ChatWorkflow:
             try:
                 tree = await mentor_update(case_context, history + [{"role": "assistant", "content": reply}], None, 0.0, trace_id)
                 yield sse("tree", {"nodes": tree.get("nodes", []), "edges": tree.get("edges", [])})
+                # mentor 推进的问诊阶段
+                new_stage = tree.get("current_stage")
+                if new_stage and new_stage != stage:
+                    stage = new_stage
+                    yield sse("stage", {"stage": stage})
                 if tree.get("socrates_hint"):
                     yield sse("socrates", {"hint": tree["socrates_hint"]})
             except Exception as exc:  # noqa: BLE001
