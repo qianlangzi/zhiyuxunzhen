@@ -73,6 +73,10 @@ services:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
       <<: *no-proxy-env
+    # Windows Docker Desktop 容器内 DNS 解析服务名可能失败，用 extra_hosts 静态映射绕过
+    extra_hosts:
+      - "etcd:172.18.0.4"
+      - "minio:172.18.0.5"
     depends_on:
       - etcd
       - minio

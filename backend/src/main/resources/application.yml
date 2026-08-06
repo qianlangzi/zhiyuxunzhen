@@ -47,6 +47,8 @@ zhiyu:
   upload:
     max-file-size: 5MB
     allowed-types: jpg,jpeg,png,pdf
+    dir: ${UPLOAD_DIR:./uploads}
+    base-url: ${UPLOAD_BASE_URL:/uploads}
 
 management:
   endpoints:
