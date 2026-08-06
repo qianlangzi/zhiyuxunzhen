@@ -1,0 +1,28 @@
+package com.zhiyu.vo;
+
+import lombok.Builder;
+import lombok.Data;
+
+import java.util.List;
+
+/**
+ * 基础题 VO
+ */
+@Data
+@Builder
+public class PracticeQuestionVO {
+    private Long id;
+    /** single_choice / judgment */
+    private String questionType;
+    private String knowledgeTag;
+    private String title;
+    /** 选项列表 */
+    private List<String> options;
+    /** 正确选项 index 或答案 */
+    private String answer;
+    private String explanation;
+    /** 1简单 2标准 3困难 */
+    private Integer difficulty;
+    private Long sourceTextbookId;
+    private String sourceTextbookTitle;
+}
