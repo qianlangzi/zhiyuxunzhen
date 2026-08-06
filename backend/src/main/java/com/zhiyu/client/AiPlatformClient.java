@@ -151,6 +151,122 @@ public class AiPlatformClient {
     }
 
     /**
+     * 8. AI 生成 SP 病例草稿（教师端 AI 辅助）
+     * POST {ai-base-url}/case/draft
+     * 解析 JSON 响应，提取 data 字段返回；AI 不可用时返回 null（非关键能力，优雅降级）
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> generateCaseDraft(String chiefComplaint, String department,
+                                                 Integer difficulty, List<String> teachingGoals) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("chiefComplaint", chiefComplaint);
+        body.put("department", department);
+        body.put("difficulty", difficulty == null ? 2 : difficulty);
+        body.put("teachingGoals", teachingGoals == null ? List.of() : teachingGoals);
+        return postData("/case/draft", body);
+    }
+
+    /**
+     * 9. AI 班级学情洞察（教师端 AI 辅助）
+     * POST {ai-base-url}/insight/class
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> classInsight(String className, List<Map<String, Object>> stats,
+                                            Map<String, Integer> osceDimensionScores,
+                                            List<Map<String, Object>> commonMistakes) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("className", className == null ? "" : className);
+        body.put("stats", stats == null ? List.of() : stats);
+        body.put("osceDimensionScores", osceDimensionScores == null ? Map.of() : osceDimensionScores);
+        body.put("commonMistakes", commonMistakes == null ? List.of() : commonMistakes);
+        return postData("/insight/class", body);
+    }
+
+    /**
+     * 10. AI 复核辅助（教师端 AI 辅助）
+     * POST {ai-base-url}/review/teacher_assist
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> reviewAssist(Long instanceId, String medicalRecordText,
+                                            Double aiScore, List<Map<String, Object>> aiMistakes,
+                                            String caseContext) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("instanceId", instanceId);
+        body.put("medicalRecordText", medicalRecordText);
+        body.put("aiScore", aiScore == null ? 0.0 : aiScore);
+        body.put("aiMistakes", aiMistakes == null ? List.of() : aiMistakes);
+        body.put("caseContext", caseContext == null ? "" : caseContext);
+        return postData("/review/teacher_assist", body);
+    }
+
+    /**
+     * 11. AI 推荐作业病例（教师端 AI 辅助）
+     * POST {ai-base-url}/assignment/recommend
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> recommendCases(Long classId, List<Map<String, Object>> weaknesses,
+                                              List<Map<String, Object>> candidateCases) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("classId", classId);
+        body.put("weaknesses", weaknesses == null ? List.of() : weaknesses);
+        body.put("candidateCases", candidateCases == null ? List.of() : candidateCases);
+        return postData("/assignment/recommend", body);
+    }
+
+    /**
+     * 12. AI 病例质检（教师端 AI 辅助）
+     * POST {ai-base-url}/case/quality_check
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> qualityCheck(Long caseId, String title, String hiddenDisease,
+                                            List<String> standardPath, List<Map<String, Object>> presetExams,
+                                            List<String> knowledgeTags) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("caseId", caseId);
+        body.put("title", title == null ? "" : title);
+        body.put("hiddenDisease", hiddenDisease);
+        body.put("standardPath", standardPath == null ? List.of() : standardPath);
+        body.put("presetExams", presetExams == null ? List.of() : presetExams);
+        body.put("knowledgeTags", knowledgeTags == null ? List.of() : knowledgeTags);
+        return postData("/case/quality_check", body);
+    }
+
+    /**
+     * 13. AI 自动生成练习题（教师端 AI 辅助）
+     * POST {ai-base-url}/case/practice_questions
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> practiceQuestions(Long caseId, String hiddenDisease,
+                                                 List<String> standardPath, List<String> knowledgeTags) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("caseId", caseId);
+        body.put("hiddenDisease", hiddenDisease);
+        body.put("standardPath", standardPath == null ? List.of() : standardPath);
+        body.put("knowledgeTags", knowledgeTags == null ? List.of() : knowledgeTags);
+        return postData("/case/practice_questions", body);
+    }
+
+    /**
+     * 统一的 POST 请求并解析 data 字段；AI 不可用或返回异常时返回 null（不抛异常，支持优雅降级）
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> postData(String path, Map<String, Object> body) {
+        try {
+            String json = post(path, body);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode data = root.get("data");
+            if (data != null && data.isObject()) {
+                return objectMapper.convertValue(data, Map.class);
+            }
+            log.warn("AI中台响应中无data字段: {} resp={}", path, json);
+            return null;
+        } catch (Exception e) {
+            log.warn("AI中台调用失败，返回null: {} error={}", path, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 统一 POST 请求封装
      */
     private String post(String path, Map<String, Object> body) {

@@ -1,84 +1,171 @@
 package com.zhiyu.service.impl;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.exception.BizException;
+import com.zhiyu.entity.ChatSession;
+import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.service.StudentEvaluationService;
 import com.zhiyu.vo.SessionEvaluationVO;
 import com.zhiyu.vo.ThinkingTreeVO;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
- * 学生会话评估服务实现（模拟数据）
+ * 学生会话评估服务实现
+ *
+ * 直接读取 ChatSession 表中由 AI 中台归档写入的字段：
+ *   - osceScoreJson     : evaluator 输出的 scores（4 维）
+ *   - finalReport       : evaluator 的 final_report
+ *   - reasoningTreeJson : evaluator 完整 result JSON（含 scores/comments/strengths/
+ *                         improvements/final_report/mistakes），同时也可作为思维树来源
+ *   - totalExamCost     : 累计检查费用
+ *
+ * 维度对齐 ai/app/agents/evaluator_agent.py 的 4 维：history / logic / communication / humanity。
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class StudentEvaluationServiceImpl implements StudentEvaluationService {
+
+    private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
+
+    private final ChatSessionMapper sessionMapper;
+    private final ObjectMapper objectMapper;
 
     @Override
     public SessionEvaluationVO getEvaluation(Long sessionId) {
-        // TODO: 从评估表中查询真实数据
-        Map<String, Integer> osceScores = new HashMap<>();
-        osceScores.put("病史采集", 22);
-        osceScores.put("体格检查", 18);
-        osceScores.put("诊断分析", 20);
-        osceScores.put("治疗方案", 17);
-        osceScores.put("沟通能力", 21);
+        ChatSession session = requireSession(sessionId);
+
+        Map<String, Object> scores = parseJson(session.getOsceScoreJson(), MAP_TYPE, Collections.emptyMap());
+        Map<String, Object> comments = Collections.emptyMap();
+        List<String> strengths = Collections.emptyList();
+        List<String> improvements = Collections.emptyList();
+        List<Map<String, Object>> mistakes = Collections.emptyList();
+        double totalScore = 0.0;
+
+        // reasoningTreeJson 是 evaluator 的完整 result，可从中提取 comments/strengths/improvements/mistakes
+        Map<String, Object> tree = parseJson(session.getReasoningTreeJson(), MAP_TYPE, Collections.emptyMap());
+        if (!tree.isEmpty()) {
+            comments = asMap(tree.get("comments"), Collections.emptyMap());
+            strengths = asStringList(tree.get("strengths"));
+            improvements = asStringList(tree.get("improvements"));
+            mistakes = asMapList(tree.get("mistakes"));
+            // evaluator 的 scores 也可能在 tree 中（兜底）
+            if (scores.isEmpty() && tree.get("scores") instanceof Map) {
+                scores = asMap(tree.get("scores"), Collections.emptyMap());
+            }
+        }
+
+        // 总分 = 四维相加（每维 0-25，总分 0-100）
+        if (!scores.isEmpty()) {
+            for (Object v : scores.values()) {
+                totalScore += toDouble(v);
+            }
+        }
 
         return SessionEvaluationVO.builder()
-                .sessionId(sessionId)
-                .caseId(1001L)
-                .osceScores(osceScores)
-                .strengths(Arrays.asList(
-                        "病史采集全面，覆盖主要症状",
-                        "与患者沟通态度良好",
-                        "诊断思路清晰"
-                ))
-                .improvements(Arrays.asList(
-                        "鉴别诊断需要进一步扩展",
-                        "体格检查手法有待规范",
-                        "治疗方案需考虑更多个体化因素"
-                ))
-                .totalScore(98)
+                .sessionId(session.getId())
+                .caseId(session.getCaseId())
+                .scores(scores)
+                .comments(comments)
+                .strengths(strengths)
+                .improvements(improvements)
+                .finalReport(session.getFinalReport())
+                .mistakes(mistakes)
+                .totalScore(totalScore)
+                .status(session.getStatus())
                 .build();
     }
 
     @Override
     public ThinkingTreeVO getThinkingTree(Long sessionId) {
-        // TODO: 从思维树表中查询真实数据
+        ChatSession session = requireSession(sessionId);
+
+        Map<String, Object> tree = parseJson(session.getReasoningTreeJson(), MAP_TYPE, Collections.emptyMap());
+        List<Map<String, Object>> nodes = asMapList(tree.get("nodes"));
+        List<Map<String, Object>> edges = asMapList(tree.get("edges"));
+        String socraticPrompt = tree.get("socrates_hint") instanceof String s ? s : null;
+        String currentStage = tree.get("current_stage") instanceof String s ? s : null;
+
+        Double totalExamCost = session.getTotalExamCost() == null
+                ? 0.0 : session.getTotalExamCost().doubleValue();
+
         return ThinkingTreeVO.builder()
-                .sessionId(sessionId)
-                .totalExamCost(85.5)
-                .symptoms(Arrays.asList(
-                        ThinkingTreeVO.SymptomItem.builder()
-                                .name("头痛")
-                                .description("持续性头痛，伴有恶心")
-                                .evidence("患者主诉头痛3天，NRS评分6分")
-                                .build(),
-                        ThinkingTreeVO.SymptomItem.builder()
-                                .name("发热")
-                                .description("体温38.5℃，午后明显")
-                                .evidence("体温测量38.5℃")
-                                .build()
-                ))
-                .reasoning(Arrays.asList(
-                        ThinkingTreeVO.ReasoningItem.builder()
-                                .step("初步诊断")
-                                .content("考虑上呼吸道感染可能性大")
-                                .correct(true)
-                                .build(),
-                        ThinkingTreeVO.ReasoningItem.builder()
-                                .step("鉴别诊断")
-                                .content("需要排除脑膜炎")
-                                .correct(true)
-                                .build(),
-                        ThinkingTreeVO.ReasoningItem.builder()
-                                .step("辅助检查")
-                                .content("建议血常规、CRP检查")
-                                .correct(true)
-                                .build()
-                ))
-                .socraticPrompt("请思考：患者头痛伴发热，还有哪些需要警惕的疾病？")
+                .sessionId(session.getId())
+                .totalExamCost(totalExamCost)
+                .nodes(nodes)
+                .edges(edges)
+                .socraticPrompt(socraticPrompt)
+                .currentStage(currentStage)
                 .build();
+    }
+
+    private ChatSession requireSession(Long sessionId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
+        }
+        return session;
+    }
+
+    private <T> T parseJson(String json, TypeReference<T> type, T fallback) {
+        if (json == null || json.isBlank()) return fallback;
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (Exception e) {
+            log.warn("解析会话 JSON 字段失败: sessionId={} error={}", json, e.getMessage());
+            return fallback;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object obj, Map<String, Object> fallback) {
+        if (obj instanceof Map) {
+            return new LinkedHashMap<>((Map<String, Object>) obj);
+        }
+        return fallback;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> asMapList(Object obj) {
+        if (obj instanceof List<?> list) {
+            List<Map<String, Object>> result = new ArrayList<>(list.size());
+            for (Object item : list) {
+                if (item instanceof Map) {
+                    result.add((Map<String, Object>) item);
+                }
+            }
+            return result;
+        }
+        return Collections.emptyList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> asStringList(Object obj) {
+        if (obj instanceof List<?> list) {
+            List<String> result = new ArrayList<>(list.size());
+            for (Object item : list) {
+                if (item != null) result.add(item.toString());
+            }
+            return result;
+        }
+        return Collections.emptyList();
+    }
+
+    private double toDouble(Object v) {
+        if (v instanceof Number n) return n.doubleValue();
+        if (v instanceof String s) {
+            try { return Double.parseDouble(s); } catch (NumberFormatException ignored) {}
+        }
+        return 0.0;
     }
 }
