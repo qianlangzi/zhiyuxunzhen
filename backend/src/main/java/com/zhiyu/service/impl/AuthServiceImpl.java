@@ -5,8 +5,10 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.SysUserMapper;
+import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.AuthService;
 import com.zhiyu.service.SmsCodeService;
+import com.zhiyu.service.dto.ChangePasswordRequest;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RegisterRequest;
@@ -38,6 +40,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtUtils jwtUtils;
     private final PasswordEncoder passwordEncoder;
     private final SmsCodeService smsCodeService;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -187,6 +190,7 @@ public class AuthServiceImpl implements AuthService {
                 .realName(user.getRealName())
                 .role(user.getRole())
                 .auditStatus(auditStatus)
+                .mustChangePassword(user.getMustChangePassword() != null && user.getMustChangePassword())
                 .build();
     }
 
@@ -241,6 +245,7 @@ public class AuthServiceImpl implements AuthService {
                 .avatar(user.getAvatar())
                 .authorizedClasses(user.getAuthorizedClasses())
                 .lastLoginAt(user.getLastLoginAt())
+                .mustChangePassword(user.getMustChangePassword() != null && user.getMustChangePassword())
                 .build();
     }
 
@@ -269,6 +274,37 @@ public class AuthServiceImpl implements AuthService {
         update.setId(userId);
         update.setLastLoginAt(LocalDateTime.now());
         userMapper.updateById(update);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long userId, ChangePasswordRequest req) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
+        }
+        // 校验原密码，防止会话被劫持后恶意改密
+        if (!passwordEncoder.matches(req.getOldPassword(), user.getPasswordHash())) {
+            log.warn("修改密码失败，原密码错误: userId={}", userId);
+            throw new BizException(ResultCode.VALIDATION_FAILED, "原密码不正确");
+        }
+        // 新密码不能与原密码相同
+        if (passwordEncoder.matches(req.getNewPassword(), user.getPasswordHash())) {
+            throw new BizException(ResultCode.PASSWORD_SAME_AS_OLD);
+        }
+
+        // 仅更新密码哈希与强制改密标志，避免覆盖其他字段
+        SysUser update = new SysUser();
+        update.setId(userId);
+        update.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
+        update.setMustChangePassword(false);
+        userMapper.updateById(update);
+
+        // 审计日志：不记录密码明文，仅记录操作与目标用户
+        auditLogService.record("change_password", "user", userId, null,
+                "{\"mustChangePassword\":false}");
+
+        log.info("用户修改密码成功: userId={}", userId);
     }
 
     /** 手机号脱敏（PRD 10.3） */

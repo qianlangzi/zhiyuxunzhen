@@ -3,7 +3,7 @@
 ## 启动前检查
 
 - 生产必须设置非默认 `JWT_SECRET`、`AI_INTERNAL_TOKEN`。
-- `CORS_ALLOWED_ORIGINS` 和 `VISION_ALLOWED_HOSTS` 必须是明确列表。
+- `AI_CORS_ALLOWED_ORIGINS` 和 `VISION_ALLOWED_HOSTS` 必须是明确列表。
 - 生产关闭 `ENABLE_LLM_FALLBACK`、`ENABLE_MILVUS_FALLBACK`。
 - 验证 Spring Boot callback、LLM、Embedding、Milvus 连通性。
 

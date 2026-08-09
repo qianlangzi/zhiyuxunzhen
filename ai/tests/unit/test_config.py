@@ -7,15 +7,20 @@ import os
 import pytest
 from pydantic_settings import BaseSettings
 
+# 生产环境测试用的合法密钥（均 ≥ 32 字节，满足 validate_prod 最小长度校验）
+_PROD_JWT_SECRET = "real-secret-key-32chars-minimum-aaaa"
+_PROD_INTERNAL_TOKEN = "real-internal-token-32chars-aaaaaa"
+_PROD_OPS_TOKEN = "real-ops-token-32chars-minimum-aaaa"
+
 
 def test_env_mode_maps_to_env(monkeypatch):
     """ENV_MODE 环境变量应映射到 settings.env"""
     monkeypatch.setenv("ENV_MODE", "prod")
-    monkeypatch.setenv("JWT_SECRET", "real-secret-key-32chars-minimum-aaaa")
-    monkeypatch.setenv("AI_INTERNAL_TOKEN", "real-internal-token")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("JWT_SECRET", _PROD_JWT_SECRET)
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
     monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
-    monkeypatch.setenv("OPS_TOKEN", "real-ops-token")
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
     monkeypatch.setenv("ENABLE_LLM_FALLBACK", "false")
     monkeypatch.setenv("ENABLE_MILVUS_FALLBACK", "false")
     # Clear lru_cache to get fresh settings
@@ -59,8 +64,9 @@ def test_prod_rejects_default_jwt_secret(monkeypatch):
     """生产环境应拒绝默认 JWT 密钥"""
     monkeypatch.setenv("ENV_MODE", "prod")
     monkeypatch.setenv("JWT_SECRET", "dev-only-secret-key-32chars-minimum-aaaa")
-    monkeypatch.setenv("AI_INTERNAL_TOKEN", "real-token")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
     monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
     from app.core.config import get_settings, Settings
     get_settings.cache_clear()
@@ -71,9 +77,10 @@ def test_prod_rejects_default_jwt_secret(monkeypatch):
 def test_prod_rejects_default_internal_token(monkeypatch):
     """生产环境应拒绝默认内部 Token"""
     monkeypatch.setenv("ENV_MODE", "prod")
-    monkeypatch.setenv("JWT_SECRET", "real-secret-key-32chars-minimum-aaaa")
+    monkeypatch.setenv("JWT_SECRET", _PROD_JWT_SECRET)
     monkeypatch.setenv("AI_INTERNAL_TOKEN", "dev-internal-token")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
     monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
     from app.core.config import get_settings, Settings
     get_settings.cache_clear()
@@ -81,12 +88,52 @@ def test_prod_rejects_default_internal_token(monkeypatch):
         Settings()
 
 
+def test_prod_rejects_placeholder_jwt_secret(monkeypatch):
+    """生产环境应拒绝所有历史公开占位密钥（如 please-change-me-...）"""
+    monkeypatch.setenv("ENV_MODE", "prod")
+    monkeypatch.setenv("JWT_SECRET", "please-change-me-to-a-random-32-char-string")
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
+    from app.core.config import Settings
+    with pytest.raises(Exception):
+        Settings()
+
+
+def test_prod_rejects_short_jwt_secret(monkeypatch):
+    """生产环境应拒绝短于 32 字节的 JWT 密钥"""
+    monkeypatch.setenv("ENV_MODE", "prod")
+    monkeypatch.setenv("JWT_SECRET", "short-secret-only-20bytes")
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
+    from app.core.config import Settings
+    with pytest.raises(Exception):
+        Settings()
+
+
+def test_prod_rejects_short_internal_token(monkeypatch):
+    """生产环境应拒绝短于 32 字节的内部 Token"""
+    monkeypatch.setenv("ENV_MODE", "prod")
+    monkeypatch.setenv("JWT_SECRET", _PROD_JWT_SECRET)
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", "short-token")
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
+    monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
+    from app.core.config import Settings
+    with pytest.raises(Exception):
+        Settings()
+
+
 def test_prod_rejects_wildcard_cors(monkeypatch):
     """生产环境应拒绝 CORS 通配符"""
     monkeypatch.setenv("ENV_MODE", "prod")
-    monkeypatch.setenv("JWT_SECRET", "real-secret-key-32chars-minimum-aaaa")
-    monkeypatch.setenv("AI_INTERNAL_TOKEN", "real-token")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["*"]')
+    monkeypatch.setenv("JWT_SECRET", _PROD_JWT_SECRET)
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["*"]')
     monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
     from app.core.config import get_settings, Settings
     get_settings.cache_clear()
@@ -97,10 +144,10 @@ def test_prod_rejects_wildcard_cors(monkeypatch):
 def test_prod_rejects_synthetic_fallback(monkeypatch):
     """Production must not expose the current synthetic fallback responses."""
     monkeypatch.setenv("ENV_MODE", "prod")
-    monkeypatch.setenv("JWT_SECRET", "real-secret-key-32chars-minimum-aaaa")
-    monkeypatch.setenv("AI_INTERNAL_TOKEN", "real-token")
-    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", '["https://example.com"]')
-    monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
+    monkeypatch.setenv("JWT_SECRET", _PROD_JWT_SECRET)
+    monkeypatch.setenv("AI_INTERNAL_TOKEN", _PROD_INTERNAL_TOKEN)
+    monkeypatch.setenv("OPS_TOKEN", _PROD_OPS_TOKEN)
+    monkeypatch.setenv("AI_CORS_ALLOWED_ORIGINS", '["https://example.com"]')
     monkeypatch.setenv("VISION_ALLOWED_HOSTS", '["storage.example.com"]')
     monkeypatch.setenv("ENABLE_LLM_FALLBACK", "true")
     from app.core.config import Settings

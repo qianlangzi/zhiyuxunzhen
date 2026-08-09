@@ -70,6 +70,132 @@ class PermissionInterceptorIntegrationTest {
                 .andExpect(jsonPath("$.code").value(0));
     }
 
+    // ==================== POST /api/v1/admin/users/import 精确矩阵 ====================
+    // 教学秘书(2) / 管理员(4) 可访问，其余角色拒绝
+
+    @Test
+    @DisplayName("教学秘书(2) POST /admin/users/import → 通过(0)")
+    void should_allow_teaching_secretary_import_users() throws Exception {
+        mockJwtUser(20L, "secretary01", 2, null);
+
+        mockMvc.perform(post("/api/v1/admin/users/import")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @DisplayName("管理员(4) POST /admin/users/import → 通过(0)")
+    void should_allow_admin_import_users() throws Exception {
+        mockJwtUser(2L, "admin01", 4, null);
+
+        mockMvc.perform(post("/api/v1/admin/users/import")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @DisplayName("教研室主任(3) POST /admin/users/import → FORBIDDEN(1003)")
+    void should_forbid_dept_head_import_users() throws Exception {
+        mockJwtUser(30L, "depthead01", 3, null);
+
+        mockMvc.perform(post("/api/v1/admin/users/import")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1003));
+    }
+
+    @Test
+    @DisplayName("运维(5) POST /admin/users/import → FORBIDDEN(1003)")
+    void should_forbid_ops_import_users() throws Exception {
+        mockJwtUser(50L, "ops01", 5, null);
+
+        mockMvc.perform(post("/api/v1/admin/users/import")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1003));
+    }
+
+    @Test
+    @DisplayName("学生(0) POST /admin/users/import → FORBIDDEN(1003)")
+    void should_forbid_student_import_users() throws Exception {
+        mockJwtUser(1L, "student01", 0, 0);
+
+        mockMvc.perform(post("/api/v1/admin/users/import")
+                        .header("Authorization", "Bearer token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1003));
+    }
+
+    // ==================== GET /api/v1/admin/dashboard 精确矩阵 ====================
+    // 教研室主任(3) / 管理员(4) / 运维(5) 可访问，其余角色拒绝
+
+    @Test
+    @DisplayName("教研室主任(3) GET /admin/dashboard → 通过(0)")
+    void should_allow_dept_head_access_dashboard() throws Exception {
+        mockJwtUser(30L, "depthead01", 3, null);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard")
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @DisplayName("管理员(4) GET /admin/dashboard → 通过(0)")
+    void should_allow_admin_access_dashboard() throws Exception {
+        mockJwtUser(2L, "admin01", 4, null);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard")
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @DisplayName("运维(5) GET /admin/dashboard → 通过(0)")
+    void should_allow_ops_access_dashboard() throws Exception {
+        mockJwtUser(50L, "ops01", 5, null);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard")
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @DisplayName("教学秘书(2) GET /admin/dashboard → FORBIDDEN(1003)")
+    void should_forbid_teaching_secretary_access_dashboard() throws Exception {
+        mockJwtUser(20L, "secretary01", 2, null);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard")
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1003));
+    }
+
+    @Test
+    @DisplayName("学生(0) GET /admin/dashboard → FORBIDDEN(1003)")
+    void should_forbid_student_access_dashboard() throws Exception {
+        mockJwtUser(1L, "student01", 0, 0);
+
+        mockMvc.perform(get("/api/v1/admin/dashboard")
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(1003));
+    }
+
     // ==================== /api/v1/teacher/** ====================
 
     @Test

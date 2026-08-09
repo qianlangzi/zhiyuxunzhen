@@ -36,6 +36,7 @@ public enum ResultCode {
     CAPTCHA_INVALID(2011, "图形验证码错误或已失效"),
     CAPTCHA_TOO_FREQUENT(2012, "验证码请求过于频繁，请稍后再试"),
     IP_SMS_LIMIT(2013, "该IP请求验证码过于频繁，请稍后再试"),
+    PASSWORD_SAME_AS_OLD(2014, "新密码不能与原密码相同"),
     CASE_NOT_FOUND(2101, "病例不存在"),
     ASSIGNMENT_NOT_FOUND(2102, "作业不存在"),
     INSTANCE_NOT_FOUND(2103, "作业实例不存在"),

@@ -5,7 +5,9 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.SysUserMapper;
+import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.SmsCodeService;
+import com.zhiyu.service.dto.ChangePasswordRequest;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.RegisterRequest;
 import com.zhiyu.service.dto.SmsLoginRequest;
@@ -43,6 +45,9 @@ class AuthServiceImplTest {
 
     @Mock
     private SmsCodeService smsCodeService;
+
+    @Mock
+    private AuditLogService auditLogService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -357,5 +362,85 @@ class AuthServiceImplTest {
                         .isEqualTo(ResultCode.PHONE_OR_CODE_ERROR.getCode()));
 
         verify(jwtUtils, never()).issueRefreshToken(anyLong());
+    }
+
+    // ---------- changePassword ----------
+
+    /** 构造改密请求 */
+    private ChangePasswordRequest changeReq(String oldPwd, String newPwd) {
+        ChangePasswordRequest req = new ChangePasswordRequest();
+        req.setOldPassword(oldPwd);
+        req.setNewPassword(newPwd);
+        return req;
+    }
+
+    @Test
+    @DisplayName("changePassword 原密码正确且新密码不同 -> 更新哈希、清强制改密标志、记审计")
+    void should_change_password_when_old_correct_and_new_different() {
+        SysUser user = studentUser();
+        user.setMustChangePassword(true);
+        when(userMapper.selectById(1L)).thenReturn(user);
+        // 原密码校验通过
+        when(passwordEncoder.matches("Temp1234", user.getPasswordHash())).thenReturn(true);
+        // 新密码与原密码不同
+        when(passwordEncoder.matches("NewPass123", user.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.encode("NewPass123")).thenReturn("new-hash");
+        when(userMapper.updateById(any())).thenReturn(1);
+
+        authService.changePassword(1L, changeReq("Temp1234", "NewPass123"));
+
+        // 验证更新时仅写入密码哈希与 mustChangePassword=false
+        verify(userMapper).updateById(argThat(u ->
+                "new-hash".equals(u.getPasswordHash())
+                        && Boolean.FALSE.equals(u.getMustChangePassword())));
+        // 验证审计日志已记录（不含密码明文）
+        verify(auditLogService).record(eq("change_password"), eq("user"), eq(1L), isNull(), anyString());
+    }
+
+    @Test
+    @DisplayName("changePassword 原密码错误 -> BizException(VALIDATION_FAILED)，不更新")
+    void should_throw_when_old_password_wrong() {
+        SysUser user = studentUser();
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(passwordEncoder.matches("wrong", user.getPasswordHash())).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.changePassword(1L, changeReq("wrong", "NewPass123")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.VALIDATION_FAILED.getCode()));
+
+        verify(userMapper, never()).updateById(any());
+        verify(auditLogService, never()).record(anyString(), anyString(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("changePassword 新密码与原密码相同 -> BizException(PASSWORD_SAME_AS_OLD)")
+    void should_throw_when_new_password_same_as_old() {
+        SysUser user = studentUser();
+        when(userMapper.selectById(1L)).thenReturn(user);
+        // 原密码正确，但新密码也匹配原哈希（即相同）
+        when(passwordEncoder.matches("Same1234", user.getPasswordHash())).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.changePassword(1L, changeReq("Same1234", "Same1234")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.PASSWORD_SAME_AS_OLD.getCode()));
+
+        verify(userMapper, never()).updateById(any());
+        verify(auditLogService, never()).record(anyString(), anyString(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("changePassword 用户不存在 -> BizException(NOT_FOUND)")
+    void should_throw_when_user_not_found_on_change_password() {
+        when(userMapper.selectById(99L)).thenReturn(null);
+
+        assertThatThrownBy(() -> authService.changePassword(99L, changeReq("old", "NewPass123")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.NOT_FOUND.getCode()));
+
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        verify(userMapper, never()).updateById(any());
     }
 }

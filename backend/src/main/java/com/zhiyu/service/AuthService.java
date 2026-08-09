@@ -1,6 +1,7 @@
 package com.zhiyu.service;
 
 import com.zhiyu.entity.SysUser;
+import com.zhiyu.service.dto.ChangePasswordRequest;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RegisterRequest;
@@ -43,4 +44,10 @@ public interface AuthService {
      * 更新最后登录时间
      */
     void updateLastLogin(Long userId);
+
+    /**
+     * 修改密码：校验原密码 → 更新密码哈希 → 清除强制改密标志
+     * 用于批量导入学生首次登录强制改密，以及用户主动改密。
+     */
+    void changePassword(Long userId, ChangePasswordRequest req);
 }

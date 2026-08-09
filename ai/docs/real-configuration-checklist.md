@@ -20,13 +20,15 @@ python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 用途：访问 FastAPI `/status`。仅交给运维人员，不放进移动端、Web 或 Spring Boot 返回值。
 
-### CORS_ALLOWED_ORIGINS
+### AI_CORS_ALLOWED_ORIGINS
 
 用途：允许哪些 Web 域名访问 FastAPI。填写完整 Origin，不带路径，例如：
 
 ```env
-CORS_ALLOWED_ORIGINS=["https://teacher.example.com","https://admin.example.com"]
+AI_CORS_ALLOWED_ORIGINS=["https://teacher.example.com","https://admin.example.com"]
 ```
+
+注意：AI 端使用 JSON 数组格式，与 Java 端的 `CORS_ALLOWED_ORIGINS`（逗号分隔字符串）不同。
 
 移动 App 不依赖浏览器 CORS。
 

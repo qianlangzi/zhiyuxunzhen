@@ -72,7 +72,9 @@ front/legacy-*/
 mobile/ios/
 mobile/linux/
 mobile/macos/
+mobile/windows/
 
 # ===== 工具/临时目录 =====
 .codegraph/
+.impeccable/
 docs/短信API服务-发送短信.pdf

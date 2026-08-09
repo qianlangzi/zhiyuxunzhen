@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS sys_user (
     class_id            BIGINT                            COMMENT '学生所属班级',
     audit_status        TINYINT      NOT NULL DEFAULT 0  COMMENT '教师认证:0未提交 1待审 2通过 3驳回',
     status              TINYINT      NOT NULL DEFAULT 0  COMMENT '0正常 1冻结',
+    must_change_password TINYINT     NOT NULL DEFAULT 0  COMMENT '是否强制改密: 0否 1是',
     phone               VARCHAR(20),
     id_card             VARCHAR(32),
     teacher_certificate_no VARCHAR(100)                   COMMENT '教师资质编号',

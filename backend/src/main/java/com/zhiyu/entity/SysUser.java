@@ -35,6 +35,9 @@ public class SysUser extends BaseEntity {
     /** 0正常 1冻结 */
     private Integer status;
 
+    /** 是否强制修改密码（批量导入学生默认为 true，改密后置 false） */
+    private Boolean mustChangePassword;
+
     private String phone;
 
     private String idCard;

@@ -7,6 +7,7 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.service.AuthService;
 import com.zhiyu.service.CaptchaService;
 import com.zhiyu.service.SmsCodeService;
+import com.zhiyu.service.dto.ChangePasswordRequest;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.ProfileUpdateDTO;
 import com.zhiyu.service.dto.RefreshTokenRequest;
@@ -122,6 +123,13 @@ public class AuthController {
     @PutMapping("/me")
     public R<UserInfoVO> updateProfile(@RequestBody ProfileUpdateDTO dto) {
         return R.ok(authService.updateProfile(UserContext.requireUserId(), dto));
+    }
+
+    @Operation(summary = "修改密码（首次登录强制改密 / 用户主动改密）")
+    @PutMapping("/password")
+    public R<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
+        authService.changePassword(UserContext.requireUserId(), req);
+        return R.ok();
     }
 
     @Operation(summary = "上传教师资质证书图片（注册时调用）")

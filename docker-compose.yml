@@ -99,7 +99,8 @@ services:
         condition: service_healthy
     environment:
       <<: *no-proxy-env
-      SPRING_PROFILE: ${SPRING_PROFILE:-dev}
+      # 强制显式指定 profile：.env 中必须设置 SPRING_PROFILES_ACTIVE（dev/test/prod）
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:?请在 .env 中设置 SPRING_PROFILES_ACTIVE（dev/test/prod）}
       DB_HOST: mysql
       DB_PORT: 3306
       DB_USER: root
@@ -108,7 +109,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-random-32-char-string}
+      # 演示数据开关：dev 默认 true（创建 admin01/teacher01/student01），prod 由 docker-compose.prod.yml 覆盖
+      DEMO_DATA: ${DEMO_DATA:-true}
+      # JWT_SECRET 不在此注入：dev profile 由 application-dev.yml 提供内置 dev 密钥
+      # prod 由 docker-compose.prod.yml 强制 ${JWT_SECRET:?...} 注入，缺失则启动失败
       JWT_EXPIRE_HOURS: ${JWT_EXPIRE_HOURS:-24}
 
   ai:
@@ -120,7 +124,7 @@ services:
     depends_on:
       - milvus
       - redis
-    environment:
+    environment: &ai-env
       <<: *no-proxy-env
       ENV_MODE: ${ENV_MODE:-dev}
       # LLM（OpenAI 兼容协议，留空则降级）
@@ -148,13 +152,11 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      # 内部 token（必须与 Java 后端 zhiyu.ai.internal-token 一致）
-      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-dev-internal-token}
-      OPS_TOKEN: ${OPS_TOKEN:-dev-ops-token}
+      # 内部 token / JWT 密钥：dev 不在此注入，由 config.py 使用内置 dev 默认值
+      # prod 由 docker-compose.prod.yml 强制 ${VAR:?...} 注入，缺失则启动失败
       OBJECT_STORAGE_ROOT: ${OBJECT_STORAGE_ROOT:-/app/data/objects}
       OBJECT_STORAGE_MAX_BYTES: ${OBJECT_STORAGE_MAX_BYTES:-52428800}
       BACKEND_CALLBACK_URL: http://backend:8080
-      JWT_SECRET: ${JWT_SECRET:-please-change-me-to-a-random-32-char-string}
       # 生产环境必须显式配置为 false；开发环境可在 .env 中打开规则降级。
       ENABLE_LLM_FALLBACK: ${ENABLE_LLM_FALLBACK:-false}
       ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-false}
@@ -171,7 +173,7 @@ services:
       - backend
       - milvus
       - redis
-    environment: &ai-env
+    environment:
       <<: *ai-env
       AI_WORKER_TYPES: ${AI_WORKER_TYPES:-review,report,knowledge_ingest}
       AI_WORKER_POLL_SECONDS: ${AI_WORKER_POLL_SECONDS:-1}

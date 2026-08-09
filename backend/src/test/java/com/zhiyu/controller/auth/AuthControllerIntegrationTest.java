@@ -6,6 +6,7 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.config.MyBatisTestConfig;
 import com.zhiyu.service.AuthService;
+import com.zhiyu.service.CaptchaService;
 import com.zhiyu.service.SmsCodeService;
 import com.zhiyu.service.dto.LoginRequest;
 import com.zhiyu.service.dto.SmsLoginRequest;
@@ -55,6 +56,9 @@ class AuthControllerIntegrationTest {
 
     @MockBean
     private SmsCodeService smsCodeService;
+
+    @MockBean
+    private CaptchaService captchaService;
 
     @Test
     @DisplayName("POST /register 学生注册成功 -> 无需 token 并返回注册结果")

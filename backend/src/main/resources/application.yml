@@ -8,9 +8,20 @@ spring:
   application:
     name: zhiyu-backend
   profiles:
-    active: ${SPRING_PROFILE:dev}
+    # fail-closed：不设默认值，SPRING_PROFILES_ACTIVE 缺失时 Spring 会激活字面量
+    # "${SPRING_PROFILES_ACTIVE}"，ProfileValidator 会拒绝它。
+    # 直接 JAR/systemd/K8s 启动也必须显式设置 SPRING_PROFILES_ACTIVE=dev/test/prod。
+    # Docker 由 docker-compose.yml 的 ${...:?} 强制注入，缺失则 Compose 拒绝启动。
+    # DataInitializer 仅 dev/test 激活；ProdSecurityInitializer 仅 prod 激活。
+    active: ${SPRING_PROFILES_ACTIVE}
   lifecycle:
     timeout-per-shutdown-phase: 30s
+  # multipart 全局限制：在 Spring 接收阶段就拒绝超大文件，避免 OOM
+  # 与 UserImportServiceImpl.MAX_FILE_SIZE(10MB) 对齐；单次请求总大小也限制 10MB
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   flyway:
     enabled: true
     baseline-on-migrate: true

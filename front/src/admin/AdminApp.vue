@@ -1,22 +1,45 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessageBox } from 'element-plus'
+import { useAuthStore } from './stores/auth'
+import ChangePasswordDialog from './components/ChangePasswordDialog.vue'
 import brandLogo from '@/assets/brand-logo.png'
 
 const route = useRoute()
+const authStore = useAuthStore()
 
-const navItems = [
-  { label: '全局驾驶舱', path: '/', icon: 'DataBoard' },
-  { label: '审核中心', path: '/audits', icon: 'Checked' },
-  { label: '系统配置', path: '/config', icon: 'Setting' },
-  { label: '审计日志', path: '/logs', icon: 'Tickets' }
-]
+// 登录页不渲染管理端布局（侧栏/顶栏），Login.vue 自带全屏布局
+const isLoginPage = computed(() => route.path === '/login')
 
-const activeTitle = computed(() => navItems.find((item) => item.path === route.path)?.label || '全局驾驶舱')
+// 菜单由角色驱动（allowedMenus 已按 role 过滤）
+const activeTitle = computed(() => {
+  const item = authStore.allowedMenus.find((m) => m.path === route.path)
+  if (item) return item.label
+  if (route.path === '/no-access') return '暂无可用功能'
+  return '管理控制台'
+})
+
+async function handleLogout(): Promise<void> {
+  try {
+    await ElMessageBox.confirm('确定退出管理端？', '提示', {
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+      type: 'warning',
+    })
+    await authStore.logout()
+  } catch {
+    // 用户取消
+  }
+}
 </script>
 
 <template>
-  <div class="admin-frame">
+  <!-- 登录页：独立全屏布局，不渲染侧栏/顶栏 -->
+  <router-view v-if="isLoginPage" />
+
+  <!-- 管理端主布局 -->
+  <div v-else class="admin-frame">
     <aside class="admin-sidebar" aria-label="管理端导航">
       <div class="admin-brand">
         <img :src="brandLogo" alt="" />
@@ -27,7 +50,12 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
       </div>
 
       <nav class="admin-nav">
-        <router-link v-for="item in navItems" :key="item.path" :to="item.path" class="admin-nav-item">
+        <router-link
+          v-for="item in authStore.allowedMenus"
+          :key="item.path"
+          :to="item.path"
+          class="admin-nav-item"
+        >
           <el-icon><component :is="item.icon" /></el-icon>
           <span>{{ item.label }}</span>
         </router-link>
@@ -40,7 +68,10 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
           <span>独立管理端</span>
           <strong>{{ activeTitle }}</strong>
         </div>
-        <el-button plain>退出管理端</el-button>
+        <div class="topbar-user">
+          <span class="user-name">{{ authStore.realName }}</span>
+          <el-button plain @click="handleLogout">退出管理端</el-button>
+        </div>
       </header>
 
       <router-view v-slot="{ Component }">
@@ -49,6 +80,9 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
         </transition>
       </router-view>
     </section>
+
+    <!-- 强制改密对话框：mustChangePassword=true 时模态展示 -->
+    <ChangePasswordDialog />
   </div>
 </template>
 
@@ -139,6 +173,18 @@ const activeTitle = computed(() => navItems.find((item) => item.path === route.p
   justify-content: space-between;
   min-height: 56px;
   margin-bottom: 22px;
+}
+
+.topbar-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-name {
+  color: var(--zy-ink);
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .page-fade-enter-active,

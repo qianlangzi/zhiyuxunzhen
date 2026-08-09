@@ -74,9 +74,11 @@ class Settings(BaseSettings):
     enable_milvus_fallback: bool = True
 
     # ---------- CORS ----------
+    # AI 端使用独立的 AI_CORS_ALLOWED_ORIGINS（JSON 数组格式，如 ["https://admin.example.com"]）
+    # 与 Java 端的 CORS_ALLOWED_ORIGINS（逗号分隔字符串）隔离，避免格式冲突
     cors_allowed_origins: list[str] = Field(
         default_factory=list,
-        validation_alias="CORS_ALLOWED_ORIGINS",
+        validation_alias="AI_CORS_ALLOWED_ORIGINS",
     )
     vision_allowed_hosts: list[str] = Field(
         default_factory=list,
@@ -101,27 +103,49 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_prod(self) -> "Settings":
-        """生产环境启动校验：拒绝默认密钥和空 JWT"""
+        """生产环境启动校验：拒绝默认密钥、弱密钥和空 JWT"""
         if self.env != "prod":
             return self
 
-        # JWT 密钥校验
-        jwt_val = self.jwt_secret.get_secret_value()
-        if not jwt_val or jwt_val == "dev-only-secret-key-32chars-minimum-aaaa":
-            raise ValueError("生产环境必须配置非默认 JWT_SECRET")
+        # 历史代码/配置中出现过的公开占位密钥，生产环境一律拒绝
+        known_placeholder_secrets = {
+            "dev-only-secret-key-32chars-minimum-aaaa",
+            "please-change-me-to-a-random-32-char-string",
+            "test-secret-key-32chars-minimum-aaaa",
+        }
 
-        # 内部 Token 校验
+        # JWT 密钥校验：非空、非公开占位值、至少 32 字节（UTF-8，与 Java JwtUtils.init 对齐）
+        jwt_val = self.jwt_secret.get_secret_value()
+        if not jwt_val or jwt_val in known_placeholder_secrets:
+            raise ValueError("生产环境必须配置非默认 JWT_SECRET，禁止使用公开占位密钥")
+        jwt_bytes = len(jwt_val.encode("utf-8"))
+        if jwt_bytes < 32:
+            raise ValueError(
+                f"生产环境 JWT_SECRET 至少 32 字节(UTF-8)，当前仅 {jwt_bytes} 字节"
+            )
+
+        # 内部 Token 校验：非空、非默认值、至少 32 字节（UTF-8，防弱 token 被暴力猜测）
         token_val = self.internal_token.get_secret_value()
         if not token_val or token_val == "dev-internal-token":
             raise ValueError("生产环境必须配置非默认 AI_INTERNAL_TOKEN")
+        token_bytes = len(token_val.encode("utf-8"))
+        if token_bytes < 32:
+            raise ValueError(
+                f"生产环境 AI_INTERNAL_TOKEN 至少 32 字节(UTF-8)，当前仅 {token_bytes} 字节"
+            )
 
         ops_val = self.ops_token.get_secret_value()
         if not ops_val or ops_val == "dev-ops-token":
             raise ValueError("生产环境必须配置非默认 OPS_TOKEN")
+        ops_bytes = len(ops_val.encode("utf-8"))
+        if ops_bytes < 32:
+            raise ValueError(
+                f"生产环境 OPS_TOKEN 至少 32 字节(UTF-8)，当前仅 {ops_bytes} 字节"
+            )
 
         # CORS 校验
         if not self.cors_allowed_origins or "*" in self.cors_allowed_origins:
-            raise ValueError("生产环境必须配置明确的 CORS_ALLOWED_ORIGINS，不允许通配符")
+            raise ValueError("生产环境必须配置明确的 AI_CORS_ALLOWED_ORIGINS，不允许通配符")
 
         if self.vision_configured and not self.vision_allowed_hosts:
             raise ValueError("生产环境必须配置 VISION_ALLOWED_HOSTS")

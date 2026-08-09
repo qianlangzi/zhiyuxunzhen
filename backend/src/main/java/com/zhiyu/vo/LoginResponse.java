@@ -17,4 +17,6 @@ public class LoginResponse {
     private String realName;
     private Integer role;
     private Integer auditStatus;
+    /** 是否需要强制修改密码（批量导入学生首次登录时为 true） */
+    private Boolean mustChangePassword;
 }

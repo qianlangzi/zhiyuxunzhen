@@ -21,6 +21,10 @@ spring:
 zhiyu:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-32chars-minimum-aaaa}
+  init:
+    # 演示数据开关：仅 dev/test 开启，生产环境必须为 false
+    # 控制 DataInitializer 是否创建 teacher01/student01/admin01 演示账号
+    demo-data: ${DEMO_DATA:true}
 
 mybatis-plus:
   configuration:
