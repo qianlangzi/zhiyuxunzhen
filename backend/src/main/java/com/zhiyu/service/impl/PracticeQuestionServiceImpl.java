@@ -26,11 +26,13 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -104,6 +106,20 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
     }
 
     @Override
+    public List<String> knowledgeTags() {
+        return questionMapper.selectList(
+                        new LambdaQueryWrapper<PracticeQuestion>()
+                                .eq(PracticeQuestion::getStatus, 1)
+                                .isNotNull(PracticeQuestion::getKnowledgeTag)
+                                .groupBy(PracticeQuestion::getKnowledgeTag)
+                                .select(PracticeQuestion::getKnowledgeTag))
+                .stream()
+                .map(PracticeQuestion::getKnowledgeTag)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public PracticeQuestionVO detail(Long id) {
         PracticeQuestion q = questionMapper.selectById(id);
         if (q == null || q.getStatus() == 0) {
@@ -119,7 +135,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         if (q == null || q.getStatus() == 0) {
             throw new BizException(ResultCode.NOT_FOUND, "题目不存在或已下架");
         }
-        boolean correct = Objects.equals(q.getAnswer(), dto.getSelectedAnswer());
+        boolean correct = judgeAnswer(q, dto.getSelectedAnswer());
 
         StudentPracticeRecord record = new StudentPracticeRecord();
         record.setStudentId(studentId);
@@ -136,6 +152,35 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .correctAnswer(q.getAnswer())
                 .explanation(q.getExplanation())
                 .build();
+    }
+
+    /**
+     * 按题型判题：
+     * - multiple_choice：多选，选项下标逗号分隔，忽略顺序比较
+     * - fill_blank：填空，忽略首尾空白与大小写后比较
+     * - 其余（single_choice/judgment）：字符串精确比较
+     */
+    private boolean judgeAnswer(PracticeQuestion q, String selected) {
+        if (selected == null) {
+            return false;
+        }
+        String type = q.getQuestionType();
+        String correct = q.getAnswer() == null ? "" : q.getAnswer();
+        if ("multiple_choice".equalsIgnoreCase(type)) {
+            Set<String> selectedSet = Arrays.stream(selected.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+            Set<String> correctSet = Arrays.stream(correct.split(","))
+                    .map(String::trim).filter(s -> !s.isEmpty()).collect(Collectors.toSet());
+            return selectedSet.equals(correctSet);
+        }
+        if ("fill_blank".equalsIgnoreCase(type)) {
+            return normalizeBlank(selected).equals(normalizeBlank(correct));
+        }
+        return Objects.equals(correct, selected);
+    }
+
+    private String normalizeBlank(String s) {
+        return s.trim().replaceAll("\\s+", "").toLowerCase();
     }
 
     @Override
@@ -155,19 +200,36 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         // 按知识点聚合
         Map<String, PracticeStatsVO.ByKnowledgeTag> byTag = new LinkedHashMap<>();
         practiceTagCounts(byTag); // 题库各知识点总量
+        // 按科室（模块）聚合
+        Map<String, PracticeStatsVO.ByDepartment> byDept = new LinkedHashMap<>();
+        practiceDeptCounts(byDept); // 题库各科室总量
+
         for (StudentPracticeRecord r : records) {
             PracticeQuestion q = questionMapper.selectById(r.getQuestionId());
             if (q == null) {
                 continue;
             }
-            PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(q.getKnowledgeTag(),
-                    k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
-            entry.setAnswered(entry.getAnswered() + 1);
-            if (Boolean.TRUE.equals(r.getIsCorrect())) {
-                entry.setCorrect(entry.getCorrect() + 1);
+            boolean correct = Boolean.TRUE.equals(r.getIsCorrect());
+            if (q.getKnowledgeTag() != null) {
+                PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(q.getKnowledgeTag(),
+                        k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
+                entry.setAnswered(entry.getAnswered() + 1);
+                if (correct) {
+                    entry.setCorrect(entry.getCorrect() + 1);
+                }
+                entry.setAccuracy(entry.getAnswered() == 0 ? 0.0
+                        : (double) entry.getCorrect() / entry.getAnswered());
             }
-            entry.setAccuracy(entry.getAnswered() == 0 ? 0.0
-                    : (double) entry.getCorrect() / entry.getAnswered());
+            if (q.getDepartment() != null) {
+                PracticeStatsVO.ByDepartment dept = byDept.computeIfAbsent(q.getDepartment(),
+                        d -> PracticeStatsVO.ByDepartment.builder().department(d).build());
+                dept.setAnswered(dept.getAnswered() + 1);
+                if (correct) {
+                    dept.setCorrect(dept.getCorrect() + 1);
+                }
+                dept.setAccuracy(dept.getAnswered() == 0 ? 0.0
+                        : (double) dept.getCorrect() / dept.getAnswered());
+            }
         }
 
         return PracticeStatsVO.builder()
@@ -176,6 +238,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .correctCount(correctCount)
                 .accuracy(totalAnswered == 0 ? 0.0 : (double) correctCount / totalAnswered)
                 .byKnowledgeTag(new ArrayList<>(byTag.values()))
+                .byDepartment(new ArrayList<>(byDept.values()))
                 .build();
     }
 
@@ -187,6 +250,18 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         counts.forEach((tag, cnt) -> {
             PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(tag,
                     k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
+            entry.setTotal(cnt);
+        });
+    }
+
+    private void practiceDeptCounts(Map<String, PracticeStatsVO.ByDepartment> byDept) {
+        List<PracticeQuestion> all = questionMapper.selectList(
+                new LambdaQueryWrapper<PracticeQuestion>().eq(PracticeQuestion::getStatus, 1));
+        Map<String, Long> counts = all.stream().filter(q -> q.getDepartment() != null)
+                .collect(Collectors.groupingBy(PracticeQuestion::getDepartment, Collectors.counting()));
+        counts.forEach((dept, cnt) -> {
+            PracticeStatsVO.ByDepartment entry = byDept.computeIfAbsent(dept,
+                    d -> PracticeStatsVO.ByDepartment.builder().department(d).build());
             entry.setTotal(cnt);
         });
     }

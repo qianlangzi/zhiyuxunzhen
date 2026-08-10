@@ -11,6 +11,8 @@ import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
 import '../features/student/recommend/recommendation_screen.dart';
 import '../features/student/training/question_training_screen.dart';
+import '../features/student/training/question_bank_screen.dart';
+import '../features/student/training/question_practice_screen.dart';
 import '../features/student/textbook/textbook_center_screen.dart';
 import '../features/student/search/search_result_screen.dart';
 import '../features/student/report/review_report_screen.dart';
@@ -114,6 +116,21 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.questionTraining,
       path: '/student/training',
       builder: (context, state) => QuestionTrainingScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.questionBank,
+      path: '/student/questions/bank',
+      builder: (context, state) => QuestionBankScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.questionPractice,
+      path: '/student/questions/practice',
+      builder: (context, state) => QuestionPracticeScreen(
+        department: state.uri.queryParameters['department'],
+        knowledgeTag: state.uri.queryParameters['knowledgeTag'],
+        difficulty: int.tryParse(state.uri.queryParameters['difficulty'] ?? ''),
+        questionType: state.uri.queryParameters['questionType'],
+      ),
     ),
     GoRoute(
       name: RouteNames.textbookCenter,

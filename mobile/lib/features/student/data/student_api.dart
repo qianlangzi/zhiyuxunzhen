@@ -341,12 +341,14 @@ class StudentApi {
   Future<ApiResponse<Map<String, dynamic>>> getQuestions({
     int pageNum = 1,
     int pageSize = 20,
+    String? department,
     String? knowledgeTag,
     int? difficulty,
     String? questionType,
   }) async {
     try {
       final params = <String, dynamic>{'pageNum': pageNum, 'pageSize': pageSize};
+      if (department != null && department.isNotEmpty) params['department'] = department;
       if (knowledgeTag != null && knowledgeTag.isNotEmpty) params['knowledgeTag'] = knowledgeTag;
       if (difficulty != null) params['difficulty'] = difficulty;
       if (questionType != null && questionType.isNotEmpty) params['questionType'] = questionType;
@@ -390,6 +392,16 @@ class StudentApi {
   Future<ApiResponse<List<dynamic>>> getQuestionDepartments() async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/questions/departments');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 知识点列表，用于题库筛选
+  Future<ApiResponse<List<dynamic>>> getQuestionKnowledgeTags() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/questions/knowledge-tags');
       return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));

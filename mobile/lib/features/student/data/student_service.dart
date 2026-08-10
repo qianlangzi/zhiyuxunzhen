@@ -328,6 +328,7 @@ class StudentService {
   Future<Map<String, dynamic>?> getQuestions({
     int pageNum = 1,
     int pageSize = 20,
+    String? department,
     String? knowledgeTag,
     int? difficulty,
     String? questionType,
@@ -336,6 +337,7 @@ class StudentService {
     final resp = await _api.getQuestions(
       pageNum: pageNum,
       pageSize: pageSize,
+      department: department,
       knowledgeTag: knowledgeTag,
       difficulty: difficulty,
       questionType: questionType,
@@ -381,6 +383,17 @@ class StudentService {
     final resp = await _api.getQuestionDepartments();
     if (!resp.isSuccess) {
       log('getQuestionDepartments failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 知识点列表，用于题库筛选
+  Future<List<dynamic>?> getQuestionKnowledgeTags() async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestionKnowledgeTags();
+    if (!resp.isSuccess) {
+      log('getQuestionKnowledgeTags failed: ${resp.message}', name: 'student_service');
       return null;
     }
     return resp.data;

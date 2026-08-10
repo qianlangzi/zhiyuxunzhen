@@ -21,6 +21,8 @@ class RouteNames {
   static const profileEdit = 'profileEdit';
   static const recommendation = 'recommendation';
   static const questionTraining = 'questionTraining';
+  static const questionBank = 'questionBank';
+  static const questionPractice = 'questionPractice';
   static const textbookCenter = 'textbookCenter';
   static const searchResult = 'searchResult';
   static const todoAssignments = 'todoAssignments';

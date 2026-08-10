@@ -32,6 +32,11 @@ public interface PracticeQuestionService {
     List<String> departments();
 
     /**
+     * 知识点列表：用于题库筛选
+     */
+    List<String> knowledgeTags();
+
+    /**
      * 题目详情
      */
     PracticeQuestionVO detail(Long id);

@@ -38,6 +38,12 @@ public class StudentQuestionController {
         return R.ok(practiceQuestionService.departments());
     }
 
+    @Operation(summary = "知识点列表，用于题库筛选")
+    @GetMapping("/knowledge-tags")
+    public R<List<String>> knowledgeTags() {
+        return R.ok(practiceQuestionService.knowledgeTags());
+    }
+
     @Operation(summary = "按科室刷题（支持起始难度进阶，单页返回供逐题刷）")
     @GetMapping("/by-department")
     public R<PageResult<PracticeQuestionVO>> byDepartment(

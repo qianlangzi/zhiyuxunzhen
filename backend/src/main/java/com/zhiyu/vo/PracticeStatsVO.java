@@ -21,10 +21,23 @@ public class PracticeStatsVO {
 
     private List<ByKnowledgeTag> byKnowledgeTag;
 
+    /** 按科室（模块）聚合的正确率与做题数 */
+    private List<ByDepartment> byDepartment;
+
     @Data
     @Builder
     public static class ByKnowledgeTag {
         private String knowledgeTag;
+        private long total;
+        private long answered;
+        private long correct;
+        private double accuracy;
+    }
+
+    @Data
+    @Builder
+    public static class ByDepartment {
+        private String department;
         private long total;
         private long answered;
         private long correct;
