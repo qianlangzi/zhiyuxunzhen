@@ -247,6 +247,50 @@ public class AiPlatformClient {
     }
 
     /**
+     * 14. 影像 AI 读图分析（PRD 9.2 多模态）
+     * POST {ai-base-url}/v1/ai/vision/analyze
+     * AI 的 vision 接口面向移动端学生 JWT 鉴权，故携带 Authorization: Bearer，而非内部 token。
+     * 失败返回 null（优雅降级）。
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> analyzeVision(Long sessionId, Long studentId, String imageUrl,
+                                             List<Double> imageBbox, String studentNote,
+                                             String mobileToken) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("session_id", sessionId);
+        body.put("image_url", imageUrl);
+        if (imageBbox != null && !imageBbox.isEmpty()) body.put("image_bbox", imageBbox);
+        if (studentNote != null && !studentNote.isBlank()) body.put("student_note", studentNote);
+        try {
+            String json = postWithBearer("/v1/ai/vision/analyze", body, mobileToken);
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode data = root.get("data");
+            if (data != null && data.isObject()) {
+                return objectMapper.convertValue(data, Map.class);
+            }
+            log.warn("AI影像分析响应中无data字段: sessionId={} resp={}", sessionId, json);
+            return null;
+        } catch (Exception e) {
+            log.warn("AI影像分析失败，返回null: sessionId={} error={}", sessionId, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 15. 错题智能推荐（薄弱知识点 → 个性化补救建议）
+     * POST {ai-base-url}/internal/recommend/weakness
+     * 失败返回 null（优雅降级，不阻断错题板块）。
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> recommendWeakness(List<String> knowledgeTags,
+                                                 List<String> mistakes) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("knowledgeTags", knowledgeTags == null ? List.of() : knowledgeTags);
+        body.put("mistakes", mistakes == null ? List.of() : mistakes);
+        return postData("/internal/recommend/weakness", body);
+    }
+
+    /**
      * 统一的 POST 请求并解析 data 字段；AI 不可用或返回异常时返回 null（不抛异常，支持优雅降级）
      */
     @SuppressWarnings("unchecked")
@@ -267,7 +311,30 @@ public class AiPlatformClient {
     }
 
     /**
-     * 统一 POST 请求封装
+     * 携带移动端 JWT（Authorization: Bearer）的 POST 请求封装；失败返回 null（优雅降级）
+     */
+    private String postWithBearer(String path, Map<String, Object> body, String bearer) {
+        String url = baseUrl + path;
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            if (bearer != null && !bearer.isBlank()) {
+                headers.set(HttpHeaders.AUTHORIZATION, bearer.startsWith("Bearer ") ? bearer : "Bearer " + bearer);
+            }
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            return resp.getBody();
+        } catch (RestClientException e) {
+            log.error("调用AI中台失败: POST {} error={}", url, e.getMessage());
+            return null;
+        } catch (Exception e) {
+            log.error("调用AI中台未知异常: POST {} error={}", url, e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 统一的 POST 请求封装
      */
     private String post(String path, Map<String, Object> body) {
         String url = baseUrl + path;

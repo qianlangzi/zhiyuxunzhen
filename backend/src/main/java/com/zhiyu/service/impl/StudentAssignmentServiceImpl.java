@@ -19,6 +19,7 @@ import com.zhiyu.service.FormatCheckService;
 import com.zhiyu.service.StudentAssignmentService;
 import com.zhiyu.service.dto.SubmitRecordDTO;
 import com.zhiyu.vo.FormatCheckResultVO;
+import com.zhiyu.vo.StudentAssignmentDetailVO;
 import com.zhiyu.vo.StudentAssignmentVO;
 import com.zhiyu.vo.SubmitRecordResultVO;
 import lombok.RequiredArgsConstructor;
@@ -60,8 +61,12 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                 .orderByDesc(AssignmentInstance::getCreatedAt);
         instanceMapper.selectPage(page, wrapper);
 
-        List<AssignmentInstance> records = page.getRecords();
-        // 批量补全作业标题、病例标题、截止时间
+        List<StudentAssignmentVO> list = buildVOs(page.getRecords());
+        return PageResult.of(page, list);
+    }
+
+    /** 批量补全作业标题、病例标题、截止时间，组装列表 VO */
+    private List<StudentAssignmentVO> buildVOs(List<AssignmentInstance> records) {
         List<Long> assignmentIds = records.stream()
                 .map(AssignmentInstance::getAssignmentId)
                 .filter(Objects::nonNull)
@@ -87,7 +92,7 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
             }
         }
 
-        List<StudentAssignmentVO> list = records.stream().map(inst -> {
+        return records.stream().map(inst -> {
             Assignment a = aMap.get(inst.getAssignmentId());
             SpCaseConfig c = cMap.get(inst.getCaseId());
             return StudentAssignmentVO.builder()
@@ -100,7 +105,49 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                     .status(inst.getStatus())
                     .build();
         }).collect(Collectors.toList());
-        return PageResult.of(page, list);
+    }
+
+    @Override
+    public PageResult<StudentAssignmentVO> todoAssignments(Integer pageNum, Integer pageSize) {
+        Long studentId = UserContext.requireUserId();
+        Page<AssignmentInstance> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<AssignmentInstance> wrapper = new LambdaQueryWrapper<AssignmentInstance>()
+                .eq(AssignmentInstance::getStudentId, studentId)
+                .in(AssignmentInstance::getStatus, 0, 1, 2)
+                .orderByDesc(AssignmentInstance::getCreatedAt);
+        instanceMapper.selectPage(page, wrapper);
+        return PageResult.of(page, buildVOs(page.getRecords()));
+    }
+
+    @Override
+    public StudentAssignmentDetailVO detail(Long instanceId) {
+        Long studentId = UserContext.requireUserId();
+        AssignmentInstance inst = instanceMapper.selectById(instanceId);
+        if (inst == null) {
+            throw new BizException(ResultCode.INSTANCE_NOT_FOUND);
+        }
+        if (!studentId.equals(inst.getStudentId())) {
+            throw new BizException(ResultCode.FORBIDDEN);
+        }
+        Assignment a = assignmentMapper.selectById(inst.getAssignmentId());
+        SpCaseConfig c = inst.getCaseId() == null ? null : caseMapper.selectById(inst.getCaseId());
+        int status = inst.getStatus() == null ? 0 : inst.getStatus();
+        return StudentAssignmentDetailVO.builder()
+                .instanceId(inst.getId())
+                .assignmentId(inst.getAssignmentId())
+                .assignmentTitle(a == null ? null : a.getTitle())
+                .assignmentDescription(a == null ? null : a.getDescription())
+                .caseId(inst.getCaseId())
+                .caseTitle(c == null ? null : c.getTitle())
+                .department(c == null ? null : c.getDepartment())
+                .deadline(a == null ? null : a.getDeadline())
+                .allowLateSubmit(a == null ? null : a.getAllowLateSubmit())
+                .status(status)
+                .submitTime(inst.getSubmitTime())
+                .medicalRecordText(inst.getMedicalRecordText())
+                .formatCheckResult(inst.getFormatCheckResult())
+                .submitted(status == 2 || status == 3 || status == 4 || status == 5)
+                .build();
     }
 
     @Override

@@ -68,8 +68,9 @@ async def vision_analyze(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="问诊会话不存在、已结束或不属于当前学生",
             )
-        image_url = _validate_image_url(req.image_url)
+        image_url = req.image_url
         if not settings.vision_configured:
+            # 降级模式不读图，无需校验来源；直接返回降级文案
             log_event(logger, INFO, "vision_fallback",
                       trace_id=trace_id, session_id=req.session_id)
             return VisionAnalysisResult(
@@ -81,6 +82,8 @@ async def vision_analyze(
                 citations=[],
                 safety_blocked=False,
             )
+
+        image_url = _validate_image_url(req.image_url)
 
         client = AsyncOpenAI(
             base_url=settings.vision_base_url,

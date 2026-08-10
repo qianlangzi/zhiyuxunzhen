@@ -16,6 +16,9 @@ import '../features/student/search/search_result_screen.dart';
 import '../features/student/report/review_report_screen.dart';
 import '../features/student/daily_case/daily_case_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
+import '../features/student/assignments/todo_assignments_screen.dart';
+import '../features/student/assignments/todo_assignment_detail_screen.dart';
+import '../features/student/result/osce_history_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
 import '../features/teacher/home/teacher_home_screen.dart';
 import '../features/teacher/case_config/sp_config_screen.dart';
@@ -24,6 +27,7 @@ import '../features/teacher/assignments/assignment_screen.dart';
 import '../features/teacher/review/review_screen.dart';
 import '../features/teacher/dashboard/dashboard_screen.dart';
 import '../features/teacher/profile/teacher_profile_screen.dart';
+import '../features/teacher/textbook/teacher_textbook_screen.dart';
 import '../features/common/about/about_app_screen.dart';
 import '../features/common/settings/settings_screen.dart';
 import '../features/common/legal/legal_document_screen.dart';
@@ -124,6 +128,23 @@ final GoRouter appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      name: RouteNames.todoAssignments,
+      path: '/student/assignments/todo',
+      builder: (context, state) => TodoAssignmentsScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.todoAssignmentDetail,
+      path: '/student/assignments/:id',
+      builder: (context, state) => TodoAssignmentDetailScreen(
+        instanceId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+      ),
+    ),
+    GoRoute(
+      name: RouteNames.osceHistory,
+      path: '/student/osce-history',
+      builder: (context, state) => OsceHistoryScreen(),
+    ),
+    GoRoute(
       name: RouteNames.reviewReport,
       path: '/student/report',
       builder: (context, state) => ReviewReportScreen(),
@@ -184,6 +205,11 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.profileEditTeacher,
       path: '/teacher/profile/edit',
       builder: (context, state) => ProfileEditScreen(),
+    ),
+    GoRoute(
+      name: RouteNames.teacherTextbook,
+      path: '/teacher/textbooks',
+      builder: (context, state) => TeacherTextbookScreen(),
     ),
 
     // ========== 通用 ==========

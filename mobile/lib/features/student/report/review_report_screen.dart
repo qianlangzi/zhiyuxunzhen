@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/student_service.dart';
+import 'report_pdf_service.dart';
 
 /// AI 复盘报告
 class ReviewReportScreen extends ConsumerStatefulWidget {
@@ -34,6 +34,27 @@ class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
         _reportData = data;
         _isLoading = false;
       });
+    }
+  }
+
+  /// 导出真实 PDF：拉取 export 数据 → 本地生成 → 系统打印/分享
+  Future<void> _exportPdf() async {
+    if (!mounted) return;
+    final hide = AppFeedback.showLoading(context, label: '正在生成复盘 PDF…');
+    try {
+      final data = await StudentService().exportReport();
+      if (!mounted) return;
+      hide();
+      if (data == null) {
+        AppFeedback.error(context, '导出失败：未获取到报告数据，请确认已完成复盘');
+        return;
+      }
+      await ReviewReportPdf.export(data);
+    } catch (e) {
+      if (mounted) {
+        hide();
+        AppFeedback.error(context, '导出失败：$e');
+      }
     }
   }
 
@@ -77,13 +98,7 @@ child: _isLoading
                             label: '导出完整 PDF',
                             icon: const Icon(Icons.download, size: 14),
                             fullWidth: true,
-                            onPressed: () async {
-                              AppFeedback.info(context, '正在生成复盘 PDF…');
-                              // 接入后端后替换为 POST /api/v1/student/review-report/export
-                              await Future.delayed(const Duration(milliseconds: 900));
-                              if (!context.mounted) return;
-                              AppFeedback.success(context, '复盘报告已导出（演示版）');
-                            },
+                            onPressed: _exportPdf,
                           ),
                         ],
                       ),
@@ -163,7 +178,6 @@ child: _isLoading
 
   Widget _buildSection(BuildContext context, String no, String title, String content,
       {bool isMoss = false, bool isAmber = false, bool hasGrid = false}) {
-    final accent = isMoss ? AppColors.primaryOf(context) : (isAmber ? AppColors.amber : AppColors.primaryOf(context));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

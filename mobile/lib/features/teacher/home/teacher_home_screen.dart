@@ -64,6 +64,8 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
                           _buildGreeting(context),
                           const SizedBox(height: 20),
                           _buildStats(context),
+                          const SizedBox(height: 12),
+                          _buildTextbookEntry(context),
                           _buildReviewSection(context),
                           _buildClassOverview(context),
                           _buildMarketDynamic(context),
@@ -163,6 +165,47 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
                 MonoText(label, fontSize: 11, color: AppColors.text3Of(context)),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextbookEntry(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.goNamed(RouteNames.teacherTextbook),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [AppColors.indigoSoftOf(context), AppColors.surfaceOf(context)],
+          ),
+          border: Border.all(color: AppColors.indigoSoftOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.indigo.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: const Icon(Icons.menu_book_rounded, size: 20, color: AppColors.indigo),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SerifText('教材制作', fontSize: 14, color: AppColors.textOf(context)),
+                  const SizedBox(height: 2),
+                  MonoText('上传医学电子书，供学生查阅', fontSize: 10, color: AppColors.text3Of(context)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.indigo),
           ],
         ),
       ),

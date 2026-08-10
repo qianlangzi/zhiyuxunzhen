@@ -9,10 +9,12 @@ import com.zhiyu.entity.AuditLog;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.entity.DailyCaseSubmission;
+import com.zhiyu.entity.StudentPracticeRecord;
 import com.zhiyu.mapper.AuditLogMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.DailyCaseSubmissionMapper;
+import com.zhiyu.mapper.StudentPracticeRecordMapper;
 import com.zhiyu.service.StudentReportService;
 import com.zhiyu.service.dto.ExportReportDTO;
 import com.zhiyu.vo.ReportSessionVO;
@@ -53,6 +55,7 @@ public class StudentReportServiceImpl implements StudentReportService {
     private final ObjectMapper objectMapper;
     private final AiPlatformClient aiPlatformClient;
     private final DailyCaseSubmissionMapper dailySubmissionMapper;
+    private final StudentPracticeRecordMapper practiceRecordMapper;
 
     @Override
     public StudentLearningOverviewVO overview() {
@@ -67,10 +70,14 @@ public class StudentReportServiceImpl implements StudentReportService {
                 new LambdaQueryWrapper<DailyCaseSubmission>()
                         .eq(DailyCaseSubmission::getStudentId, studentId)
                         .ge(DailyCaseSubmission::getSubmittedAt, start.atStartOfDay()));
+        // 学习热力图改为统计「每日刷题次数」（基础题题库作答记录）
+        List<StudentPracticeRecord> practiceRecords = practiceRecordMapper.selectList(
+                new LambdaQueryWrapper<StudentPracticeRecord>()
+                        .eq(StudentPracticeRecord::getStudentId, studentId)
+                        .ge(StudentPracticeRecord::getAnsweredAt, start.atStartOfDay()));
 
         Map<LocalDate, Integer> counts = new HashMap<>();
-        sessions.forEach(item -> counts.merge(item.getCreatedAt().toLocalDate(), 1, Integer::sum));
-        daily.forEach(item -> counts.merge(item.getSubmittedAt().toLocalDate(), 1, Integer::sum));
+        practiceRecords.forEach(item -> counts.merge(item.getAnsweredAt().toLocalDate(), 1, Integer::sum));
         List<StudentLearningOverviewVO.ActivityDay> activity = counts.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey())
                 .map(entry -> StudentLearningOverviewVO.ActivityDay.builder()

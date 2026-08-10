@@ -123,6 +123,22 @@ def daily_case_prompt() -> str:
     )
 
 
+def recommendation_prompt() -> str:
+    """错题智能推荐 Agent 系统提示词"""
+    return (
+        "你是学生错题智能推荐 Agent。根据学生薄弱知识点与近期错题，给出个性化补救建议。\n\n"
+        "原则：只依据给定的知识点与错题要点，不臆造学生未体现的问题（防幻觉）。\n\n"
+        "输出严格 JSON：\n"
+        "{\n"
+        "  \"advice\": \"整体补救建议（1-3 句）\",\n"
+        "  \"priority\": [\"按优先级排序的待复习知识点\"],\n"
+        "  \"studyPlan\": \"刷题方向与难度进阶安排\",\n"
+        "  \"mistakesNote\": \"对近期错题的针对性提示\"\n"
+        "}\n\n"
+        f"{SAFETY_GUARD}"
+    )
+
+
 def learning_path_prompt() -> str:
     """个性化补救路径 Agent 系统提示词"""
     return (

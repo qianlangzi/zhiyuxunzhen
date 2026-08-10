@@ -5,11 +5,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.entity.Textbook;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.TextbookService;
+import com.zhiyu.service.dto.TextbookCreateDTO;
 import com.zhiyu.vo.TextbookVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +62,70 @@ public class TextbookServiceImpl implements TextbookService {
         return toVO(tb);
     }
 
+    @Override
+    public Long create(TextbookCreateDTO dto) {
+        Long teacherId = UserContext.requireUserId();
+        Textbook tb = new Textbook();
+        tb.setCreatorId(teacherId);
+        tb.setTitle(dto.getTitle());
+        tb.setEdition(dto.getEdition());
+        tb.setDepartment(dto.getDepartment());
+        tb.setAuthor(dto.getAuthor());
+        tb.setPublisher(dto.getPublisher());
+        tb.setFileUrl(dto.getFileUrl());
+        tb.setCoverUrl(dto.getCoverUrl());
+        tb.setDescription(dto.getDescription());
+        tb.setKnowledgeTags(dto.getKnowledgeTags() == null ? null
+                : toJson(dto.getKnowledgeTags()));
+        tb.setChapterCount(dto.getChapterCount() == null ? 0 : dto.getChapterCount());
+        tb.setPageCount(dto.getPageCount() == null ? 0 : dto.getPageCount());
+        tb.setStatus(1);
+        textbookMapper.insert(tb);
+        log.info("教师{}上传教材: {}", teacherId, tb.getId());
+        return tb.getId();
+    }
+
+    @Override
+    public PageResult<TextbookVO> myList(Integer pageNum, Integer pageSize) {
+        Long teacherId = UserContext.requireUserId();
+        Page<Textbook> page = new Page<>(pageNum, pageSize);
+        textbookMapper.selectPage(page, new LambdaQueryWrapper<Textbook>()
+                .eq(Textbook::getCreatorId, teacherId)
+                .orderByDesc(Textbook::getCreatedAt));
+        List<TextbookVO> list = page.getRecords().stream()
+                .map(this::toVO)
+                .collect(Collectors.toList());
+        return PageResult.of(page, list);
+    }
+
+    @Override
+    public void delete(Long id) {
+        Long teacherId = UserContext.requireUserId();
+        Textbook tb = textbookMapper.selectById(id);
+        if (tb == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "教材不存在");
+        }
+        if (!Objects.equals(tb.getCreatorId(), teacherId)) {
+            throw new BizException(ResultCode.FORBIDDEN);
+        }
+        tb.setStatus(0);
+        textbookMapper.updateById(tb);
+    }
+
+    @Override
+    public List<String> departments() {
+        return textbookMapper.selectList(
+                        new LambdaQueryWrapper<Textbook>()
+                                .eq(Textbook::getStatus, 1)
+                                .isNotNull(Textbook::getDepartment)
+                                .groupBy(Textbook::getDepartment)
+                                .select(Textbook::getDepartment))
+                .stream()
+                .map(Textbook::getDepartment)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toList());
+    }
+
     private TextbookVO toVO(Textbook tb) {
         return TextbookVO.builder()
                 .id(tb.getId())
@@ -68,10 +135,21 @@ public class TextbookServiceImpl implements TextbookService {
                 .author(tb.getAuthor())
                 .publisher(tb.getPublisher())
                 .coverUrl(tb.getCoverUrl())
+                .fileUrl(tb.getFileUrl())
                 .description(tb.getDescription())
                 .knowledgeTags(parseTags(tb.getKnowledgeTags()))
                 .chapterCount(tb.getChapterCount())
+                .pageCount(tb.getPageCount())
                 .build();
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("序列化教材知识点失败: {}", e.getMessage());
+            return null;
+        }
     }
 
     private List<String> parseTags(String json) {

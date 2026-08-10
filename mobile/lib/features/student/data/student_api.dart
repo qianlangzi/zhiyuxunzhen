@@ -105,6 +105,34 @@ class StudentApi {
     }
   }
 
+  /// 待办作业列表（仅未完成：未开始/问诊中/格式打回）
+  Future<ApiResponse<Map<String, dynamic>>> getTodoAssignments({
+    int pageNum = 1,
+    int pageSize = 10,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/assignments/todo',
+        queryParameters: {'pageNum': pageNum, 'pageSize': pageSize},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 作业实例详情（查看作业 + 提交大病历）
+  Future<ApiResponse<Map<String, dynamic>>> getAssignmentDetail(int instanceId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/assignments/$instanceId',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 获取复盘报告概览
   Future<ApiResponse<Map<String, dynamic>>> getReportOverview() async {
     try {
@@ -167,6 +195,16 @@ class StudentApi {
     }
   }
 
+  /// OSCE 考核历史记录列表（已完成会话）
+  Future<ApiResponse<List<dynamic>>> getOsceHistory() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/evaluations/history');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 获取会话思维树数据
   Future<ApiResponse<Map<String, dynamic>>> getThinkingTree(int sessionId) async {
     try {
@@ -218,6 +256,46 @@ class StudentApi {
     }
   }
 
+  /// 上传问诊影像（后端本地目录存储，返回 url）
+  Future<ApiResponse<Map<String, dynamic>>> uploadImage({
+    required int sessionId,
+    required String filePath,
+  }) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/sessions/$sessionId/image',
+        data: formData,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 影像 AI 读图分析（未配置模型时返回降级提示）
+  Future<ApiResponse<Map<String, dynamic>>> analyzeImage({
+    required int sessionId,
+    required String imageUrl,
+    List<double>? imageBbox,
+    String? studentNote,
+  }) async {
+    try {
+      final body = <String, dynamic>{'imageUrl': imageUrl};
+      if (imageBbox != null && imageBbox.isNotEmpty) body['imageBbox'] = imageBbox;
+      if (studentNote != null && studentNote.isNotEmpty) body['studentNote'] = studentNote;
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/sessions/$sessionId/image/analyze',
+        data: body,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 教材分页列表
   Future<ApiResponse<Map<String, dynamic>>> getTextbooks({
     int pageNum = 1,
@@ -244,6 +322,16 @@ class StudentApi {
     try {
       final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/textbooks/$id');
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 教材科室分类列表（筛选入口）
+  Future<ApiResponse<List<dynamic>>> getTextbookDepartments() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/textbooks/departments');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
     }
@@ -292,6 +380,40 @@ class StudentApi {
   Future<ApiResponse<Map<String, dynamic>>> getQuestionStats() async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/questions/stats');
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 科室（模块）列表，用于刷题入口
+  Future<ApiResponse<List<dynamic>>> getQuestionDepartments() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/questions/departments');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 按科室刷题（单页返回，逐题/翻页）
+  Future<ApiResponse<Map<String, dynamic>>> getQuestionsByDepartment({
+    int pageNum = 1,
+    int pageSize = 1,
+    required String department,
+    int? difficulty,
+  }) async {
+    try {
+      final params = <String, dynamic>{
+        'pageNum': pageNum,
+        'pageSize': pageSize,
+        'department': department,
+      };
+      if (difficulty != null) params['difficulty'] = difficulty;
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/questions/by-department',
+        queryParameters: params,
+      );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));

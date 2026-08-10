@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 学生端-基础题训练接口
  */
@@ -30,15 +32,32 @@ public class StudentQuestionController {
 
     private final PracticeQuestionService practiceQuestionService;
 
-    @Operation(summary = "基础题分页列表（支持知识点/难度/题型筛选）")
+    @Operation(summary = "科室（模块）列表，用于刷题入口")
+    @GetMapping("/departments")
+    public R<List<String>> departments() {
+        return R.ok(practiceQuestionService.departments());
+    }
+
+    @Operation(summary = "按科室刷题（支持起始难度进阶，单页返回供逐题刷）")
+    @GetMapping("/by-department")
+    public R<PageResult<PracticeQuestionVO>> byDepartment(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "1") Integer pageSize,
+            @RequestParam String department,
+            @RequestParam(required = false) Integer difficulty) {
+        return R.ok(practiceQuestionService.pageByDepartment(pageNum, pageSize, department, difficulty));
+    }
+
+    @Operation(summary = "基础题分页列表（支持科室/知识点/难度/题型筛选）")
     @GetMapping
     public R<PageResult<PracticeQuestionVO>> page(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String department,
             @RequestParam(required = false) String knowledgeTag,
             @RequestParam(required = false) Integer difficulty,
             @RequestParam(required = false) String questionType) {
-        return R.ok(practiceQuestionService.page(pageNum, pageSize, knowledgeTag, difficulty, questionType));
+        return R.ok(practiceQuestionService.page(pageNum, pageSize, department, knowledgeTag, difficulty, questionType));
     }
 
     @Operation(summary = "题目详情")

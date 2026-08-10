@@ -454,7 +454,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     return _blockShell(
       bg: AppColors.amberSoftOf(context),
       height: 110,
-      onTap: () => AppFeedback.info(context, '作业列表页即将开放'),
+      onTap: () => context.pushNamed(RouteNames.todoAssignments),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

@@ -19,8 +19,11 @@ public class TextbookVO {
     private String author;
     private String publisher;
     private String coverUrl;
+    /** 电子书文件地址 */
+    private String fileUrl;
     private String description;
     /** 知识点列表 */
     private List<String> knowledgeTags;
     private Integer chapterCount;
+    private Integer pageCount;
 }

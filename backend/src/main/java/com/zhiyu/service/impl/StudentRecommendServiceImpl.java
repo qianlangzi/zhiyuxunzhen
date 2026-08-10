@@ -3,14 +3,17 @@ package com.zhiyu.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.entity.StudentWeakness;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.Textbook;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.mapper.StudentWeaknessMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TextbookMapper;
@@ -26,10 +29,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -45,6 +51,8 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
     private final TextbookMapper textbookMapper;
     private final SpCaseConfigMapper caseMapper;
     private final SysUserMapper userMapper;
+    private final StudentMistakesMapper mistakesMapper;
+    private final AiPlatformClient aiPlatformClient;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -63,10 +71,39 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
                         .orderByAsc(PracticeQuestion::getDifficulty));
         List<Textbook> textbooks = findTextbooksByTag(knowledgeTag);
 
+        // 拉取该知识点下近期错题要点，作为 AI 智能推荐的输入（无则传空列表）
+        List<String> mistakeNotes = new ArrayList<>();
+        try {
+            Long studentId = UserContext.requireUserId();
+            List<StudentMistakes> recent = mistakesMapper.selectList(
+                    new LambdaQueryWrapper<StudentMistakes>()
+                            .eq(StudentMistakes::getStudentId, studentId)
+                            .eq(StudentMistakes::getKnowledgeTag, knowledgeTag)
+                            .orderByDesc(StudentMistakes::getCreatedAt)
+                            .last("LIMIT 5"));
+            for (StudentMistakes m : recent) {
+                if (StringUtils.hasText(m.getEvidenceJson())) {
+                    mistakeNotes.add(m.getEvidenceJson());
+                } else if (StringUtils.hasText(m.getStudentAnswer())) {
+                    mistakeNotes.add("学生作答：" + m.getStudentAnswer());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("查询近期错题失败，AI 建议降级为空: tag={} error={}", knowledgeTag, e.getMessage());
+        }
+
+        // 调用 AI 平台生成个性化补救建议（失败返回 null，不阻断错题板块）
+        Map<String, Object> aiResult = aiPlatformClient.recommendWeakness(
+                Collections.singletonList(knowledgeTag), mistakeNotes);
+
         return RecommendationVO.builder()
                 .knowledgeTag(knowledgeTag)
                 .questions(toQuestionVOs(questions))
                 .textbooks(textbooks.stream().map(this::toTextbookVO).collect(Collectors.toList()))
+                .aiAdvice(aiResult == null ? null : str(aiResult.get("advice")))
+                .aiPriority(aiResult == null ? null : strList(aiResult.get("priority")))
+                .aiStudyPlan(aiResult == null ? null : str(aiResult.get("studyPlan")))
+                .aiMistakesNote(aiResult == null ? null : str(aiResult.get("mistakesNote")))
                 .build();
     }
 
@@ -142,6 +179,7 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
                 .map(q -> PracticeQuestionVO.builder()
                         .id(q.getId())
                         .questionType(q.getQuestionType())
+                        .department(q.getDepartment())
                         .knowledgeTag(q.getKnowledgeTag())
                         .title(q.getTitle())
                         .options(parseOptions(q.getOptionsJson()))
@@ -162,9 +200,11 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
                 .author(tb.getAuthor())
                 .publisher(tb.getPublisher())
                 .coverUrl(tb.getCoverUrl())
+                .fileUrl(tb.getFileUrl())
                 .description(tb.getDescription())
                 .knowledgeTags(parseTags(tb.getKnowledgeTags()))
                 .chapterCount(tb.getChapterCount())
+                .pageCount(tb.getPageCount())
                 .build();
     }
 
@@ -205,6 +245,22 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
             log.warn("解析知识点失败: {}", json, e);
             return List.of();
         }
+    }
+
+    private String str(Object obj) {
+        return obj == null ? null : obj.toString();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> strList(Object obj) {
+        if (obj instanceof List<?> list) {
+            List<String> result = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null) result.add(item.toString());
+            }
+            return result;
+        }
+        return null;
     }
 
     private List<String> parseOptions(String json) {

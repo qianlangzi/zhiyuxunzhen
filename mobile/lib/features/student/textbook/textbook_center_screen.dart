@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
+import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
+import 'ebook_reader_screen.dart';
 
 /// 教材中心
 class TextbookCenterScreen extends ConsumerStatefulWidget {
@@ -45,6 +47,22 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
           [];
       _isLoading = false;
     });
+  }
+
+  void _openEbook(Map<String, dynamic> tb) {
+    final url = tb['fileUrl'] as String? ?? '';
+    if (url.isEmpty) {
+      AppFeedback.info(context, '该教材暂无电子书文件');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => EbookReaderScreen(
+          title: tb['title'] as String? ?? '教材',
+          fileUrl: url,
+        ),
+      ),
+    );
   }
 
   Future<void> _openSearch() async {
@@ -115,9 +133,21 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  MonoText('共 ${tb['chapterCount'] ?? 0} 章',
+                  MonoText('共 ${tb['chapterCount'] ?? 0} 章 · ${tb['pageCount'] ?? 0} 页',
                       fontSize: 11, color: AppColors.text3Of(context)),
                   const Spacer(),
+                  if (tb['fileUrl'] != null && (tb['fileUrl'] as String).isNotEmpty) ...[
+                    AppGhostButton(
+                      label: '在线阅读',
+                      small: true,
+                      icon: const Icon(Icons.picture_as_pdf, size: 14),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _openEbook(tb);
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   AppPrimaryButton(
                     label: '去刷对应基础题',
                     small: true,

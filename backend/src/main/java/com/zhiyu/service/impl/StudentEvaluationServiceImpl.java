@@ -2,11 +2,16 @@ package com.zhiyu.service.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.ChatSession;
+import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.mapper.ChatSessionMapper;
+import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.service.StudentEvaluationService;
+import com.zhiyu.vo.OsceHistoryVO;
 import com.zhiyu.vo.SessionEvaluationVO;
 import com.zhiyu.vo.ThinkingTreeVO;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +20,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 学生会话评估服务实现
@@ -39,7 +47,52 @@ public class StudentEvaluationServiceImpl implements StudentEvaluationService {
     private static final TypeReference<Map<String, Object>> MAP_TYPE = new TypeReference<>() {};
 
     private final ChatSessionMapper sessionMapper;
+    private final SpCaseConfigMapper caseMapper;
     private final ObjectMapper objectMapper;
+
+    @Override
+    public List<OsceHistoryVO> history() {
+        Long studentId = UserContext.requireUserId();
+        List<ChatSession> sessions = sessionMapper.selectList(
+                new LambdaQueryWrapper<ChatSession>()
+                        .eq(ChatSession::getStudentId, studentId)
+                        .eq(ChatSession::getStatus, 1)
+                        .orderByDesc(ChatSession::getEndedAt));
+
+        List<Long> caseIds = sessions.stream()
+                .map(ChatSession::getCaseId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<Long, SpCaseConfig> cMap = new HashMap<>();
+        if (!caseIds.isEmpty()) {
+            for (SpCaseConfig c : caseMapper.selectList(
+                    new LambdaQueryWrapper<SpCaseConfig>().in(SpCaseConfig::getId, caseIds))) {
+                cMap.put(c.getId(), c);
+            }
+        }
+
+        return sessions.stream().map(s -> {
+            Map<String, Object> scores = parseJson(s.getOsceScoreJson(), MAP_TYPE, Collections.emptyMap());
+            double total = 0.0;
+            for (Object v : scores.values()) {
+                total += toDouble(v);
+            }
+            SpCaseConfig c = cMap.get(s.getCaseId());
+            return OsceHistoryVO.builder()
+                    .sessionId(s.getId())
+                    .caseId(s.getCaseId())
+                    .caseTitle(c == null ? null : c.getTitle())
+                    .department(c == null ? null : c.getDepartment())
+                    .totalScore(total)
+                    .osceScoreJson(s.getOsceScoreJson())
+                    .totalExamCost(s.getTotalExamCost())
+                    .status(s.getStatus())
+                    .endedAt(s.getEndedAt())
+                    .createdAt(s.getCreatedAt())
+                    .build();
+        }).collect(Collectors.toList());
+    }
 
     @Override
     public SessionEvaluationVO getEvaluation(Long sessionId) {

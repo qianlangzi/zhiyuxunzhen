@@ -30,14 +30,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   bool _sendPressed = false;
 
   // ---- API 状态 ----
-  bool _isLoading = true;
   int? _sessionId;
   int? _caseId;
   Map<String, dynamic>? _sessionData;
   final List<_ChatMessage> _messages = [];
   // 思维树 / 阶段 / 苏格拉底提示（来自 chat_workflow SSE 聚合）
   List<Map<String, dynamic>> _treeNodes = [];
-  List<Map<String, dynamic>> _treeEdges = [];
   String _stage = '主诉采集';
   String? _socratesHint;
   double _totalExamCost = 0.0;
@@ -189,7 +187,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       setState(() {
         _sessionId = result['sessionId'] as int?;
         _sessionData = result;
-        _isLoading = false;
         // 接口可能返回初始 stage / 思维树
         final stage = result['stage'] as String?;
         if (stage != null && stage.isNotEmpty) _stage = stage;
@@ -199,12 +196,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
               .map((n) => Map<String, dynamic>.from(n as Map))
               .toList();
           _totalExamCost = _computeExamCost();
-        }
-        final edges = result['treeEdges'] as List<dynamic>?;
-        if (edges != null) {
-          _treeEdges = edges
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
         }
         final socrates = result['socratesHint'] as String?;
         if (socrates != null && socrates.isNotEmpty) _socratesHint = socrates;
@@ -246,8 +237,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
           }
         }
       });
-    } else {
-      setState(() => _isLoading = false);
     }
     // 如果 result == null，保留硬编码 fallback 数据
   }
@@ -337,7 +326,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       return;
     }
     setState(() {
-      _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient));
+      // 解析 RAG 教材引用（体现 AI 溯源能力）
+      final citations = (data?['citations'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ?? [];
+      _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient, citations: citations));
       // 解析思维树 / 阶段 / 苏格拉底提示
       final nodes = data?['treeNodes'] as List<dynamic>?;
       if (nodes != null) {
@@ -345,12 +338,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
             .map((n) => Map<String, dynamic>.from(n as Map))
             .toList();
         _totalExamCost = _computeExamCost();
-      }
-      final edges = data?['treeEdges'] as List<dynamic>?;
-      if (edges != null) {
-        _treeEdges = edges
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
       }
       final stage = data?['stage'] as String?;
       if (stage != null && stage.isNotEmpty) _stage = stage;
@@ -380,6 +367,10 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   }
 
   Future<void> _pickImage() async {
+    if (_sessionId == null) {
+      AppFeedback.error(context, '问诊会话尚未就绪，请稍候');
+      return;
+    }
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -392,12 +383,39 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         _extra.add(
           _ExtraMsg('已上传影像：${picked.name}', _now(), _MsgSender.student),
         );
+        _spTyping = true;
       });
       _scrollToBottom();
+
+      // 1. 上传影像到后端（本地目录存储），返回 url
+      final upload = await StudentService().uploadImage(
+        sessionId: _sessionId!,
+        filePath: picked.path,
+      );
       if (!mounted) return;
-      AppFeedback.success(context, '影像已上传，AI 将结合影像反馈（演示版）');
+      if (upload == null) {
+        setState(() => _spTyping = false);
+        AppFeedback.error(context, '影像上传失败，请重试');
+        return;
+      }
+      final imageUrl = (upload['url'] as String?) ?? '';
+
+      // 2. 调 AI 读图分析（未配置多模态模型时返回降级提示）
+      final analysis = await StudentService().analyzeImage(
+        sessionId: _sessionId!,
+        imageUrl: imageUrl,
+      );
+      if (!mounted) return;
+      final finding = (analysis?['finding'] as String?) ??
+          '影像已上传，但 AI 暂未能给出读图反馈。';
+      setState(() {
+        _spTyping = false;
+        _extra.add(_ExtraMsg(finding, _now(), _MsgSender.patient));
+      });
+      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _spTyping = false);
       AppFeedback.error(context, '影像上传失败：$e');
     }
   }
@@ -483,13 +501,22 @@ _patientAvatarChar,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    _patientDisplayName,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textOf(context),
-                    ),
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _patientDisplayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textOf(context),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const AppChip(label: 'AI 问诊', type: ChipType.moss, fontSize: 9),
+                    ],
                   ),
                 ),
                 // 结束问诊按钮
@@ -754,7 +781,7 @@ _patientAvatarChar,
               if (m.sender == _MsgSender.mentor) {
                 return _mentorMessage('AI 导师提示', m.text);
               }
-              return _patientMessage(m.text, m.time);
+              return _patientMessage(m.text, m.time, citations: m.citations);
             }),
             if (_spTyping) _patientTypingMessage(),
           ],
@@ -961,7 +988,7 @@ _patientAvatarChar,
     );
   }
 
-  Widget _patientMessage(String text, String time) {
+  Widget _patientMessage(String text, String time, {List<Map<String, dynamic>> citations = const []}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
@@ -1000,9 +1027,97 @@ _patientAvatarChar,
                     height: 1.6,
                   ),
                 ),
+                if (citations.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildCitationPanel(citations),
+                ],
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// RAG 教材引用面板（体现 AI 溯源与抗幻觉能力）
+  Widget _buildCitationPanel(List<Map<String, dynamic>> citations) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.indigoSoftOf(context),
+        border: Border.all(color: AppColors.indigo.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.source_outlined, size: 12, color: AppColors.indigo),
+              SizedBox(width: 4),
+              MonoText('教材溯源 · AI 引用', fontSize: 9, color: AppColors.indigo, letterSpacing: 0.08),
+              Spacer(),
+              AppChip(label: 'AI', type: ChipType.indigo, fontSize: 9),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ...citations.map((c) {
+            final book = c['book_name'] as String? ?? '';
+            final chapter = c['chapter'] as String? ?? '';
+            final page = c['page_number'];
+            final snippet = c['chunk_text'] as String? ?? '';
+            final loc = [
+              if (chapter.isNotEmpty) chapter,
+              if (page != null) 'P$page',
+            ].join(' · ');
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context).withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(AppRadius.xs),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.menu_book_rounded, size: 11, color: AppColors.indigo),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          book,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textOf(context),
+                          ),
+                        ),
+                      ),
+                      if (loc.isNotEmpty)
+                        MonoText(loc, fontSize: 9, color: AppColors.text3Of(context)),
+                    ],
+                  ),
+                  if (snippet.isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      snippet,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10.5,
+                        height: 1.45,
+                        color: AppColors.text2Of(context),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -1681,8 +1796,9 @@ class _ExtraMsg {
   final String text;
   final String time;
   final _MsgSender sender;
+  final List<Map<String, dynamic>> citations;
 
-  const _ExtraMsg(this.text, this.time, this.sender);
+  const _ExtraMsg(this.text, this.time, this.sender, {this.citations = const []});
 }
 
 /// 统一的消息模型（支持初始消息和 API 消息）

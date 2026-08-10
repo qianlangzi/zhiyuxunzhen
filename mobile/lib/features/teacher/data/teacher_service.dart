@@ -201,4 +201,53 @@ class TeacherService {
     }
     return resp.data;
   }
+
+  // ========= 教材管理 =========
+
+  /// 上传电子书文件
+  Future<Map<String, dynamic>?> uploadTextbookFile(String filePath) async {
+    if (_isMock) return null;
+    final resp = await _api.uploadTextbookFile(filePath);
+    if (!resp.isSuccess) {
+      log('uploadTextbookFile failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 创建/上架教材
+  Future<Map<String, dynamic>?> createTextbook(Map<String, dynamic> data) async {
+    if (_isMock) return null;
+    final resp = await _api.createTextbook(data);
+    if (!resp.isSuccess) {
+      log('createTextbook failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 我的教材列表
+  Future<Map<String, dynamic>?> getMyTextbooks({
+    int pageNum = 1,
+    int pageSize = 20,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getMyTextbooks(pageNum: pageNum, pageSize: pageSize);
+    if (!resp.isSuccess) {
+      log('getMyTextbooks failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 下架教材
+  Future<bool> deleteTextbook(int id) async {
+    if (_isMock) return true;
+    final resp = await _api.deleteTextbook(id);
+    if (!resp.isSuccess) {
+      log('deleteTextbook failed: ${resp.message}', name: 'teacher_service');
+      return false;
+    }
+    return true;
+  }
 }

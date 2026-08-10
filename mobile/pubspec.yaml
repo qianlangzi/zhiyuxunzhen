@@ -73,6 +73,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - assets/fonts/
   fonts:
     # NotoSerifSC (思源宋体) 暂未打包：本环境无法下载该中文字体二进制。
     # 当前通过 fontFamilyFallback 回退到系统宋体（iOS: Songti SC / Android: Noto Serif CJK SC），

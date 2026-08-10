@@ -49,13 +49,16 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
 
     @Override
     public PageResult<PracticeQuestionVO> page(Integer pageNum, Integer pageSize,
-                                               String knowledgeTag, Integer difficulty, String questionType) {
+                                               String department, String knowledgeTag,
+                                               Integer difficulty, String questionType) {
         Page<PracticeQuestion> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<PracticeQuestion> wrapper = new LambdaQueryWrapper<PracticeQuestion>()
                 .eq(PracticeQuestion::getStatus, 1)
+                .eq(StringUtils.hasText(department), PracticeQuestion::getDepartment, department)
                 .eq(StringUtils.hasText(knowledgeTag), PracticeQuestion::getKnowledgeTag, knowledgeTag)
                 .eq(difficulty != null, PracticeQuestion::getDifficulty, difficulty)
                 .eq(StringUtils.hasText(questionType), PracticeQuestion::getQuestionType, questionType)
+                .orderByAsc(PracticeQuestion::getDepartment)
                 .orderByAsc(PracticeQuestion::getDifficulty)
                 .orderByDesc(PracticeQuestion::getCreatedAt);
         questionMapper.selectPage(page, wrapper);
@@ -65,6 +68,39 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .map(q -> toVO(q, tbTitleMap))
                 .collect(Collectors.toList());
         return PageResult.of(page, list);
+    }
+
+    @Override
+    public PageResult<PracticeQuestionVO> pageByDepartment(Integer pageNum, Integer pageSize,
+                                                           String department, Integer difficulty) {
+        Page<PracticeQuestion> page = new Page<>(pageNum, pageSize);
+        LambdaQueryWrapper<PracticeQuestion> wrapper = new LambdaQueryWrapper<PracticeQuestion>()
+                .eq(PracticeQuestion::getStatus, 1)
+                .eq(StringUtils.hasText(department), PracticeQuestion::getDepartment, department)
+                .ge(difficulty != null, PracticeQuestion::getDifficulty, difficulty)
+                .orderByAsc(PracticeQuestion::getDifficulty)
+                .orderByAsc(PracticeQuestion::getId);
+        questionMapper.selectPage(page, wrapper);
+
+        Map<Long, String> tbTitleMap = loadTextbookTitles(page.getRecords());
+        List<PracticeQuestionVO> list = page.getRecords().stream()
+                .map(q -> toVO(q, tbTitleMap))
+                .collect(Collectors.toList());
+        return PageResult.of(page, list);
+    }
+
+    @Override
+    public List<String> departments() {
+        return questionMapper.selectList(
+                        new LambdaQueryWrapper<PracticeQuestion>()
+                                .eq(PracticeQuestion::getStatus, 1)
+                                .isNotNull(PracticeQuestion::getDepartment)
+                                .groupBy(PracticeQuestion::getDepartment)
+                                .select(PracticeQuestion::getDepartment))
+                .stream()
+                .map(PracticeQuestion::getDepartment)
+                .filter(StringUtils::hasText)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -174,6 +210,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         return PracticeQuestionVO.builder()
                 .id(q.getId())
                 .questionType(q.getQuestionType())
+                .department(q.getDepartment())
                 .knowledgeTag(q.getKnowledgeTag())
                 .title(q.getTitle())
                 .options(parseOptions(q.getOptionsJson()))
