@@ -21,15 +21,19 @@ export async function me(): Promise<UserInfoVO> {
   return data.data
 }
 
-/** 修改密码（首次登录强制改密 / 用户主动改密） */
+/** 修改密码（首次登录强制改密 / 用户主动改密）
+ *  后端返回 LoginResponse（含新 access/refresh token，携带递增后的 credentialVersion），
+ *  客户端必须用新 token 替换旧 token，否则旧 token 因版本不匹配被后端拒绝（1001）。
+ */
 export async function changePassword(
   oldPassword: string,
   newPassword: string,
-): Promise<void> {
-  await http.put<ApiResult<void>>('/api/v1/auth/password', {
-    oldPassword,
-    newPassword,
-  })
+): Promise<LoginResponse> {
+  const { data } = await http.put<ApiResult<LoginResponse>>(
+    '/api/v1/auth/password',
+    { oldPassword, newPassword },
+  )
+  return data.data
 }
 
 /** 登出（后端仅清除 UserContext，客户端负责清 token） */

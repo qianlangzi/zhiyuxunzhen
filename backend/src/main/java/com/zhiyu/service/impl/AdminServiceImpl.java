@@ -150,8 +150,18 @@ public class AdminServiceImpl implements AdminService {
 
         String beforeJson = toJson(Map.of("auditStatus", user.getAuditStatus()));
 
-        user.setAuditStatus(2);
-        userMapper.updateById(user);
+        // P1：审核通过时递增 credential_version，撤销携带旧 auditStatus 的 access token。
+        // PermissionInterceptor 依赖 auditStatus=2 才允许教师写操作，旧 token 中的
+        // auditStatus=1（待审核）会让教师无法写操作；但若攻击者在审核通过前拿到 token，
+        // 审核通过后旧 token 仍带 auditStatus=1，需递增版本强制重新登录拿 auditStatus=2 的新 token。
+        int rows = userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .set("audit_status", 2)
+                        .setSql("credential_version = credential_version + 1"));
+        if (rows == 0) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+        }
 
         String afterJson = toJson(Map.of("auditStatus", 2));
 
@@ -172,8 +182,16 @@ public class AdminServiceImpl implements AdminService {
 
         String beforeJson = toJson(Map.of("auditStatus", user.getAuditStatus()));
 
-        user.setAuditStatus(3);
-        userMapper.updateById(user);
+        // P1：审核驳回时递增 credential_version，撤销旧 token，强制教师重新登录拿 auditStatus=3 的新 token。
+        // 驳回后旧 token 的 auditStatus=1（待审核）仍能尝试写操作，递增版本后旧 token 被立即拒绝。
+        int rows = userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .set("audit_status", 3)
+                        .setSql("credential_version = credential_version + 1"));
+        if (rows == 0) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+        }
 
         Map<String, Object> afterMap = new HashMap<>();
         afterMap.put("auditStatus", 3);
@@ -356,8 +374,18 @@ public class AdminServiceImpl implements AdminService {
             throw new BizException(ResultCode.BAD_REQUEST, "不允许冻结管理员/运维账号");
         }
         String beforeJson = toJson(Map.of("status", user.getStatus()));
-        user.setStatus(1);
-        userMapper.updateById(user);
+        // P1：冻结时同步递增 credential_version，撤销该用户所有已签发的 access/refresh token。
+        // MustChangePasswordInterceptor 的版本校验会立即拒绝旧 token，防止冻结后旧 token
+        // 在 24h access 有效期内继续操作。使用 UpdateWrapper + setSql 原子递增，避免
+        // LambdaUpdateWrapper 的 lambda cache 在隔离测试中未预热导致 NPE。
+        int rows = userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .set("status", 1)
+                        .setSql("credential_version = credential_version + 1"));
+        if (rows == 0) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+        }
         String afterJson = toJson(Map.of("status", 1));
         auditLogService.record("user_freeze", "user", userId, beforeJson, afterJson);
         log.info("账号冻结: userId={}, operator={}", userId, UserContext.requireUserId());
@@ -371,8 +399,16 @@ public class AdminServiceImpl implements AdminService {
             throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
         }
         String beforeJson = toJson(Map.of("status", user.getStatus()));
-        user.setStatus(0);
-        userMapper.updateById(user);
+        // 解冻不递增 credential_version：冻结时已撤销旧 token，用户解冻后需重新登录获取新 token。
+        // 若解冻也递增版本，会导致用户刚解冻就被迫再次重登（体验差且无安全收益）。
+        //
+        // P0-4 修复：使用窄字段 UpdateWrapper 只更新 status，不使用 updateById(user)。
+        // updateById 会写入完整实体快照，并发场景下可能把另一个事务已递增的 credential_version
+        // 或修改的 role/passwordHash 写回旧值，导致撤销被回滚。窄字段 UPDATE 只动 status 列。
+        userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .set("status", 0));
         String afterJson = toJson(Map.of("status", 0));
         auditLogService.record("user_unfreeze", "user", userId, beforeJson, afterJson);
         log.info("账号解冻: userId={}, operator={}", userId, UserContext.requireUserId());
@@ -395,17 +431,25 @@ public class AdminServiceImpl implements AdminService {
             return; // 无变化
         }
         String beforeJson = toJson(Map.of("role", user.getRole()));
-        user.setRole(newRole);
         // 角色变更后重置审核状态：教师(1)需重新认证，其他角色置为已通过(2)
-        if (newRole == 1) {
-            user.setAuditStatus(0);
-        } else {
-            user.setAuditStatus(2);
+        Integer newAuditStatus = (newRole == 1) ? 0 : 2;
+        // P1：角色变更时同步递增 credential_version，撤销携带旧角色的 access token。
+        // PermissionInterceptor 信任 JWT 中的 role claim，若不递增版本，降权/升权后的
+        // 旧 token 最长 24h 仍以旧角色访问端点（如学生 token 升级为教师后可调教师接口，
+        // 或教师 token 降级为学生后仍可调教师接口）。递增版本后旧 token 被立即拒绝，
+        // 用户必须重新登录获取携带新角色的 token。
+        int rows = userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .set("role", newRole)
+                        .set("audit_status", newAuditStatus)
+                        .setSql("credential_version = credential_version + 1"));
+        if (rows == 0) {
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
         }
-        userMapper.updateById(user);
         Map<String, Object> after = new HashMap<>();
         after.put("role", newRole);
-        after.put("auditStatus", user.getAuditStatus());
+        after.put("auditStatus", newAuditStatus);
         auditLogService.record("user_role_change", "user", userId, beforeJson, toJson(after));
         log.info("用户角色变更: userId={} {}->{} operator={}",
                 userId, beforeJson, newRole, UserContext.requireUserId());

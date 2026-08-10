@@ -127,9 +127,10 @@ public class AuthController {
 
     @Operation(summary = "修改密码（首次登录强制改密 / 用户主动改密）")
     @PutMapping("/password")
-    public R<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
-        authService.changePassword(UserContext.requireUserId(), req);
-        return R.ok();
+    public R<LoginResponse> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
+        // 改密成功后返回新 access/refresh token（携带递增后的 credentialVersion），
+        // 客户端必须用新 token 替换旧 token；旧 token 因版本不匹配被 MustChangePasswordInterceptor 拒绝
+        return R.ok(authService.changePassword(UserContext.requireUserId(), req));
     }
 
     @Operation(summary = "上传教师资质证书图片（注册时调用）")

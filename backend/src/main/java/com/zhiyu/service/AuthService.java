@@ -46,8 +46,11 @@ public interface AuthService {
     void updateLastLogin(Long userId);
 
     /**
-     * 修改密码：校验原密码 → 更新密码哈希 → 清除强制改密标志
+     * 修改密码：校验原密码 → CAS 更新密码哈希 + 递增凭证版本 + 清除强制改密标志 → 签发新 token。
      * 用于批量导入学生首次登录强制改密，以及用户主动改密。
+     *
+     * @return 包含新 access/refresh token 的 LoginResponse（携带递增后的 credentialVersion），
+     *         客户端必须用新 token 替换旧 token，旧 token 因版本不匹配被后端拒绝
      */
-    void changePassword(Long userId, ChangePasswordRequest req);
+    LoginResponse changePassword(Long userId, ChangePasswordRequest req);
 }

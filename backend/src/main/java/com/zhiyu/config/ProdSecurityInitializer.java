@@ -1,7 +1,6 @@
 package com.zhiyu.config;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
@@ -55,11 +54,15 @@ public class ProdSecurityInitializer implements CommandLineRunner {
                 log.info("演示账号 {} 已处于冻结状态，无需重复操作", username);
                 continue;
             }
+            // P0-4 修复：冻结时同步递增 credential_version，撤销该账号所有已签发 token。
+            // 使用 UpdateWrapper（列名字符串）而非 LambdaUpdateWrapper，避免 lambda cache
+            // 在隔离运行时未预热导致 NPE。setSql 原子递增版本，防止并发覆盖。
             userMapper.update(null,
-                    new LambdaUpdateWrapper<SysUser>()
-                            .eq(SysUser::getId, user.getId())
-                            .set(SysUser::getStatus, 1));
-            log.warn("安全告警：已冻结演示账号 {}（密码仍为默认 123456），请立即删除或重置密码", username);
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                            .eq("id", user.getId())
+                            .set("status", 1)
+                            .setSql("credential_version = credential_version + 1"));
+            log.warn("安全告警：已冻结演示账号 {}（密码仍为默认 123456，已撤销所有活跃 token），请立即删除或重置密码", username);
             disabled++;
         }
         if (disabled > 0) {

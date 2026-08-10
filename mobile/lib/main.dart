@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/config/api_config.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/common/settings/settings_provider.dart';
 
@@ -52,6 +54,16 @@ Widget _buildErrorScreen(FlutterErrorDetails details) {
 void main() async {
   // 确保 Flutter 引擎初始化（异步 main() 必须调用）
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Issue1 P0：release 构建禁止启用 USE_MOCK_AUTH=true，
+  // 防止误配置导致登录/改密退化为本地直接成功（绕过后端安全边界）
+  if (kReleaseMode && ApiConfig.useMockAuth) {
+    throw StateError(
+      'Release 构建禁止启用 USE_MOCK_AUTH，请检查 --dart-define 配置。'
+      '安全敏感操作必须走真实后端校验。',
+    );
+  }
+
   ErrorWidget.builder = _buildErrorScreen;
 
   // 创建 ProviderContainer 并预热 authProvider + settingsProvider，

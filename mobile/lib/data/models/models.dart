@@ -34,6 +34,7 @@ class UserModel {
   final String? grade; // 年级
   final String? password; // 登录密码（本地模拟存储，真实环境应由后端校验）
   final bool needsProfileCompletion; // 新用户注册后是否仍需完善资料
+  final bool mustChangePassword; // 后端标记：首次登录或导入后强制改密（来自 LoginResponse/UserInfoVO）
 
   const UserModel({
     required this.id,
@@ -51,6 +52,7 @@ class UserModel {
     this.grade,
     this.password,
     this.needsProfileCompletion = false,
+    this.mustChangePassword = false,
   });
 
   factory UserModel.mockStudent() => const UserModel(
@@ -90,6 +92,7 @@ class UserModel {
     String? grade,
     String? password,
     bool? needsProfileCompletion,
+    bool? mustChangePassword,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -108,6 +111,7 @@ class UserModel {
       password: password ?? this.password,
       needsProfileCompletion:
           needsProfileCompletion ?? this.needsProfileCompletion,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
     );
   }
 
@@ -127,6 +131,7 @@ class UserModel {
         'grade': grade,
         'password': password,
         'needsProfileCompletion': needsProfileCompletion,
+        'mustChangePassword': mustChangePassword,
       };
 
   factory UserModel.fromJson(Map<String, dynamic> json) => UserModel(
@@ -148,6 +153,7 @@ class UserModel {
         grade: json['grade'] as String?,
         password: json['password'] as String?,
         needsProfileCompletion: (json['needsProfileCompletion'] as bool?) ?? false,
+        mustChangePassword: (json['mustChangePassword'] as bool?) ?? false,
       );
 }
 

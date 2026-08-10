@@ -85,10 +85,16 @@ class AppPadding {
 
 /// 安全存储 Key（flutter_secure_storage）
 ///
-/// 用于存放「生物识别可登录角色」，退出登录时清除。
+/// 用于存放「生物识别可登录角色」与 JWT 凭证，退出登录时清除。
 class SecureKeys {
   SecureKeys._();
 
   /// 生物识别可登录角色标记：'student' | 'teacher'
   static const String biometricRole = 'biometric_login_role';
+
+  /// access token（JWT），请求头 Authorization: Bearer xxx
+  static const String accessToken = 'auth_access_token';
+
+  /// refresh token，用于 access token 过期后换取新 token
+  static const String refreshToken = 'auth_refresh_token';
 }

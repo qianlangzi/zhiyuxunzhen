@@ -7,6 +7,7 @@ class RouteNames {
   // Auth
   static const login = 'login';
   static const register = 'register';
+  static const changePassword = 'changePassword';
 
   // Student
   static const studentHome = 'studentHome';

@@ -3,6 +3,8 @@ package com.zhiyu.interceptor;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.config.MyBatisTestConfig;
 import com.zhiyu.controller.TestPermissionController;
+import com.zhiyu.entity.SysUser;
+import com.zhiyu.mapper.SysUserMapper;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,6 +15,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -35,7 +38,15 @@ class PermissionInterceptorIntegrationTest {
     @MockBean
     private JwtUtils jwtUtils;
 
-    /** 模拟 JWT 解析返回指定角色的用户 */
+    @MockBean
+    private SysUserMapper userMapper;
+
+    /** 模拟 JWT 解析返回指定角色的用户，并 mock 数据库返回 mustChangePassword=false 的用户
+     *
+     * 注意：MustChangePasswordInterceptor 在 PermissionInterceptor 之前执行（order=15 < 20），
+     * 会调用 userMapper.selectById 查库。若不 mock，RBAC 测试会被 1001/2015 阻断而非返回预期的 1003/0。
+     * 必须同时设置 credentialVersion（token 与 DB 一致），否则版本校验返回 1001。
+     */
     private void mockJwtUser(Long userId, String username, Integer role, Integer auditStatus) {
         Claims claims = org.mockito.Mockito.mock(Claims.class);
         when(claims.getSubject()).thenReturn(String.valueOf(userId));
@@ -43,7 +54,18 @@ class PermissionInterceptorIntegrationTest {
         when(claims.get("username", String.class)).thenReturn(username);
         when(claims.get("role", Integer.class)).thenReturn(role);
         when(claims.get("auditStatus", Integer.class)).thenReturn(auditStatus);
+        when(claims.get("credentialVersion", Integer.class)).thenReturn(0);
         when(jwtUtils.parseToken(anyString())).thenReturn(claims);
+
+        // mock 数据库用户：mustChangePassword=false + credentialVersion=0（与 token 一致），
+        // 确保 MustChangePasswordInterceptor 放行，让请求到达 PermissionInterceptor 以测试 RBAC 逻辑
+        SysUser user = new SysUser();
+        user.setId(userId);
+        user.setMustChangePassword(false);
+        user.setCredentialVersion(0);
+        user.setRole(role);
+        user.setStatus(0);
+        when(userMapper.selectById(anyLong())).thenReturn(user);
     }
 
     // ==================== /api/v1/admin/** ====================

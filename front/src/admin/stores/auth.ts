@@ -14,11 +14,13 @@ import * as authApi from '../api/auth'
 import { tokenStorage } from '../api/http'
 import {
   ADMIN_ROLES,
+  ApiError,
   getAllowedMenus,
   getDefaultPath,
   type LoginRequest,
   type LoginResponse,
   type NavItem,
+  ResultCode,
   type UserInfoVO,
 } from '../types'
 
@@ -90,9 +92,32 @@ export const useAuthStore = defineStore('admin-auth', () => {
     }
   }
 
-  /** 修改密码：调用后端 → 清除强制改密标志 */
+  /** 修改密码：调用后端 → 替换新 token → 清除强制改密标志
+   *
+   *  后端改密后签发新 token（携带递增后的 credentialVersion），
+   *  必须替换旧 token，否则旧 token 因版本不匹配被后端拒绝（1001）。
+   *
+   *  P0 复审修复：gen CAS 防止迟到改密响应覆盖新登录。
+   *  场景：Tab A 改密 → Tab B 登录（gen++）→ Tab A 改密响应迟到 →
+   *    若无条件 set，会把 A 的新 token 写入 localStorage，覆盖 B 的会话。
+   *  防护：请求前快照 gen，响应后比较——若 gen 已变，丢弃迟到响应。
+   */
   async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
-    await authApi.changePassword(oldPassword, newPassword)
+    const genAtRequest = tokenStorage.getSessionGen()
+    const resp: LoginResponse = await authApi.changePassword(oldPassword, newPassword)
+
+    // gen CAS：若期间发生了 login/logout（gen 变化），丢弃迟到响应
+    if (genAtRequest !== tokenStorage.getSessionGen()) {
+      // 会话已变更（Tab B 登录/登出），A 的改密响应迟到，不覆盖新会话
+      throw new ApiError(
+        ResultCode.UNAUTHORIZED,
+        '会话已变更，改密响应已丢弃，请重新登录后修改密码',
+      )
+    }
+
+    // 替换新 token（携带递增后的 credentialVersion，旧 token 立即失效）
+    // tokenStorage.set 内部会递增 gen，使在途请求的迟到响应被过滤
+    tokenStorage.set(resp.token, resp.refreshToken)
     mustChangePassword.value = false
     if (user.value) {
       user.value = { ...user.value, mustChangePassword: false }

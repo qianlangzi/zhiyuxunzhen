@@ -1,6 +1,7 @@
 package com.zhiyu.service.impl;
 
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
@@ -177,8 +178,9 @@ public class AuthServiceImpl implements AuthService {
         updateLastLogin(user.getId());
 
         Integer auditStatus = user.getAuditStatus() == null ? 0 : user.getAuditStatus();
-        String token = jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus);
-        String refresh = jwtUtils.issueRefreshToken(user.getId());
+        Integer credentialVersion = user.getCredentialVersion() == null ? 0 : user.getCredentialVersion();
+        String token = jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus, credentialVersion);
+        String refresh = jwtUtils.issueRefreshToken(user.getId(), credentialVersion);
 
         log.info("用户登录成功: {} (role={})", user.getUsername(), user.getRole());
         return LoginResponse.builder()
@@ -209,9 +211,19 @@ public class AuthServiceImpl implements AuthService {
             if (user.getStatus() != null && user.getStatus() == 1) {
                 throw new BizException(ResultCode.ACCOUNT_FROZEN);
             }
+
+            // 凭证版本校验：refresh token 中的版本必须与 DB 一致
+            // 改密后版本递增，旧 refresh token 版本不匹配 → 拒绝（撤销旧 refresh 凭证）
+            Integer tokenVersion = claims.get("credentialVersion", Integer.class);
+            Integer dbVersion = user.getCredentialVersion() == null ? 0 : user.getCredentialVersion();
+            if (tokenVersion == null || !tokenVersion.equals(dbVersion)) {
+                log.debug("refresh token 凭证版本不匹配: token={} db={} userId={}", tokenVersion, dbVersion, userId);
+                throw new BizException(ResultCode.UNAUTHORIZED, "凭证已失效，请重新登录");
+            }
+
             Integer auditStatus = user.getAuditStatus() == null ? 0 : user.getAuditStatus();
-            String newToken = jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus);
-            String newRefresh = jwtUtils.issueRefreshToken(user.getId());
+            String newToken = jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus, dbVersion);
+            String newRefresh = jwtUtils.issueRefreshToken(user.getId(), dbVersion);
             return LoginResponse.builder()
                     .token(newToken)
                     .refreshToken(newRefresh)
@@ -221,6 +233,9 @@ public class AuthServiceImpl implements AuthService {
                     .realName(user.getRealName())
                     .role(user.getRole())
                     .auditStatus(auditStatus)
+                    // refresh 响应必须带回最新 mustChangePassword，否则前端刷新 token 后
+                    // 会丢失强制改密状态（Issue1 P0：与 MustChangePasswordInterceptor 的 DB 状态保持一致）
+                    .mustChangePassword(user.getMustChangePassword() != null && user.getMustChangePassword())
                     .build();
         } catch (JwtException e) {
             throw new BizException(ResultCode.TOKEN_EXPIRED, "refresh token 已过期，请重新登录");
@@ -257,12 +272,15 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
         }
 
-        // 更新可修改的字段
+        // P0-4 修复：使用窄字段 UpdateWrapper 只更新 avatar 列。
+        // updateById(user) 会写入完整实体快照，并发场景下可能把另一个事务已递增的
+        // credential_version 或修改的 role/status/passwordHash 写回旧值，导致撤销被回滚。
         if (dto.getAvatarPath() != null) {
-            user.setAvatar(dto.getAvatarPath());
+            userMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                            .eq("id", userId)
+                            .set("avatar", dto.getAvatarPath()));
         }
-
-        userMapper.updateById(user);
 
         // 返回更新后的用户信息
         return currentUser(userId);
@@ -278,7 +296,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void changePassword(Long userId, ChangePasswordRequest req) {
+    public LoginResponse changePassword(Long userId, ChangePasswordRequest req) {
         SysUser user = userMapper.selectById(userId);
         if (user == null) {
             throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
@@ -293,18 +311,59 @@ public class AuthServiceImpl implements AuthService {
             throw new BizException(ResultCode.PASSWORD_SAME_AS_OLD);
         }
 
-        // 仅更新密码哈希与强制改密标志，避免覆盖其他字段
-        SysUser update = new SysUser();
-        update.setId(userId);
-        update.setPasswordHash(passwordEncoder.encode(req.getNewPassword()));
-        update.setMustChangePassword(false);
-        userMapper.updateById(update);
+        // CAS 更新：条件为 id + status=0(未冻结) + 旧 passwordHash + token 中的 credentialVersion
+        //
+        // P0-1 修复（冻结账号可通过在途改密复活）：
+        //   1. **使用 token 中的版本，而非 DB 重读版本**：若管理员在用户请求期间冻结账号
+        //      （递增 version v→v+1），token 中的版本仍是 v，CAS .eq("credential_version", v)
+        //      不匹配 DB 的 v+1 → 失败。若用 DB 重读版本，CAS 读到 v+1 并成功，等于冻结后被改密复活。
+        //   2. **加 status=0 条件**：即使版本匹配，冻结中的账号（status=1）也不允许改密。
+        //      双保险：版本 CAS 防并发交错，status CAS 防冻结后改密。
+        //   3. 拦截器侧（MustChangePasswordInterceptor）同步增加冻结状态检查。
+        //
+        // 同时递增 credentialVersion，使旧 token（旧版本）立即失效。
+        // 使用 UpdateWrapper（列名字符串）而非 LambdaUpdateWrapper，避免 lambda cache NPE。
+        Integer tokenVersion = UserContext.get().getCredentialVersion();
+        Integer oldVersion = tokenVersion == null ? 0 : tokenVersion;
+        int newVersion = oldVersion + 1;
+        com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser> casWrapper =
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", userId)
+                        .eq("status", 0)
+                        .eq("password_hash", user.getPasswordHash())
+                        .eq("credential_version", oldVersion)
+                        .set("password_hash", passwordEncoder.encode(req.getNewPassword()))
+                        .set("must_change_password", false)
+                        .set("credential_version", newVersion);
+        int rows = userMapper.update(null, casWrapper);
+        if (rows == 0) {
+            // CAS 失败：密码已变 / 凭证版本已变 / 账号已被冻结
+            log.warn("CAS 更新失败: userId={} tokenVersion={} (可能已被冻结/改密/角色变更)", userId, oldVersion);
+            throw new BizException(ResultCode.VALIDATION_FAILED, "原密码不正确或凭证已变更，请重新登录后重试");
+        }
 
         // 审计日志：不记录密码明文，仅记录操作与目标用户
         auditLogService.record("change_password", "user", userId, null,
-                "{\"mustChangePassword\":false}");
+                "{\"mustChangePassword\":false,\"credentialVersion\":" + newVersion + "}");
 
-        log.info("用户修改密码成功: userId={}", userId);
+        log.info("用户修改密码成功: userId={} newVersion={}", userId, newVersion);
+
+        // 签发新 token（携带递增后的 credentialVersion），客户端用新 token 替换旧 token
+        // 旧 token 因版本不匹配被 MustChangePasswordInterceptor 拒绝
+        Integer auditStatus = user.getAuditStatus() == null ? 0 : user.getAuditStatus();
+        String newToken = jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus, newVersion);
+        String newRefresh = jwtUtils.issueRefreshToken(user.getId(), newVersion);
+        return LoginResponse.builder()
+                .token(newToken)
+                .refreshToken(newRefresh)
+                .expiresIn(jwtUtils.getAccessExpireMs() / 1000)
+                .userId(user.getId())
+                .username(user.getUsername())
+                .realName(user.getRealName())
+                .role(user.getRole())
+                .auditStatus(auditStatus)
+                .mustChangePassword(false)
+                .build();
     }
 
     /** 手机号脱敏（PRD 10.3） */

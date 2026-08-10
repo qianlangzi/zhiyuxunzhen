@@ -56,7 +56,7 @@ class _ZhiyuAppState extends ConsumerState<ZhiyuApp> with WidgetsBindingObserver
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
-      routerConfig: appRouter,
+      routerConfig: ref.watch(routerProvider),
     );
   }
 }

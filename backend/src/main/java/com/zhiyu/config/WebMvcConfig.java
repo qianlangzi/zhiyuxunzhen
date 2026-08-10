@@ -2,6 +2,7 @@ package com.zhiyu.config;
 
 import com.zhiyu.interceptor.InternalApiInterceptor;
 import com.zhiyu.interceptor.JwtAuthInterceptor;
+import com.zhiyu.interceptor.MustChangePasswordInterceptor;
 import com.zhiyu.interceptor.PermissionInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,13 +13,16 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Web MVC 配置（PRD 16.3.1）：注册拦截器链
- * 顺序：InternalApiInterceptor → JwtAuthInterceptor → PermissionInterceptor
+ * 顺序：InternalApiInterceptor(0) → JwtAuthInterceptor(10) → MustChangePasswordInterceptor(15) → PermissionInterceptor(20)
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
     @Autowired
     private JwtAuthInterceptor jwtAuthInterceptor;
+
+    @Autowired
+    private MustChangePasswordInterceptor mustChangePasswordInterceptor;
 
     @Autowired
     private PermissionInterceptor permissionInterceptor;
@@ -64,7 +68,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .excludePathPatterns(JWT_EXCLUDE)
                 .order(10);
 
-        // 3. RBAC 角色权限
+        // 3. 强制改密安全边界：以 DB must_change_password 为准，
+        //    仅放行 password/me/logout/refresh，阻止未改密账号调用业务接口（Issue1 P0）
+        registry.addInterceptor(mustChangePasswordInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns(JWT_EXCLUDE)
+                .order(15);
+
+        // 4. RBAC 角色权限
         registry.addInterceptor(permissionInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(JWT_EXCLUDE)

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_client.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
@@ -151,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
 
-    late final ({UserModel? user, String? error}) result;
+    late final ({UserModel? user, String? token, String? refreshToken, String? error}) result;
     if (_method == _LoginMethod.password) {
       result = await _auth.loginByPassword(
         account: _accountCtl.text,
@@ -178,6 +179,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     final user = result.user!;
     if (user.role != _role) {
+      // P1：角色不匹配时 token 尚未持久化（AuthApi 不再自动持久化），
+      // 无需清理。仅提示用户身份不一致。
       setState(() {
         _loggingIn = false;
         _error = '该账号身份为「${_roleLabel(user.role)}」，与所选「${_roleLabel(_role)}」不一致';
@@ -186,7 +189,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    await ref.read(authProvider.notifier).loginWith(user);
+    // P0：角色校验通过后原子提交会话（setSession 在互斥锁内一次性写 access+refresh + user）
+    // loginWith 在 token 持久化失败时抛异常（不吞），此处必须 try/catch，
+    // 否则 _loggingIn 卡在 true 且可能残留半会话（token 已部分写入但 user 未保存）。
+    try {
+      await ref.read(authProvider.notifier).loginWith(
+            user,
+            token: result.token,
+            refreshToken: result.refreshToken,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      // 持久化失败：重置 loading、提示用户、确保无残留半会话
+      // loginWith 内部 setSession 失败时不会保存 user，但可能已部分写入 token——
+      // 调用 clearSession 确保清理（幂等操作，无副作用）
+      await ApiClient.clearSession();
+      setState(() {
+        _loggingIn = false;
+        _error = '登录凭证保存失败，请重试';
+      });
+      AppFeedback.error(context, _error!);
+      return;
+    }
     if (!mounted) return;
     context.goNamed(
       user.role == UserRole.student

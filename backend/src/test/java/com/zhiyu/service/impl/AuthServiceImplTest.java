@@ -1,6 +1,7 @@
 package com.zhiyu.service.impl;
 
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.entity.SysUser;
@@ -13,6 +14,7 @@ import com.zhiyu.service.dto.RegisterRequest;
 import com.zhiyu.service.dto.SmsLoginRequest;
 import com.zhiyu.vo.LoginResponse;
 import com.zhiyu.vo.RegistrationResponse;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +26,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -51,6 +57,12 @@ class AuthServiceImplTest {
 
     @InjectMocks
     private AuthServiceImpl authService;
+
+    /** changePassword 使用 UserContext.get().getCredentialVersion() 做 CAS，测试后必须清理 ThreadLocal */
+    @AfterEach
+    void clearUserContext() {
+        UserContext.clear();
+    }
 
     /** 构造一个正常的学生用户 */
     private SysUser studentUser() {
@@ -166,8 +178,8 @@ class AuthServiceImplTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("123456", user.getPasswordHash())).thenReturn(true);
         when(userMapper.updateById(any())).thenReturn(1);
-        when(jwtUtils.issueToken(1L, "student01", 0, 0)).thenReturn("access-token");
-        when(jwtUtils.issueRefreshToken(1L)).thenReturn("refresh-token");
+        when(jwtUtils.issueToken(1L, "student01", 0, 0, 0)).thenReturn("access-token");
+        when(jwtUtils.issueRefreshToken(1L, 0)).thenReturn("refresh-token");
         when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
 
         LoginRequest req = new LoginRequest();
@@ -260,8 +272,8 @@ class AuthServiceImplTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("123456", user.getPasswordHash())).thenReturn(true);
         when(userMapper.updateById(any())).thenReturn(1);
-        when(jwtUtils.issueToken(10L, "teacher01", 1, 0)).thenReturn("teacher-token");
-        when(jwtUtils.issueRefreshToken(10L)).thenReturn("teacher-refresh");
+        when(jwtUtils.issueToken(10L, "teacher01", 1, 0, 0)).thenReturn("teacher-token");
+        when(jwtUtils.issueRefreshToken(10L, 0)).thenReturn("teacher-refresh");
         when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
 
         LoginRequest req = new LoginRequest();
@@ -297,7 +309,7 @@ class AuthServiceImplTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).getCode())
                         .isEqualTo(ResultCode.TEACHER_AUDIT_PENDING.getCode()));
-        verify(jwtUtils, never()).issueToken(anyLong(), anyString(), anyInt(), anyInt());
+        verify(jwtUtils, never()).issueToken(anyLong(), anyString(), anyInt(), anyInt(), anyInt());
     }
 
     @Test
@@ -313,8 +325,8 @@ class AuthServiceImplTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("123456", user.getPasswordHash())).thenReturn(true);
         when(userMapper.updateById(any())).thenReturn(1);
-        when(jwtUtils.issueToken(30L, "admin01", 4, 2)).thenReturn("admin-token");
-        when(jwtUtils.issueRefreshToken(30L)).thenReturn("admin-refresh");
+        when(jwtUtils.issueToken(30L, "admin01", 4, 2, 0)).thenReturn("admin-token");
+        when(jwtUtils.issueRefreshToken(30L, 0)).thenReturn("admin-refresh");
         when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
 
         LoginRequest req = new LoginRequest();
@@ -333,8 +345,8 @@ class AuthServiceImplTest {
         SysUser user = studentUser();
         user.setPhone("18500000002");
         when(userMapper.selectOne(any())).thenReturn(user);
-        when(jwtUtils.issueToken(1L, "student01", 0, 0)).thenReturn("access-token");
-        when(jwtUtils.issueRefreshToken(1L)).thenReturn("refresh-token");
+        when(jwtUtils.issueToken(1L, "student01", 0, 0, 0)).thenReturn("access-token");
+        when(jwtUtils.issueRefreshToken(1L, 0)).thenReturn("refresh-token");
         when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
 
         SmsLoginRequest req = new SmsLoginRequest();
@@ -361,7 +373,7 @@ class AuthServiceImplTest {
                 .satisfies(ex -> assertThat(((BizException) ex).getCode())
                         .isEqualTo(ResultCode.PHONE_OR_CODE_ERROR.getCode()));
 
-        verify(jwtUtils, never()).issueRefreshToken(anyLong());
+        verify(jwtUtils, never()).issueRefreshToken(anyLong(), anyInt());
     }
 
     // ---------- changePassword ----------
@@ -375,26 +387,90 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("changePassword 原密码正确且新密码不同 -> 更新哈希、清强制改密标志、记审计")
+    @DisplayName("changePassword 原密码正确且新密码不同 -> CAS 更新哈希+递增版本+清标志+签发新 token")
     void should_change_password_when_old_correct_and_new_different() {
         SysUser user = studentUser();
         user.setMustChangePassword(true);
+        // credentialVersion=null → newVersion = 0+1 = 1
         when(userMapper.selectById(1L)).thenReturn(user);
         // 原密码校验通过
         when(passwordEncoder.matches("Temp1234", user.getPasswordHash())).thenReturn(true);
         // 新密码与原密码不同
         when(passwordEncoder.matches("NewPass123", user.getPasswordHash())).thenReturn(false);
         when(passwordEncoder.encode("NewPass123")).thenReturn("new-hash");
-        when(userMapper.updateById(any())).thenReturn(1);
+        // CAS 更新成功
+        when(userMapper.update(isNull(), any())).thenReturn(1);
+        // 新 token 携带递增后的版本 1
+        when(jwtUtils.issueToken(1L, "student01", 0, 0, 1)).thenReturn("new-access");
+        when(jwtUtils.issueRefreshToken(1L, 1)).thenReturn("new-refresh");
+        when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
 
-        authService.changePassword(1L, changeReq("Temp1234", "NewPass123"));
+        // P0-1: changePassword 使用 token 中的 credentialVersion 做 CAS，需设置 UserContext
+        UserContext.set(UserContext.LoginUser.builder().userId(1L).credentialVersion(0).build());
 
-        // 验证更新时仅写入密码哈希与 mustChangePassword=false
-        verify(userMapper).updateById(argThat(u ->
-                "new-hash".equals(u.getPasswordHash())
-                        && Boolean.FALSE.equals(u.getMustChangePassword())));
-        // 验证审计日志已记录（不含密码明文）
+        LoginResponse resp = authService.changePassword(1L, changeReq("Temp1234", "NewPass123"));
+
+        // 验证返回了新 token（客户端用它替换旧 token）
+        assertThat(resp).isNotNull();
+        assertThat(resp.getToken()).isEqualTo("new-access");
+        assertThat(resp.getRefreshToken()).isEqualTo("new-refresh");
+        assertThat(resp.getMustChangePassword()).isFalse();
+
+        // 验证 CAS 更新被调用（条件: id + 旧 passwordHash）
+        verify(userMapper).update(isNull(), any());
+        // 验证审计日志已记录（不含密码明文，含新版本号）
         verify(auditLogService).record(eq("change_password"), eq("user"), eq(1L), isNull(), anyString());
+    }
+
+    @Test
+    @DisplayName("changePassword credentialVersion=5 → 递增为 6，新 token 携带版本 6")
+    void should_increment_credential_version_from_existing() {
+        SysUser user = studentUser();
+        user.setMustChangePassword(false);
+        user.setCredentialVersion(5);
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(passwordEncoder.matches("Old1234", user.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.matches("NewPass123", user.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.encode("NewPass123")).thenReturn("new-hash");
+        when(userMapper.update(isNull(), any())).thenReturn(1);
+        // 新 token 必须携带版本 6（5+1）
+        when(jwtUtils.issueToken(1L, "student01", 0, 0, 6)).thenReturn("v6-access");
+        when(jwtUtils.issueRefreshToken(1L, 6)).thenReturn("v6-refresh");
+        when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
+
+        // P0-1: token 中的 credentialVersion=5，CAS 校验 .eq("credential_version", 5)，递增为 6
+        UserContext.set(UserContext.LoginUser.builder().userId(1L).credentialVersion(5).build());
+
+        LoginResponse resp = authService.changePassword(1L, changeReq("Old1234", "NewPass123"));
+
+        assertThat(resp.getToken()).isEqualTo("v6-access");
+        assertThat(resp.getRefreshToken()).isEqualTo("v6-refresh");
+        verify(jwtUtils).issueToken(1L, "student01", 0, 0, 6);
+        verify(jwtUtils).issueRefreshToken(1L, 6);
+    }
+
+    @Test
+    @DisplayName("changePassword CAS 失败（并发改密）→ BizException(VALIDATION_FAILED)，不签发新 token")
+    void should_throw_when_cas_update_fails_due_to_concurrent_modification() {
+        SysUser user = studentUser();
+        when(userMapper.selectById(1L)).thenReturn(user);
+        when(passwordEncoder.matches("Temp1234", user.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.matches("NewPass123", user.getPasswordHash())).thenReturn(false);
+        // CAS 更新返回 0 行（旧密码 hash 已被并发请求修改）
+        when(userMapper.update(isNull(), any())).thenReturn(0);
+
+        // P0-1: changePassword 使用 token 中的 credentialVersion 做 CAS，需设置 UserContext
+        UserContext.set(UserContext.LoginUser.builder().userId(1L).credentialVersion(0).build());
+
+        assertThatThrownBy(() -> authService.changePassword(1L, changeReq("Temp1234", "NewPass123")))
+                .isInstanceOf(BizException.class)
+                .satisfies(ex -> assertThat(((BizException) ex).getCode())
+                        .isEqualTo(ResultCode.VALIDATION_FAILED.getCode()));
+
+        // CAS 失败不应签发新 token
+        verify(jwtUtils, never()).issueToken(anyLong(), anyString(), anyInt(), anyInt(), anyInt());
+        verify(jwtUtils, never()).issueRefreshToken(anyLong(), anyInt());
+        verify(auditLogService, never()).record(anyString(), anyString(), anyLong(), any(), any());
     }
 
     @Test
@@ -409,7 +485,7 @@ class AuthServiceImplTest {
                 .satisfies(ex -> assertThat(((BizException) ex).getCode())
                         .isEqualTo(ResultCode.VALIDATION_FAILED.getCode()));
 
-        verify(userMapper, never()).updateById(any());
+        verify(userMapper, never()).update(any(), any());
         verify(auditLogService, never()).record(anyString(), anyString(), anyLong(), any(), any());
     }
 
@@ -426,7 +502,7 @@ class AuthServiceImplTest {
                 .satisfies(ex -> assertThat(((BizException) ex).getCode())
                         .isEqualTo(ResultCode.PASSWORD_SAME_AS_OLD.getCode()));
 
-        verify(userMapper, never()).updateById(any());
+        verify(userMapper, never()).update(any(), any());
         verify(auditLogService, never()).record(anyString(), anyString(), anyLong(), any(), any());
     }
 
@@ -441,6 +517,6 @@ class AuthServiceImplTest {
                         .isEqualTo(ResultCode.NOT_FOUND.getCode()));
 
         verify(passwordEncoder, never()).matches(anyString(), anyString());
-        verify(userMapper, never()).updateById(any());
+        verify(userMapper, never()).update(any(), any());
     }
 }

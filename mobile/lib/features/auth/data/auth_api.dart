@@ -71,13 +71,16 @@ sealed class SmsLoginResult {
 }
 
 class SmsLoginOk extends SmsLoginResult {
-  const SmsLoginOk(this.user, {this.token});
+  const SmsLoginOk(this.user, {this.token, this.refreshToken});
 
   /// 后端返回的用户信息
   final UserModel user;
 
   /// 可选的 JWT / session token（后端若返回则保存，后续请求带在 Header 里）
   final String? token;
+
+  /// 刷新 token，与 access token 成套持久化
+  final String? refreshToken;
 }
 
 class SmsLoginFail extends SmsLoginResult {
@@ -91,9 +94,10 @@ sealed class PasswordLoginResult {
 }
 
 class PasswordLoginOk extends PasswordLoginResult {
-  const PasswordLoginOk(this.user, {this.token});
+  const PasswordLoginOk(this.user, {this.token, this.refreshToken});
   final UserModel user;
   final String? token;
+  final String? refreshToken;
 }
 
 class PasswordLoginFail extends PasswordLoginResult {
@@ -113,6 +117,30 @@ class RegisterOk extends RegisterResult {
 
 class RegisterFail extends RegisterResult {
   const RegisterFail(this.message);
+  final String message;
+}
+
+/// 修改密码结果
+sealed class ChangePasswordResult {
+  const ChangePasswordResult();
+}
+
+/// 改密成功：后端签发了新 token（携带递增后的 credentialVersion）。
+/// AuthApi 不直接持久化 token，由 AuthNotifier 在代际 CAS 通过后原子替换。
+/// 不携带 user：LoginResponse 字段可能少于本地完整资料，只用它覆盖 mustChangePassword
+/// 会导致资料丢失；AuthNotifier 仅更新现有 user 的 mustChangePassword 字段。
+class ChangePasswordOk extends ChangePasswordResult {
+  const ChangePasswordOk({this.token, this.refreshToken});
+
+  /// 新 access token（携带新凭证版本）
+  final String? token;
+
+  /// 新 refresh token（携带新凭证版本）
+  final String? refreshToken;
+}
+
+class ChangePasswordFail extends ChangePasswordResult {
+  const ChangePasswordFail(this.message);
   final String message;
 }
 
@@ -146,8 +174,9 @@ class AuthApi {
           await _dio.get<Map<String, dynamic>>('/api/v1/auth/captcha');
       final data = resp.data;
       if (data == null) return null;
-      final code = data['code'] ?? 0;
-      if (code != 0) return null;
+      final code = data['code'];
+      // P0-4 修复：严格 fail-closed，缺失 code 视为失败
+      if (code is! int || code != 0) return null;
       final payload = data['data'] as Map<String, dynamic>?;
       if (payload == null) return null;
       return CaptchaData(
@@ -183,7 +212,8 @@ class AuthApi {
         return const SmsSendFail('短信发送失败：服务端未返回数据');
       }
       // 兼容两种常见返回：{ code: 0, msg: 'ok' } 或 { error_code: 0, reason: 'ok' }
-      final code = data['code'] ?? data['error_code'] ?? 0;
+      // P0-4 修复：不默认 ?? 0，缺失 code 时 _isSuccessCode 返回 false（fail-closed）
+      final code = data['code'] ?? data['error_code'];
       final msg = data['msg']?.toString() ??
           data['message']?.toString() ??
           data['reason']?.toString() ??
@@ -220,7 +250,7 @@ class AuthApi {
         return const SmsLoginFail('登录失败：服务端未返回数据');
       }
 
-      final code = data['code'] ?? data['error_code'] ?? 0;
+      final code = data['code'] ?? data['error_code'];
       final msg = data['msg']?.toString() ??
           data['message']?.toString() ??
           data['reason']?.toString() ??
@@ -236,8 +266,10 @@ class AuthApi {
       if (parsed == null) {
         return const SmsLoginFail('登录失败：无法解析用户信息');
       }
-      if (parsed.token != null) ApiClient.setToken(parsed.token);
-      return SmsLoginOk(parsed.user, token: parsed.token);
+      // P1：token 不在此处持久化，由 AuthNotifier 在角色校验通过后原子提交，
+      // 避免角色不匹配时无效 token 残留在 secure storage
+      return SmsLoginOk(parsed.user,
+          token: parsed.token, refreshToken: parsed.refreshToken);
     } on DioException catch (e) {
       return SmsLoginFail(_mapDioError(e, '登录'));
     } catch (e) {
@@ -269,7 +301,7 @@ class AuthApi {
       if (data == null) {
         return const PasswordLoginFail('登录失败：服务端未返回数据');
       }
-      final code = data['code'] ?? data['error_code'] ?? 0;
+      final code = data['code'] ?? data['error_code'];
       final msg = data['msg']?.toString() ??
           data['message']?.toString() ??
           data['reason']?.toString() ??
@@ -282,8 +314,10 @@ class AuthApi {
       if (parsed == null) {
         return const PasswordLoginFail('登录失败：无法解析用户信息');
       }
-      if (parsed.token != null) ApiClient.setToken(parsed.token);
-      return PasswordLoginOk(parsed.user, token: parsed.token);
+      // P1：token 不在此处持久化，由 AuthNotifier 在角色校验通过后原子提交，
+      // 避免角色不匹配时无效 token 残留在 secure storage
+      return PasswordLoginOk(parsed.user,
+          token: parsed.token, refreshToken: parsed.refreshToken);
     } on DioException catch (e) {
       return PasswordLoginFail(_mapDioError(e, '登录'));
     } catch (e) {
@@ -337,7 +371,7 @@ class AuthApi {
       if (data == null) {
         return const RegisterFail('注册失败：服务端未返回数据');
       }
-      final code = data['code'] ?? data['error_code'] ?? 0;
+      final code = data['code'] ?? data['error_code'];
       final msg = data['msg']?.toString() ??
           data['message']?.toString() ??
           data['reason']?.toString() ??
@@ -388,8 +422,9 @@ class AuthApi {
       );
       final data = resp.data;
       if (data == null) return (url: null, error: '上传失败：服务端未返回数据');
-      final code = data['code'] ?? 0;
-      if (code != 0) {
+      final code = data['code'];
+      // P0-4 修复：严格 fail-closed，缺失 code 视为失败
+      if (code is! int || code != 0) {
         final msg = data['message']?.toString() ?? '上传失败';
         return (url: null, error: msg);
       }
@@ -404,10 +439,79 @@ class AuthApi {
     }
   }
 
+  /// 修改密码
+  ///
+  /// 对接后端 `PUT /api/v1/auth/password`，请求体 `{oldPassword, newPassword}`，
+  /// 响应 `R<LoginResponse>`（code=0 成功，data 含新 access/refresh token）。
+  /// 后端业务规则：
+  /// - 校验旧密码正确性（错误码 1422 VALIDATION_FAILED + message「原密码不正确」）
+  /// - 拒绝新密码与旧密码相同（错误码 2014 PASSWORD_SAME_AS_OLD）
+  /// - 强制 8-32 位、字母+数字混合
+  /// - CAS 并发控制：旧密码 hash 已被并发请求修改时返回 1422
+  ///
+  /// 改密成功后：
+  /// 1. 后端签发新 token（携带递增后的 credentialVersion）
+  /// 2. 本方法仅返回新 token，不直接持久化——由 AuthNotifier 在代际 CAS 通过后原子替换
+  /// 3. 不返回 user：LoginResponse 字段可能少于本地完整资料，覆盖会导致资料丢失
+  ///
+  /// Issue1 P0：安全敏感操作严格要求 code === 0，缺失 code 字段视为失败。
+  /// 若响应缺少 token/refreshToken，视为失败（后端必须返回新凭证）。
+  Future<ChangePasswordResult> changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final resp = await _dio.put<Map<String, dynamic>>(
+        '/api/v1/auth/password',
+        data: {
+          'oldPassword': oldPassword,
+          'newPassword': newPassword,
+        },
+      );
+      final data = resp.data;
+      if (data == null) {
+        return const ChangePasswordFail('修改失败：服务端未返回数据');
+      }
+      final code = data['code'];
+      // 严格判断：仅 code === 0 视为成功，缺失或非 0 一律失败
+      if (code is! int || code != 0) {
+        final msg = data['message']?.toString() ??
+            data['msg']?.toString() ??
+            '修改失败';
+        // 专用错误码给更友好的提示
+        if (code == 2014) {
+          return const ChangePasswordFail('新密码不能与旧密码相同');
+        }
+        return ChangePasswordFail(msg);
+      }
+      // 解析后端返回的新 LoginResponse，仅提取 token/refreshToken
+      // 不提取 user：避免用字段较少的 LoginResponse 覆盖完整本地资料
+      final payload = data['data'] ?? data;
+      final String? newToken = payload['token']?.toString() ??
+          payload['accessToken']?.toString();
+      final String? newRefresh = payload['refreshToken']?.toString() ??
+          payload['refresh_token']?.toString();
+      // 改密成功但后端未返回新 token → 视为失败，客户端无法替换旧凭证
+      if (newToken == null || newRefresh == null) {
+        log('改密成功但响应缺少 token: token=${newToken != null} refresh=${newRefresh != null}', name: 'auth_api');
+        return const ChangePasswordFail('改密成功但未返回新凭证，请重新登录');
+      }
+      return ChangePasswordOk(token: newToken, refreshToken: newRefresh);
+    } on DioException catch (e) {
+      return ChangePasswordFail(_mapDioError(e, '修改密码'));
+    } catch (e) {
+      log('changePassword 异常: $e', name: 'auth_api');
+      return ChangePasswordFail('修改失败：$e');
+    }
+  }
+
+  /// P0-4 修复：fail-closed 成功码判断
+  /// 缺失 code 字段（null）视为失败，仅 code=0（int）/ '0'（String）视为成功。
+  /// 旧实现将 null 视为成功且兼容 200/'ok'，导致后端异常响应被误判为登录成功。
   bool _isSuccessCode(dynamic code) {
-    if (code == null) return true; // 无 code 字段时默认成功
-    if (code is int) return code == 0 || code == 200;
-    if (code is String) return code == '0' || code == '200' || code == 'ok';
+    if (code == null) return false;
+    if (code is int) return code == 0;
+    if (code is String) return code == '0';
     return false;
   }
 
@@ -419,9 +523,22 @@ class AuthApi {
       DioExceptionType.receiveTimeout =>
         '网络超时，请稍后重试',
       DioExceptionType.connectionError => '无法连接服务器，请检查网络',
-      DioExceptionType.badResponse => '服务器响应异常：${e.response?.statusCode}',
+      // Issue1：HTTP 400/422 等结构化错误应解析后端 message，而非只显示状态码
+      DioExceptionType.badResponse => _badResponseMessage(e) ?? '服务器响应异常：${e.response?.statusCode}',
       _ => e.message ?? '$action失败',
     };
+  }
+
+  /// 从 DioException 的 response 中提取后端业务 message
+  ///
+  /// 后端统一返回 `{ code, message, data }`，HTTP 4xx 时 message 字段含可读错误原因。
+  /// ApiClient.onResponse 在 code 1001/1002 时 reject 也会带 message。
+  String? _badResponseMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map<String, dynamic>) {
+      return data['message']?.toString() ?? data['msg']?.toString();
+    }
+    return null;
   }
 }
 
@@ -432,30 +549,30 @@ class AuthApi {
 /// 3. { accessToken, user: { ... } }
 /// 4. { data: { token, user } }
 /// 5. 直接把 user 对象放在 payload 根上
-/// 6. JWT 字符串（纯 token）
-({UserModel user, String? token})? _parseLoginPayload(
+///
+/// P0-4 修复：移除 _fallbackUser 和纯 JWT 字符串解析。
+/// - 纯 JWT 字符串不含用户信息，无法安全构建 user → 返回 null
+/// - 后端未返回完整 user 时不再创建兜底用户 → 返回 null
+/// 旧实现的 _fallbackUser 用 phone/timestamp 伪造 user，id=0 或 timestamp 可能与
+/// 真实用户冲突，且让无 token 的「成功」响应进入认证状态，是身份混淆的根源。
+({UserModel user, String? token, String? refreshToken})? _parseLoginPayload(
   dynamic payload, {
   required String phone,
   UserRole? role,
 }) {
-  if (payload is String && payload.isNotEmpty) {
-    // 简单 JWT 字符串识别：三段 base64 用 . 分隔
-    if (payload.split('.').length == 3) {
-      return (
-        user: _fallbackUser(phone, role: role),
-        token: payload,
-      );
-    }
-    return null;
-  }
+  // P0-4 修复：纯 JWT 字符串不含用户信息，无法安全构建 user → 返回 null
+  if (payload is String) return null;
   if (payload is! Map<String, dynamic>) return null;
 
   String? token;
+  String? refreshToken;
   UserModel? user;
 
   token ??= payload['token']?.toString();
   token ??= payload['accessToken']?.toString();
   token ??= payload['access_token']?.toString();
+  refreshToken ??= payload['refreshToken']?.toString();
+  refreshToken ??= payload['refresh_token']?.toString();
 
   // 优先尝试后端 LoginResponse 平铺格式：{ userId, username, realName, role, ... }
   if (payload.containsKey('userId') || payload.containsKey('user_id')) {
@@ -464,6 +581,10 @@ class AuthApi {
     final realName = (payload['realName'] ?? payload['real_name'] ?? username) as String;
     final roleVal = payload['role'] as int?;
     final auditStatus = (payload['auditStatus'] ?? payload['audit_status'] ?? 0) as int;
+    // 后端 LoginResponse 顶层 mustChangePassword：导入学生首次登录为 true
+    final mustChange = (payload['mustChangePassword'] as bool?) ??
+        (payload['must_change_password'] as bool?) ??
+        false;
     user = UserModel(
       id: id,
       username: username,
@@ -475,6 +596,7 @@ class AuthApi {
             )
           : role ?? UserRole.student,
       auditStatus: auditStatus,
+      mustChangePassword: mustChange,
     );
   }
 
@@ -490,22 +612,12 @@ class AuthApi {
     }
   }
 
-  // 若后端没返回完整 user，则把 phone/role 组合成兜底用户，并标记需完善资料
-  user ??= _fallbackUser(phone, role: role, needsCompletion: true);
+  // P0-4 修复：无法解析 user 时返回 null，不创建 fallback user
+  // 调用方（loginBySms/loginByPassword/register）已处理 null → 返回 Fail
+  if (user == null) {
+    log('无法从响应中解析 user 信息，拒绝创建兜底用户 (phone=$phone)', name: 'auth_api');
+    return null;
+  }
 
-  return (user: user, token: token);
-}
-
-UserModel _fallbackUser(
-  String phone, {
-  UserRole? role,
-  bool needsCompletion = true,
-}) {
-  return UserModel(
-    id: DateTime.now().millisecondsSinceEpoch,
-    username: phone,
-    realName: '',
-    role: role ?? UserRole.student,
-    needsProfileCompletion: needsCompletion,
-  );
+  return (user: user, token: token, refreshToken: refreshToken);
 }

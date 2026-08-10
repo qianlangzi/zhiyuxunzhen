@@ -61,10 +61,16 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
         Map<String, Object> before = new HashMap<>();
         before.put("auditStatus", current);
 
-        user.setAuditStatus(1);
-        user.setTeacherCertificateNo(dto.getCertificateNo().trim());
-        user.setDepartment(dto.getDepartment() == null ? null : dto.getDepartment().trim());
-        userMapper.updateById(user);
+        // P0-4 修复：使用窄字段 UpdateWrapper 只更新审核相关列。
+        // updateById(user) 会写入完整实体快照，并发场景下可能把另一个事务已递增的
+        // credential_version 或修改的 role/status/passwordHash 写回旧值，导致撤销被回滚。
+        String trimmedDept = dto.getDepartment() == null ? null : dto.getDepartment().trim();
+        userMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                        .eq("id", teacherId)
+                        .set("audit_status", 1)
+                        .set("teacher_certificate_no", dto.getCertificateNo().trim())
+                        .set("department", trimmedDept));
 
         // 资质材料 JSON（管理员审核时查询）
         Map<String, Object> material = new HashMap<>();

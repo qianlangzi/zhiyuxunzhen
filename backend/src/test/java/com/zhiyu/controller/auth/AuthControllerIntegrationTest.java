@@ -5,6 +5,8 @@ import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.config.MyBatisTestConfig;
+import com.zhiyu.entity.SysUser;
+import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.AuthService;
 import com.zhiyu.service.CaptchaService;
 import com.zhiyu.service.SmsCodeService;
@@ -59,6 +61,9 @@ class AuthControllerIntegrationTest {
 
     @MockBean
     private CaptchaService captchaService;
+
+    @MockBean
+    private SysUserMapper userMapper;
 
     @Test
     @DisplayName("POST /register 学生注册成功 -> 无需 token 并返回注册结果")
@@ -208,7 +213,18 @@ class AuthControllerIntegrationTest {
         when(claims.get("username", String.class)).thenReturn("student01");
         when(claims.get("role", Integer.class)).thenReturn(0);
         when(claims.get("auditStatus", Integer.class)).thenReturn(0);
+        when(claims.get("credentialVersion", Integer.class)).thenReturn(0);
         when(jwtUtils.parseToken(anyString())).thenReturn(claims);
+
+        // MustChangePasswordInterceptor 在白名单之前查库校验凭证版本，
+        // 需 mock DB 返回 credentialVersion=0（与 JWT 一致）+ mustChangePassword=false
+        SysUser dbUser = new SysUser();
+        dbUser.setId(1L);
+        dbUser.setRole(0);
+        dbUser.setStatus(0);
+        dbUser.setMustChangePassword(false);
+        dbUser.setCredentialVersion(0);
+        when(userMapper.selectById(anyLong())).thenReturn(dbUser);
 
         UserInfoVO userInfo = UserInfoVO.builder()
                 .id(1L)

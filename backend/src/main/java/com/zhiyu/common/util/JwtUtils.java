@@ -61,15 +61,19 @@ public class JwtUtils {
     }
 
     /**
-     * 签发访问 token（PRD 9.1：Payload 含 user_id、role、audit_status）
+     * 签发访问 token（PRD 9.1：Payload 含 user_id、role、audit_status、credential_version）
+     *
+     * @param credentialVersion 凭证版本，改密后递增，旧版本 token 被拒绝
      */
-    public String issueToken(Long userId, String username, Integer role, Integer auditStatus) {
+    public String issueToken(Long userId, String username, Integer role, Integer auditStatus,
+                             Integer credentialVersion) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
                 .claim("role", role)
                 .claim("auditStatus", auditStatus)
+                .claim("credentialVersion", credentialVersion)
                 .claim("type", "access")
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + expireHours * 3600_000L))
@@ -77,11 +81,12 @@ public class JwtUtils {
                 .compact();
     }
 
-    /** 签发刷新 token，仅含 userId，有效期更长 */
-    public String issueRefreshToken(Long userId) {
+    /** 签发刷新 token，含 userId 和 credentialVersion，有效期更长 */
+    public String issueRefreshToken(Long userId, Integer credentialVersion) {
         long now = System.currentTimeMillis();
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("credentialVersion", credentialVersion)
                 .claim("type", "refresh")
                 .issuedAt(new Date(now))
                 .expiration(new Date(now + refreshExpireHours * 3600_000L))

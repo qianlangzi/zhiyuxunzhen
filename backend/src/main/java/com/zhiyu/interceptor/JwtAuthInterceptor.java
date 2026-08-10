@@ -42,6 +42,7 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
                     .username(claims.get("username", String.class))
                     .role(claims.get("role", Integer.class))
                     .auditStatus(claims.get("auditStatus", Integer.class))
+                    .credentialVersion(claims.get("credentialVersion", Integer.class))
                     .build();
             UserContext.set(user);
             return true;

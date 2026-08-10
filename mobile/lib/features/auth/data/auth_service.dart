@@ -221,13 +221,17 @@ class AuthService {
   ///
   /// Mock 模式：全部放行，任意账号密码均可登录。
   /// 真实模式：调用后端 `/users/password-login`。
-  Future<({UserModel? user, String? error})> loginByPassword({
+  /// 返回 token/refreshToken 供 AuthNotifier 在角色校验通过后原子持久化。
+  Future<({UserModel? user, String? token, String? refreshToken, String? error})>
+      loginByPassword({
     required String account,
     required String password,
     required UserRole role,
   }) async {
     if (_isMock) {
-      return _mockLoginByPassword(account, password, role);
+      final r = await _mockLoginByPassword(account, password, role);
+      // P0-4 修复：Mock 模式返回占位 token，使 loginWith 的完整 token 对校验通过
+      return (user: r.user, token: 'mock-access', refreshToken: 'mock-refresh', error: r.error);
     }
     return _realLoginByPassword(account, password, role);
   }
@@ -261,7 +265,8 @@ class AuthService {
     );
   }
 
-  Future<({UserModel? user, String? error})> _realLoginByPassword(
+  Future<({UserModel? user, String? token, String? refreshToken, String? error})>
+      _realLoginByPassword(
     String account,
     String password,
     UserRole role,
@@ -273,8 +278,10 @@ class AuthService {
       role: role,
     );
     return switch (result) {
-      PasswordLoginOk(:final user) => (user: user, error: null),
-      PasswordLoginFail(:final message) => (user: null, error: message),
+      PasswordLoginOk(:final user, :final token, :final refreshToken) =>
+        (user: user, token: token, refreshToken: refreshToken, error: null),
+      PasswordLoginFail(:final message) =>
+        (user: null, token: null, refreshToken: null, error: message),
     };
   }
 
@@ -282,13 +289,17 @@ class AuthService {
   ///
   /// Mock 模式：全部放行，任意验证码均可登录。
   /// 真实模式：调用后端 `/users/sms-login`。
-  Future<({UserModel? user, String? error})> loginByCode({
+  /// 返回 token/refreshToken 供 AuthNotifier 在角色校验通过后原子持久化。
+  Future<({UserModel? user, String? token, String? refreshToken, String? error})>
+      loginByCode({
     required String phone,
     required String code,
     required UserRole role,
   }) async {
     if (_isMock) {
-      return _mockLoginByCode(phone, code, role);
+      final r = await _mockLoginByCode(phone, code, role);
+      // P0-4 修复：Mock 模式返回占位 token，使 loginWith 的完整 token 对校验通过
+      return (user: r.user, token: 'mock-access', refreshToken: 'mock-refresh', error: r.error);
     }
     return _realLoginByCode(phone, code, role);
   }
@@ -321,7 +332,8 @@ class AuthService {
     );
   }
 
-  Future<({UserModel? user, String? error})> _realLoginByCode(
+  Future<({UserModel? user, String? token, String? refreshToken, String? error})>
+      _realLoginByCode(
     String phone,
     String code,
     UserRole role,
@@ -329,9 +341,58 @@ class AuthService {
     final api = AuthApi();
     final result = await api.loginBySms(phone, code, role: role);
     return switch (result) {
-      SmsLoginOk(:final user) => (user: user, error: null),
-      SmsLoginFail(:final message) => (user: null, error: message),
+      SmsLoginOk(:final user, :final token, :final refreshToken) =>
+        (user: user, token: token, refreshToken: refreshToken, error: null),
+      SmsLoginFail(:final message) =>
+        (user: null, token: null, refreshToken: null, error: message),
     };
+  }
+
+  /// 修改密码
+  ///
+  /// Mock 模式：仅做本地格式校验（8-32 位、字母+数字混合），通过即视为成功。
+  /// 真实模式：调用后端 `PUT /api/v1/auth/password`，后端返回新 token（携带递增后的
+  /// credentialVersion）。AuthApi 不直接持久化，由 AuthNotifier 在代际 CAS 通过后原子替换。
+  /// 返回 `error == null` 表示成功；`token`/`refreshToken` 为新凭证。
+  Future<({bool ok, String? token, String? refreshToken, String? error})>
+      changePassword({
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final newPwdErr = _validatePassword(newPassword);
+    if (newPwdErr != null) {
+      return (ok: false, token: null, refreshToken: null, error: newPwdErr);
+    }
+    if (oldPassword == newPassword) {
+      return (ok: false, token: null, refreshToken: null, error: '新密码不能与旧密码相同');
+    }
+    if (_isMock) {
+      return (ok: true, token: null, refreshToken: null, error: null);
+    }
+    final api = AuthApi();
+    final result = await api.changePassword(
+      oldPassword: oldPassword,
+      newPassword: newPassword,
+    );
+    return switch (result) {
+      ChangePasswordOk(:final token, :final refreshToken) =>
+        (ok: true, token: token, refreshToken: refreshToken, error: null),
+      ChangePasswordFail(:final message) =>
+        (ok: false, token: null, refreshToken: null, error: message),
+    };
+  }
+
+  /// 校验新密码复杂度：8-32 位、字母+数字混合
+  String? _validatePassword(String pwd) {
+    if (pwd.length < 8 || pwd.length > 32) {
+      return '密码长度需为 8-32 位';
+    }
+    final hasLetter = RegExp(r'[A-Za-z]').hasMatch(pwd);
+    final hasDigit = RegExp(r'\d').hasMatch(pwd);
+    if (!hasLetter || !hasDigit) {
+      return '密码必须包含字母和数字';
+    }
+    return null;
   }
 }
 

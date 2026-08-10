@@ -38,6 +38,9 @@ public class SysUser extends BaseEntity {
     /** 是否强制修改密码（批量导入学生默认为 true，改密后置 false） */
     private Boolean mustChangePassword;
 
+    /** 凭证版本：改密/重置密码时递增，JWT 携带此版本，不匹配则拒绝（撤销旧凭证） */
+    private Integer credentialVersion;
+
     private String phone;
 
     private String idCard;
