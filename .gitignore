@@ -75,3 +75,6 @@ mobile/macos/
 # ===== 工具/临时目录 =====
 .codegraph/
 docs/短信API服务-发送短信.pdf
+
+# ===== 本地实验目录（模型/依赖/PDF 大体积二进制，勿提交） =====
+experiments/
