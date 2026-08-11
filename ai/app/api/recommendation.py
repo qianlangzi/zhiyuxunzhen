@@ -26,6 +26,8 @@ router = APIRouter()
 class RecommendRequest(BaseModel):
     knowledgeTags: list[str] = Field(default_factory=list, description="薄弱知识点")
     mistakes: list[str] = Field(default_factory=list, description="近期错题要点（可选）")
+    candidateTextbooks: list[str] = Field(default_factory=list, description="候选教材标题（防幻觉，仅限从中推荐）")
+    candidateQuestions: list[str] = Field(default_factory=list, description="候选基础题标题（防幻觉，仅限从中推荐）")
 
 
 @router.post("/internal/recommend/weakness", response_model=R)
@@ -40,6 +42,10 @@ async def recommend_weakness(
         user_msg = (
             "学生近期薄弱知识点：" + "、".join(tags) + "\n"
             "近期错题要点：" + ("、".join(req.mistakes) if req.mistakes else "无") + "\n"
+            "可参考的候选教材（推荐教材/章节请只从这些标题中选择）：" +
+            ("、".join(req.candidateTextbooks) if req.candidateTextbooks else "暂无") + "\n"
+            "可参考的候选基础题（推荐刷题请只从这些中选择）：" +
+            ("、".join(req.candidateQuestions) if req.candidateQuestions else "暂无") + "\n"
             "请给出个性化的补救建议，必须包含：\n"
             "1) 优先复习的知识点排序及理由；\n"
             "2) 推荐的刷题方向（难度进阶安排）；\n"

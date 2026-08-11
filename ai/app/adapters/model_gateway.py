@@ -43,5 +43,22 @@ class ModelGateway:
     ) -> dict[str, Any]:
         return await self._client.chat_json(messages, model=model, trace_id=trace_id)
 
+    async def resolve_tools(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[Any],
+        *,
+        model: str | None = None,
+        trace_id: str = "-",
+        max_steps: int = 3,
+    ) -> list[dict[str, Any]]:
+        return await self._client.resolve_tools(
+            messages,
+            tools,
+            model=model,
+            trace_id=trace_id,
+            max_steps=max_steps,
+        )
+
 
 model_gateway = ModelGateway()

@@ -9,24 +9,24 @@
 /// flutter run
 ///
 /// # 默认联调模式（USE_MOCK_AUTH=false）
-/// flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+/// flutter run --dart-define=API_BASE_URL=http://10.0.2.2:18080
 ///
 /// # 连接本地后端（Android 模拟器）
-/// flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
+/// flutter run --dart-define=API_BASE_URL=http://10.0.2.2:18080
 ///
 /// # 连接本地后端（真机 192.168.1.112，需在同一局域网）
-/// flutter run --dart-define=API_BASE_URL=http://192.168.1.112:8080
+/// flutter run --dart-define=API_BASE_URL=http://192.168.1.112:18080
 /// ```
 class ApiConfig {
   ApiConfig._();
 
   /// 后端 API 基础地址
   ///
-  /// 默认值 `http://10.0.2.2:8080` 对应 Android 模拟器访问宿主机 localhost。
+  /// 默认值 `http://10.0.2.2:18080` 对应 Android 模拟器访问宿主机 localhost。
   /// 真机调试时需改为电脑的局域网 IP（当前: 192.168.1.112）。
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8080',
+    defaultValue: 'http://10.0.2.2:18080',
   );
 
   /// AI 中台基础地址
@@ -35,7 +35,7 @@ class ApiConfig {
   /// 分离部署时可通过此变量单独配置。
   static const String aiBaseUrl = String.fromEnvironment(
     'AI_BASE_URL',
-    defaultValue: 'http://10.0.2.2:8080',
+    defaultValue: 'http://10.0.2.2:18080',
   );
 
   /// 是否使用 Mock 模式（无需后端即可运行）

@@ -1,45 +1,30 @@
-"""问诊聊天工作流。
+"""问诊聊天工作流（基于 LangGraph 状态机）。
 
-工作流负责会话边界、安全检查、RAG、SP 回复、持久化和 Mentor 增量更新。
-路由层不包含这些业务决策，便于后续替换为 LangGraph 编排。
+工作流负责会话边界、安全检查、RAG、SP 回复、持久化和 Mentor 增量更新的
+编排。真正的图与节点在 ``consultation_graph`` 中定义；本模块只负责：
+1. 建立 SSE 事件通道（asyncio.Queue）
+2. 用后台任务驱动 LangGraph 图执行
+3. 消费事件通道并 yield 给 SSE 客户端
+4. 收尾发 done 事件
+
+SSE 事件契约（message / tree / stage / socrates / safety / citation /
+status / error / done）保持不变，供 /v1/ai/chat/stream 与 /internal/chat/sync 复用。
 """
-import json
+import asyncio
 import time
 import uuid
 from collections.abc import AsyncIterator
 from logging import INFO, WARNING
-from typing import Any
 
-from app.agents.mentor_agent import update_tree as mentor_update
-from app.agents.sp_agent import sp_reply_stream
-from app.core.config import settings
-from app.core.errors import RetrievalUnavailableError
 from app.core.logging import get_logger, log_event, reset_context, set_context
-from app.domain.policies.safety_policy import safety_policy
-from app.domain.policies.output_policy import output_policy
 from app.models.chat import ChatRequest
-from app.services.backend_client import backend_client
-from app.services.rag_service import rag_service
+from app.workflows.consultation_graph import (
+    build_consultation_graph,
+    build_history,  # noqa: F401  # 重导出，供 session.py 等旧调用方使用
+    sse,
+)
 
 logger = get_logger(__name__)
-
-
-def sse(event: str, data: dict[str, Any]) -> dict[str, str]:
-    return {"event": event, "data": json.dumps(data, ensure_ascii=False)}
-
-
-def build_history(messages: list[Any]) -> list[dict[str, str]]:
-    history: list[dict[str, str]] = []
-    for message in messages:
-        if isinstance(message, dict):
-            sender = str(message.get("sender", message.get("role", "student"))).lower()
-            content = str(message.get("content", ""))
-        else:
-            sender = message.role.lower()
-            content = message.content
-        if content:
-            history.append({"role": "assistant" if sender in ("sp", "mentor", "system") else "user", "content": content})
-    return history
 
 
 class ChatWorkflow:
@@ -47,90 +32,40 @@ class ChatWorkflow:
         trace_id = str(uuid.uuid4())
         set_context(trace_id=trace_id, session_id=str(req.session_id))
         log_event(logger, INFO, "chat_start", trace_id=trace_id, session_id=req.session_id, case_id=req.case_id)
+
+        sink: asyncio.Queue = asyncio.Queue()
+        initial_state = {
+            "req": req,
+            "student_id": student_id,
+            "trace_id": trace_id,
+            "event_sink": sink,
+        }
+        graph = build_consultation_graph()
+        producer = asyncio.create_task(self._drive(graph, initial_state))
         try:
-            context = await backend_client.session_context(req.session_id, student_id, trace_id=trace_id)
-            if context is None or int(context.get("caseId", -1)) != req.case_id:
-                yield sse("error", {"code": "SESSION_FORBIDDEN", "message": "问诊会话不存在、已结束或不属于当前学生。"})
-                yield sse("done", {"session_id": req.session_id, "ts": int(time.time())})
-                return
-
-            last_user = next((m.content for m in reversed(req.messages) if m.role == "student"), "")
-            safety = safety_policy.check_input(last_user)
-            if safety.is_blocked:
-                yield sse("safety", {"blocked": True, "reason": safety.reason})
-                yield sse("done", {"session_id": req.session_id, "ts": int(time.time())})
-                log_event(logger, WARNING, "chat_safety_blocked",
-                          trace_id=trace_id, session_id=req.session_id, reason=safety.reason)
-                return
-            if safety.is_deflect:
-                yield sse("status", {"deflect": True, "message": safety.reason})
-
-            try:
-                citations = await rag_service.search(last_user, top_k=3, trace_id=trace_id)
-            except RetrievalUnavailableError:
-                citations = []
-                yield sse("status", {"degraded": True, "component": "retrieval", "message": "知识库暂不可用，本轮不提供教材引用。"})
-            if citations:
-                yield sse("citation", {"citations": [citation.model_dump() for citation in citations]})
-
-            history = build_history(context.get("messages", []))
-            if last_user and (not history or history[-1]["role"] != "user" or history[-1]["content"] != last_user):
-                history.append({"role": "user", "content": last_user})
-            case_context = json.dumps({
-                "title": context.get("title"),
-                "patientProfile": context.get("patientProfile"),
-                "hiddenDisease": context.get("hiddenDisease"),
-                "standardPath": context.get("standardPathJson"),
-                "presetExams": context.get("presetExams"),
-                "citations": [citation.model_dump() for citation in citations],
-            }, ensure_ascii=False)
-            if not settings.llm_configured:
-                yield sse("status", {"degraded": True, "message": "当前未配置大模型，回复为规则降级结果。"})
-
-            # 问诊阶段（默认主诉采集，由 mentor 增量更新推进）
-            stage = "主诉采集"
-            yield sse("stage", {"stage": stage})
-
-            parts: list[str] = []
-            async for delta in sp_reply_stream(case_context, history, trace_id=trace_id, stage=stage):
-                parts.append(delta)
-                yield sse("message", {"delta": delta})
-            reply = "".join(parts)
-
-            # SP 输出校验（防泄露隐藏疾病/医学术语/超长等）
-            output_check = output_policy.validate_sp_reply(
-                reply, hidden_disease=context.get("hiddenDisease")
-            )
-            if not output_check.passed:
-                log_event(logger, WARNING, "sp_output_rejected",
-                          trace_id=trace_id, reason=output_check.reason,
-                          action=output_check.action)
-                if output_check.action == "BLOCK":
-                    # 安全拒答：不保存原始回复，用安全文案替代
-                    reply = "抱歉，我无法回答这个问题。"
-                    yield sse("safety", {"blocked": True, "reason": output_check.reason})
-
-            await backend_client.append_session_messages(req.session_id, student_id, [
-                *([{"sender": "STUDENT", "content": last_user}] if last_user else []),
-                *([{"sender": "SP", "content": reply}] if reply else []),
-            ], trace_id=trace_id)
-
-            try:
-                tree = await mentor_update(case_context, history + [{"role": "assistant", "content": reply}], None, 0.0, trace_id)
-                yield sse("tree", {"nodes": tree.get("nodes", []), "edges": tree.get("edges", [])})
-                # mentor 推进的问诊阶段
-                new_stage = tree.get("current_stage")
-                if new_stage and new_stage != stage:
-                    stage = new_stage
-                    yield sse("stage", {"stage": stage})
-                if tree.get("socrates_hint"):
-                    yield sse("socrates", {"hint": tree["socrates_hint"]})
-            except Exception as exc:  # noqa: BLE001
-                log_event(logger, WARNING, "mentor_update_failed", trace_id=trace_id, error=type(exc).__name__)
-
-            yield sse("done", {"session_id": req.session_id, "ts": int(time.time())})
+            while True:
+                event = await sink.get()
+                if event is None:  # 图中的哨兵：图执行完毕（含异常）
+                    break
+                yield event
         finally:
+            await asyncio.gather(producer, return_exceptions=True)
             reset_context()
+
+        yield sse("done", {"session_id": req.session_id, "ts": int(time.time())})
+
+    async def _drive(self, graph, initial_state: dict) -> None:
+        """后台驱动图执行；结束（含异常）时发哨兵。"""
+        sink = initial_state["event_sink"]
+        try:
+            async for _ in graph.astream(initial_state, stream_mode="updates"):
+                pass
+        except Exception as exc:  # noqa: BLE001 - 图异常也要收尾，保证 done 事件
+            log_event(logger, WARNING, "chat_graph_error",
+                      error=type(exc).__name__, msg=str(exc)[:300])
+            await sink.put(sse("error", {"code": "GRAPH_ERROR", "message": "AI问诊处理失败"}))
+        finally:
+            await sink.put(None)
 
 
 chat_workflow = ChatWorkflow()

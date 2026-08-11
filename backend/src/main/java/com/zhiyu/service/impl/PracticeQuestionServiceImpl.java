@@ -15,6 +15,7 @@ import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.StudentPracticeRecordMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.PracticeQuestionService;
+import com.zhiyu.service.WeaknessAnalysisService;
 import com.zhiyu.service.dto.PracticeAnswerDTO;
 import com.zhiyu.vo.PracticeQuestionVO;
 import com.zhiyu.vo.PracticeStatsVO;
@@ -48,6 +49,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
     private final StudentPracticeRecordMapper recordMapper;
     private final TextbookMapper textbookMapper;
     private final ObjectMapper objectMapper;
+    private final WeaknessAnalysisService weaknessAnalysisService;
 
     @Override
     public PageResult<PracticeQuestionVO> page(Integer pageNum, Integer pageSize,
@@ -144,6 +146,13 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         record.setIsCorrect(correct);
         record.setAnsweredAt(LocalDateTime.now());
         recordMapper.insert(record);
+
+        // 刷题作答入库后立即重算该学生的薄弱知识点掌握度（薄弱度推算闭环）
+        try {
+            weaknessAnalysisService.refreshForStudent(studentId);
+        } catch (Exception e) {
+            log.warn("刷题后薄弱点重算失败，不影响判题: studentId={} error={}", studentId, e.getMessage());
+        }
 
         return SubmitResultVO.builder()
                 .questionId(q.getId())

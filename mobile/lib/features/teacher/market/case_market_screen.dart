@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/bottom_tab_bar.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
@@ -440,14 +439,6 @@ child: _isLoading
                             version: c.versionStr,
                           )).toList(),
                         ),
-            ),
-            TeacherTabBar(
-              currentIndex: 2,
-              onTap: (i) {
-                if (i == 0) context.goNamed(RouteNames.teacherHome);
-                if (i == 1) context.goNamed(RouteNames.spConfig);
-                if (i == 3) context.goNamed(RouteNames.teacherProfile);
-              },
             ),
           ],
         ),

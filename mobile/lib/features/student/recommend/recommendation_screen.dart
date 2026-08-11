@@ -77,7 +77,7 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
             const SizedBox(height: 12),
             Text('暂无薄弱知识点', style: TextStyle(fontSize: 14, color: AppColors.text3Of(context))),
             const SizedBox(height: 4),
-            MonoText('完成问诊评估后会自动生成推荐', fontSize: 11, color: AppColors.text4Of(context)),
+            MonoText('完成问诊评估或刷题后会自动生成推荐', fontSize: 11, color: AppColors.text4Of(context)),
           ],
         ),
       ),

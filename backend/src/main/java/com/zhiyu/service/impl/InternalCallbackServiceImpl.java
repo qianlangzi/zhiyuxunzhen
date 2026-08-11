@@ -15,6 +15,7 @@ import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.mapper.StudentWeaknessMapper;
 import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.InternalCallbackService;
+import com.zhiyu.service.WeaknessAnalysisService;
 import com.zhiyu.service.dto.internal.MistakesSyncDTO;
 import com.zhiyu.service.dto.internal.ModelEventLogDTO;
 import com.zhiyu.service.dto.internal.ReviewCallbackDTO;
@@ -27,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * 内部回调服务实现（PRD 9.4）
@@ -43,6 +46,7 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
     private final StudentMistakesMapper studentMistakesMapper;
     private final StudentWeaknessMapper studentWeaknessMapper;
     private final AuditLogService auditLogService;
+    private final WeaknessAnalysisService weaknessAnalysisService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -104,6 +108,7 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
         }
 
         int count = 0;
+        Set<Long> affectedStudents = new HashSet<>();
         for (MistakesSyncDTO.MistakeItem item : dto.getMistakes()) {
             StudentMistakes mistake = new StudentMistakes();
             mistake.setStudentId(item.getStudentId());
@@ -116,7 +121,15 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
             mistake.setEvidenceJson(item.getEvidenceJson());
             mistake.setResolvedStatus(0); // 未复习
             studentMistakesMapper.insert(mistake);
+            if (item.getStudentId() != null) {
+                affectedStudents.add(item.getStudentId());
+            }
             count++;
+        }
+
+        // 错题入库后立即重算相关学生的薄弱知识点掌握度（薄弱度推算闭环）
+        for (Long studentId : affectedStudents) {
+            weaknessAnalysisService.refreshForStudent(studentId);
         }
 
         log.info("错题本同步完成: 共 {} 条", count);

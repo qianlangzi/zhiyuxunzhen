@@ -43,7 +43,7 @@ class _OsceHistoryScreenState extends ConsumerState<OsceHistoryScreen> {
         child: Column(
           children: [
             AppBackAppBar(
-              title: 'OSCE 考核历史',
+              title: 'AI 评估 · OSCE 历史',
               onBack: () => context.goNamed(RouteNames.studentHome),
             ),
             Expanded(

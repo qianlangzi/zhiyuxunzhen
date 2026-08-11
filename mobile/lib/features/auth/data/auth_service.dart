@@ -19,7 +19,7 @@ import 'registered_user_store.dart';
 ///
 /// 接入方式：
 /// ```powershell
-/// flutter run --dart-define=USE_MOCK_AUTH=false --dart-define=API_BASE_URL=http://10.0.2.2:8080
+/// flutter run --dart-define=USE_MOCK_AUTH=false --dart-define=API_BASE_URL=http://10.0.2.2:18080
 /// ```
 class AuthService {
   const AuthService();

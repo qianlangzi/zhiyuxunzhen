@@ -34,8 +34,13 @@ import '../features/common/about/about_app_screen.dart';
 import '../features/common/settings/settings_screen.dart';
 import '../features/common/legal/legal_document_screen.dart';
 import 'route_names.dart';
+import 'app_shell.dart';
 
 /// 全局路由配置
+///
+/// 学生端 / 教师端均使用 [StatefulShellRoute.indexedStack]：
+/// 底部 tab 栏由剪辑的 Shell 常驻持有，切换分支时滑块平滑滑动；
+/// 各 tab 首页为分支，其余详情页为顶层路由（push 时覆盖 Shell）。
 final GoRouter appRouter = GoRouter(
   initialLocation: '/login',
   redirect: (context, state) {
@@ -48,9 +53,9 @@ final GoRouter appRouter = GoRouter(
     // （配合 main() 预热，正常情况下此分支不会命中，仅作安全网）
     if (auth.isLoading) return null;
 
-    // 未登录只能进登录页
+    // 未登录只能进登录页 / 注册页（注册页无需登录即可访问）
     if (!auth.isAuthenticated) {
-      return goingToLogin ? null : '/login';
+      return (goingToLogin || loc == '/register') ? null : '/login';
     }
     // 已登录访问登录页 → 按角色回首页
     if (goingToLogin) {
@@ -76,17 +81,51 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => RegisterScreen(),
     ),
 
-    // ========== 学生端 ==========
-    GoRoute(
-      name: RouteNames.studentHome,
-      path: '/student',
-      builder: (context, state) => StudentHomeScreen(),
+    // ========== 学生端 Shell（4 个 tab） ==========
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          StudentShell(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.studentHome,
+              path: '/student',
+              builder: (context, state) => StudentHomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.studentCaseMarket,
+              path: '/student/market',
+              builder: (context, state) => StudentCaseMarketScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.mistakes,
+              path: '/student/mistakes',
+              builder: (context, state) => MistakesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.studentProfile,
+              path: '/student/profile',
+              builder: (context, state) => StudentProfileScreen(),
+            ),
+          ],
+        ),
+      ],
     ),
-    GoRoute(
-      name: RouteNames.studentCaseMarket,
-      path: '/student/market',
-      builder: (context, state) => StudentCaseMarketScreen(),
-    ),
+
+    // ---- 学生端详情页（顶层路由，push 时覆盖 Shell） ----
     GoRoute(
       name: RouteNames.chat,
       path: '/student/chat',
@@ -101,11 +140,6 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.osceResult,
       path: '/student/result',
       builder: (context, state) => OsceResultScreen(),
-    ),
-    GoRoute(
-      name: RouteNames.mistakes,
-      path: '/student/mistakes',
-      builder: (context, state) => MistakesScreen(),
     ),
     GoRoute(
       name: RouteNames.recommendation,
@@ -172,32 +206,56 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state) => DailyCaseScreen(),
     ),
     GoRoute(
-      name: RouteNames.studentProfile,
-      path: '/student/profile',
-      builder: (context, state) => StudentProfileScreen(),
-    ),
-    GoRoute(
       name: RouteNames.profileEdit,
       path: '/student/profile/edit',
       builder: (context, state) => ProfileEditScreen(),
     ),
 
-    // ========== 教师端 ==========
-    GoRoute(
-      name: RouteNames.teacherHome,
-      path: '/teacher',
-      builder: (context, state) => TeacherHomeScreen(),
+    // ========== 教师端 Shell（4 个 tab） ==========
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          TeacherShell(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.teacherHome,
+              path: '/teacher',
+              builder: (context, state) => TeacherHomeScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.spConfig,
+              path: '/teacher/sp-config',
+              builder: (context, state) => SpConfigScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.caseMarket,
+              path: '/teacher/market',
+              builder: (context, state) => CaseMarketScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              name: RouteNames.teacherProfile,
+              path: '/teacher/profile',
+              builder: (context, state) => TeacherProfileScreen(),
+            ),
+          ],
+        ),
+      ],
     ),
-    GoRoute(
-      name: RouteNames.spConfig,
-      path: '/teacher/sp-config',
-      builder: (context, state) => SpConfigScreen(),
-    ),
-    GoRoute(
-      name: RouteNames.caseMarket,
-      path: '/teacher/market',
-      builder: (context, state) => CaseMarketScreen(),
-    ),
+
+    // ---- 教师端详情页（顶层路由） ----
     GoRoute(
       name: RouteNames.assignment,
       path: '/teacher/assignment',
@@ -212,11 +270,6 @@ final GoRouter appRouter = GoRouter(
       name: RouteNames.dashboard,
       path: '/teacher/dashboard',
       builder: (context, state) => DashboardScreen(),
-    ),
-    GoRoute(
-      name: RouteNames.teacherProfile,
-      path: '/teacher/profile',
-      builder: (context, state) => TeacherProfileScreen(),
     ),
     GoRoute(
       name: RouteNames.profileEditTeacher,

@@ -18,6 +18,7 @@ import com.zhiyu.mapper.StudentWeaknessMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.StudentRecommendService;
+import com.zhiyu.service.WeaknessAnalysisService;
 import com.zhiyu.vo.CaseMarketListVO;
 import com.zhiyu.vo.PracticeQuestionVO;
 import com.zhiyu.vo.RecommendationVO;
@@ -36,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -53,7 +55,12 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
     private final SysUserMapper userMapper;
     private final StudentMistakesMapper mistakesMapper;
     private final AiPlatformClient aiPlatformClient;
+    private final WeaknessAnalysisService weaknessAnalysisService;
     private final ObjectMapper objectMapper;
+
+    /** AI 建议轻量缓存：key 由 学生→(tag+候选+错题) 决定，TTL 10 分钟，避免每次进 tab 都调 AI */
+    private static final long ADVICE_CACHE_TTL_MS = 10 * 60 * 1000L;
+    private final Map<String, AiCacheEntry> aiAdviceCache = new ConcurrentHashMap<>();
 
     @Override
     public RecommendationVO recommendFor(String knowledgeTag) {
@@ -64,59 +71,46 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
                     .textbooks(List.of())
                     .build();
         }
-        List<PracticeQuestion> questions = questionMapper.selectList(
-                new LambdaQueryWrapper<PracticeQuestion>()
-                        .eq(PracticeQuestion::getStatus, 1)
-                        .eq(PracticeQuestion::getKnowledgeTag, knowledgeTag)
-                        .orderByAsc(PracticeQuestion::getDifficulty));
-        List<Textbook> textbooks = findTextbooksByTag(knowledgeTag);
-
-        // 拉取该知识点下近期错题要点，作为 AI 智能推荐的输入（无则传空列表）
-        List<String> mistakeNotes = new ArrayList<>();
-        try {
-            Long studentId = UserContext.requireUserId();
-            List<StudentMistakes> recent = mistakesMapper.selectList(
-                    new LambdaQueryWrapper<StudentMistakes>()
-                            .eq(StudentMistakes::getStudentId, studentId)
-                            .eq(StudentMistakes::getKnowledgeTag, knowledgeTag)
-                            .orderByDesc(StudentMistakes::getCreatedAt)
-                            .last("LIMIT 5"));
-            for (StudentMistakes m : recent) {
-                if (StringUtils.hasText(m.getEvidenceJson())) {
-                    mistakeNotes.add(m.getEvidenceJson());
-                } else if (StringUtils.hasText(m.getStudentAnswer())) {
-                    mistakeNotes.add("学生作答：" + m.getStudentAnswer());
-                }
-            }
-        } catch (Exception e) {
-            log.warn("查询近期错题失败，AI 建议降级为空: tag={} error={}", knowledgeTag, e.getMessage());
-        }
-
-        // 调用 AI 平台生成个性化补救建议（失败返回 null，不阻断错题板块）
-        Map<String, Object> aiResult = aiPlatformClient.recommendWeakness(
-                Collections.singletonList(knowledgeTag), mistakeNotes);
-
-        return RecommendationVO.builder()
-                .knowledgeTag(knowledgeTag)
-                .questions(toQuestionVOs(questions))
-                .textbooks(textbooks.stream().map(this::toTextbookVO).collect(Collectors.toList()))
-                .aiAdvice(aiResult == null ? null : str(aiResult.get("advice")))
-                .aiPriority(aiResult == null ? null : strList(aiResult.get("priority")))
-                .aiStudyPlan(aiResult == null ? null : str(aiResult.get("studyPlan")))
-                .aiMistakesNote(aiResult == null ? null : str(aiResult.get("mistakesNote")))
-                .build();
+        Long studentId = UserContext.requireUserId();
+        List<PracticeQuestion> questions = queryQuestionsByTags(
+                Collections.singletonList(knowledgeTag)).getOrDefault(knowledgeTag, List.of());
+        List<Textbook> textbooks = queryTextbooksByTags(
+                Collections.singletonList(knowledgeTag)).getOrDefault(knowledgeTag, List.of());
+        List<String> mistakes = loadMistakesByTag(studentId, knowledgeTag);
+        return buildRecommendation(knowledgeTag, questions, textbooks, mistakes);
     }
 
     @Override
     public List<RecommendationVO> recommendForAllWeaknesses() {
         Long studentId = UserContext.requireUserId();
-        List<StudentWeakness> weaknesses = weaknessMapper.selectList(
-                new LambdaQueryWrapper<StudentWeakness>()
-                        .eq(StudentWeakness::getStudentId, studentId)
-                        .orderByAsc(StudentWeakness::getWeaknessScore));
+
+        // 安全兜底：尚无薄弱数据时先重算，保证首次进入也能出结果（薄弱度推算闭环）
+        List<StudentWeakness> weaknesses = loadWeaknesses(studentId);
+        if (weaknesses.isEmpty()) {
+            weaknessAnalysisService.refreshForStudent(studentId);
+            weaknesses = loadWeaknesses(studentId);
+        }
+        if (weaknesses.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量加载，避免按知识点 N+1 查询
+        List<String> tags = weaknesses.stream()
+                .map(StudentWeakness::getKnowledgeTag)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .collect(Collectors.toList());
+        Map<String, List<PracticeQuestion>> questionsByTag = queryQuestionsByTags(tags);
+        Map<String, List<Textbook>> textbooksByTag = queryTextbooksByTags(tags);
+        Map<String, List<String>> mistakesByTag = loadMistakesByTags(studentId, tags);
+
         List<RecommendationVO> result = new ArrayList<>();
         for (StudentWeakness w : weaknesses) {
-            result.add(recommendFor(w.getKnowledgeTag()));
+            String tag = w.getKnowledgeTag();
+            result.add(buildRecommendation(tag,
+                    questionsByTag.getOrDefault(tag, List.of()),
+                    textbooksByTag.getOrDefault(tag, List.of()),
+                    mistakesByTag.getOrDefault(tag, List.of())));
         }
         return result;
     }
@@ -167,11 +161,134 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
 
     // ---------- 私有辅助 ----------
 
-    private List<Textbook> findTextbooksByTag(String tag) {
+    private List<StudentWeakness> loadWeaknesses(Long studentId) {
+        return weaknessMapper.selectList(
+                new LambdaQueryWrapper<StudentWeakness>()
+                        .eq(StudentWeakness::getStudentId, studentId)
+                        .orderByAsc(StudentWeakness::getWeaknessScore)   // 越薄弱越靠前
+                        .orderByDesc(StudentWeakness::getEvidenceCount)); // 同分则证据更充分者优先
+    }
+
+    /** 批量按知识点查上架基础题（按难度升序），避免 N+1 */
+    private Map<String, List<PracticeQuestion>> queryQuestionsByTags(List<String> tags) {
+        Map<String, List<PracticeQuestion>> map = new HashMap<>();
+        if (tags == null || tags.isEmpty()) {
+            return map;
+        }
+        List<PracticeQuestion> list = questionMapper.selectList(
+                new LambdaQueryWrapper<PracticeQuestion>()
+                        .eq(PracticeQuestion::getStatus, 1)
+                        .in(PracticeQuestion::getKnowledgeTag, tags)
+                        .orderByAsc(PracticeQuestion::getDifficulty));
+        for (PracticeQuestion q : list) {
+            if (StringUtils.hasText(q.getKnowledgeTag())) {
+                map.computeIfAbsent(q.getKnowledgeTag(), k -> new ArrayList<>()).add(q);
+            }
+        }
+        return map;
+    }
+
+    /** 批量按知识点查教材（教材 knowledgeTags 为 JSON 数组，需解析后匹配） */
+    private Map<String, List<Textbook>> queryTextbooksByTags(List<String> tags) {
+        Map<String, List<Textbook>> map = new HashMap<>();
+        if (tags == null || tags.isEmpty()) {
+            return map;
+        }
+        Set<String> wanted = new HashSet<>(tags);
         List<Textbook> all = textbookMapper.selectList(
                 new LambdaQueryWrapper<Textbook>().eq(Textbook::getStatus, 1));
-        return all.stream().filter(tb -> parseTags(tb.getKnowledgeTags()).contains(tag))
-                .collect(Collectors.toList());
+        for (Textbook tb : all) {
+            for (String t : parseTags(tb.getKnowledgeTags())) {
+                if (wanted.contains(t)) {
+                    map.computeIfAbsent(t, k -> new ArrayList<>()).add(tb);
+                }
+            }
+        }
+        return map;
+    }
+
+    /** 批量拉取各薄弱知识点近期错题要点（每个知识点最多 5 条），作为 AI 输入 */
+    private Map<String, List<String>> loadMistakesByTags(Long studentId, List<String> tags) {
+        Map<String, List<String>> map = new HashMap<>();
+        if (tags == null || tags.isEmpty()) {
+            return map;
+        }
+        List<StudentMistakes> recent = mistakesMapper.selectList(
+                new LambdaQueryWrapper<StudentMistakes>()
+                        .eq(StudentMistakes::getStudentId, studentId)
+                        .in(StudentMistakes::getKnowledgeTag, tags)
+                        .orderByDesc(StudentMistakes::getCreatedAt));
+        for (StudentMistakes m : recent) {
+            String tag = m.getKnowledgeTag();
+            if (!StringUtils.hasText(tag)) {
+                continue;
+            }
+            String note = StringUtils.hasText(m.getEvidenceJson()) ? m.getEvidenceJson()
+                    : (StringUtils.hasText(m.getStudentAnswer()) ? "学生作答：" + m.getStudentAnswer() : null);
+            if (note == null) {
+                continue;
+            }
+            List<String> bucket = map.computeIfAbsent(tag, k -> new ArrayList<>());
+            if (bucket.size() < 5) {
+                bucket.add(note);
+            }
+        }
+        return map;
+    }
+
+    private List<String> loadMistakesByTag(Long studentId, String tag) {
+        return loadMistakesByTags(studentId, Collections.singletonList(tag))
+                .getOrDefault(tag, List.of());
+    }
+
+    /** 组装单个知识点的推荐：基础题 + 教材 + AI 补救建议（带 grounding 与缓存） */
+    private RecommendationVO buildRecommendation(String tag, List<PracticeQuestion> questions,
+                                                 List<Textbook> textbooks, List<String> mistakes) {
+        Map<String, Object> aiResult = aiAdvice(tag, mistakes, textbooks, questions);
+        return RecommendationVO.builder()
+                .knowledgeTag(tag)
+                .questions(toQuestionVOs(questions))
+                .textbooks(textbooks.stream().map(this::toTextbookVO).collect(Collectors.toList()))
+                .aiAdvice(aiResult == null ? null : str(aiResult.get("advice")))
+                .aiPriority(aiResult == null ? null : strList(aiResult.get("priority")))
+                .aiStudyPlan(aiResult == null ? null : str(aiResult.get("studyPlan")))
+                .aiMistakesNote(aiResult == null ? null : str(aiResult.get("mistakesNote")))
+                .build();
+    }
+
+    /** 生成 AI 补救建议：候选教材/题目标题传给 LLM 防幻觉；结果按 key 缓存 10 分钟 */
+    private Map<String, Object> aiAdvice(String tag, List<String> mistakes,
+                                         List<Textbook> textbooks, List<PracticeQuestion> questions) {
+        String key = adviceCacheKey(tag, mistakes, textbooks, questions);
+        AiCacheEntry cached = aiAdviceCache.get(key);
+        if (cached != null && (System.currentTimeMillis() - cached.timestamp) < ADVICE_CACHE_TTL_MS) {
+            return cached.value;
+        }
+        List<String> candidateBooks = textbooks.stream().map(Textbook::getTitle)
+                .filter(StringUtils::hasText).collect(Collectors.toList());
+        List<String> candidateQuestions = questions.stream().map(PracticeQuestion::getTitle)
+                .filter(StringUtils::hasText).collect(Collectors.toList());
+        Map<String, Object> result = aiPlatformClient.recommendWeakness(
+                Collections.singletonList(tag), mistakes, candidateBooks, candidateQuestions);
+        aiAdviceCache.put(key, new AiCacheEntry(result, System.currentTimeMillis()));
+        return result;
+    }
+
+    private String adviceCacheKey(String tag, List<String> mistakes,
+                                  List<Textbook> textbooks, List<PracticeQuestion> questions) {
+        String books = textbooks.stream().map(t -> String.valueOf(t.getId())).sorted().collect(Collectors.joining(","));
+        String qs = questions.stream().map(q -> String.valueOf(q.getId())).sorted().collect(Collectors.joining(","));
+        return tag + "::" + books + "::" + qs + "::" + String.join("|", mistakes);
+    }
+
+    private static class AiCacheEntry {
+        final Map<String, Object> value;
+        final long timestamp;
+
+        AiCacheEntry(Map<String, Object> value, long timestamp) {
+            this.value = value;
+            this.timestamp = timestamp;
+        }
     }
 
     private List<PracticeQuestionVO> toQuestionVOs(List<PracticeQuestion> questions) {

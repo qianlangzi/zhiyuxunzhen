@@ -4,16 +4,34 @@ import '../../core/constants/app_constants.dart';
 
 /// 底部导航 Tab 定义
 class TabItem {
-  final String label;
-  final IconData icon;
-
   const TabItem({
     required this.label,
     required this.icon,
   });
+
+  final String label;
+  final IconData icon;
 }
 
+/// 学生端底部 tab（仅供 Shell 使用）
+const studentTabs = [
+  TabItem(label: '学习', icon: Icons.home_outlined),
+  TabItem(label: '问诊', icon: Icons.chat_bubble_outline),
+  TabItem(label: '错题', icon: Icons.description_outlined),
+  TabItem(label: '我的', icon: Icons.person_outline),
+];
+
+/// 教师端底部 tab（仅供 Shell 使用）
+const teacherTabs = [
+  TabItem(label: '工作台', icon: Icons.home_outlined),
+  TabItem(label: '配置', icon: Icons.settings_outlined),
+  TabItem(label: '广场', icon: Icons.storefront_outlined),
+  TabItem(label: '我的', icon: Icons.person_outline),
+];
+
 /// 通用底部导航栏 —— 带滑动指示条 + 颜色过渡动画
+///
+/// 由 Shell 持有并常驻，切换 tab 时同一个滑块平滑滑动到目标位置。
 class AppBottomTabBar extends StatefulWidget {
   const AppBottomTabBar({
     super.key,
@@ -35,6 +53,9 @@ class _AppBottomTabBarState extends State<AppBottomTabBar>
   late final AnimationController _controller = AnimationController(
     duration: const Duration(milliseconds: 320),
     vsync: this,
+    // 值域必须覆盖所有 tab（默认 [0,1] 会把 2/3 号 tab 的滑块钳制在 1 号位）
+    lowerBound: 0,
+    upperBound: (widget.tabs.length - 1).toDouble(),
     value: widget.currentIndex.toDouble(),
   );
 
@@ -69,7 +90,7 @@ class _AppBottomTabBarState extends State<AppBottomTabBar>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final tabWidth = constraints.maxWidth / tabCount;
-          // 药丸指示条宽度：占单个 tab 宽度的 56%
+          // 指示条宽度：占单个 tab 宽度的 56%
           final indicatorWidth = tabWidth * 0.56;
           const indicatorHeight = 48.0;
 
@@ -77,7 +98,7 @@ class _AppBottomTabBarState extends State<AppBottomTabBar>
             height: indicatorHeight,
             child: Stack(
               children: [
-                // —— 滑动药丸指示条 ——
+                // —— 滑动指示条（偏方 · 浅色）——
                 AnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {
@@ -139,6 +160,7 @@ class _AnimatedTabItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 选中态：主色文字；未选中：灰色文字
     final activeColor = AppColors.primaryOf(context);
     final inactiveColor = AppColors.text4Of(context);
 
@@ -178,62 +200,6 @@ class _AnimatedTabItem extends StatelessWidget {
           },
         ),
       ],
-    );
-  }
-}
-
-/// 学生端底部导航
-class StudentTabBar extends StatelessWidget {
-  const StudentTabBar({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
-
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  static const tabs = [
-    TabItem(label: '学习', icon: Icons.home_outlined),
-    TabItem(label: '问诊', icon: Icons.chat_bubble_outline),
-    TabItem(label: '错题', icon: Icons.description_outlined),
-    TabItem(label: '我的', icon: Icons.person_outline),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBottomTabBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-      tabs: tabs,
-    );
-  }
-}
-
-/// 教师端底部导航
-class TeacherTabBar extends StatelessWidget {
-  const TeacherTabBar({
-    super.key,
-    required this.currentIndex,
-    required this.onTap,
-  });
-
-  final int currentIndex;
-  final ValueChanged<int> onTap;
-
-  static const tabs = [
-    TabItem(label: '工作台', icon: Icons.home_outlined),
-    TabItem(label: '配置', icon: Icons.settings_outlined),
-    TabItem(label: '广场', icon: Icons.storefront_outlined),
-    TabItem(label: '我的', icon: Icons.person_outline),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return AppBottomTabBar(
-      currentIndex: currentIndex,
-      onTap: onTap,
-      tabs: tabs,
     );
   }
 }

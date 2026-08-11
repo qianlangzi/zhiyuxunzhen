@@ -279,14 +279,19 @@ public class AiPlatformClient {
     /**
      * 15. 错题智能推荐（薄弱知识点 → 个性化补救建议）
      * POST {ai-base-url}/internal/recommend/weakness
+     * 传入候选教材 / 候选基础题标题，约束 LLM 只从候选里推荐（防幻觉）。
      * 失败返回 null（优雅降级，不阻断错题板块）。
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> recommendWeakness(List<String> knowledgeTags,
-                                                 List<String> mistakes) {
+                                                 List<String> mistakes,
+                                                 List<String> candidateTextbooks,
+                                                 List<String> candidateQuestions) {
         Map<String, Object> body = new HashMap<>();
         body.put("knowledgeTags", knowledgeTags == null ? List.of() : knowledgeTags);
         body.put("mistakes", mistakes == null ? List.of() : mistakes);
+        body.put("candidateTextbooks", candidateTextbooks == null ? List.of() : candidateTextbooks);
+        body.put("candidateQuestions", candidateQuestions == null ? List.of() : candidateQuestions);
         return postData("/internal/recommend/weakness", body);
     }
 

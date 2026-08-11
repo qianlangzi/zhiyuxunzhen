@@ -11,6 +11,9 @@ openai==1.35.0
 
 # ===== 向量库 =====
 pymilvus==2.4.3
+# 固定 marshmallow<4：environs(pymilvus 依赖) 需要 ma.__version_info__，marshmallow 4.x 已移除该属性，
+# 会导致 import pymilvus 崩溃，进而使 Milvus 连接降级到内存索引。
+marshmallow==3.23.2
 
 # ===== PDF 解析 =====
 pypdf==4.3.1
