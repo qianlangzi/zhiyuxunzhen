@@ -20,6 +20,8 @@ class Citation(BaseModel):
     chapter: str | None = Field(default=None, description="章节")
     page_number: int | None = Field(default=None, description="页码")
     chunk_text: str | None = Field(default=None, description="命中的原文片段")
+    subject: str | None = Field(default=None, description="学科标签（内科/心电等）")
+    score: float | None = Field(default=None, description="相似度得分")
 
 
 class ReasoningTreeNode(BaseModel):

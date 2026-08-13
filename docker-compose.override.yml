@@ -22,10 +22,12 @@ services:
     ports:
       - "${REDIS_PORT:-16379}:6379"
 
-  # ---- Milvus:暴露端口方便调试 ----
+  # ---- Milvus:暴露端口方便 Attu 连接 ----
+  # 注意：本机另一个项目 kg-milvus 占用了 19530/9091，所以 zhiyu 让出使用 19531/9092
   milvus:
     ports:
       - "${MILVUS_PORT:-19531}:19530"
+      - "${MILVUS_METRICS_PORT:-9092}:9091"
 
   # ---- Minio:暴露控制台 ----
   minio:

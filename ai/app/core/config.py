@@ -40,12 +40,22 @@ class Settings(BaseSettings):
     milvus_host: str = "milvus"
     milvus_port: int = 19530
     milvus_collection: str = "zhiyu_textbook"
+    milvus_multi_collection: str = "zhiyu_multi"
     milvus_vector_dim: int = 1024
 
-    # ---------- Embedding 服务 ----------
+    # ---------- Embedding 服务（旧：OpenAI 兼容协议，纯文本）----------
     embedding_base_url: str = ""
     embedding_api_key: SecretStr = SecretStr("")
     embedding_model: str = "embedding-v1"
+
+    # ---------- DashScope 多模态 Embedding（Qwen3-VL-Embedding）----------
+    dashscope_api_key: SecretStr = SecretStr("")
+    dashscope_base_url: str = "https://ws-z7vi5mam4d8415c8.cn-beijing.maas.aliyuncs.com/api/v1"
+    dashscope_embedding_model: str = "qwen3-vl-embedding"
+    dashscope_embedding_dim: int = 1024
+
+    # ---------- MMORE PDF 处理服务 ----------
+    mmore_url: str = "http://mmore:8002"
 
     # ---------- Redis ----------
     redis_host: str = "redis"
@@ -147,6 +157,10 @@ class Settings(BaseSettings):
         return bool(
             self.embedding_base_url and self.embedding_api_key.get_secret_value()
         )
+
+    @property
+    def dashscope_configured(self) -> bool:
+        return bool(self.dashscope_api_key.get_secret_value())
 
     @property
     def redis_configured(self) -> bool:

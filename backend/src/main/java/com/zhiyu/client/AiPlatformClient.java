@@ -277,6 +277,22 @@ public class AiPlatformClient {
     }
 
     /**
+     * 16. 教材知识库向量检索（分科过滤）
+     * POST {ai-base-url}/knowledge/search
+     * 支持按 subject 学科过滤（内科/心电等），失败返回空列表（优雅降级）。
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> searchKnowledge(String query, int topK, String subject, String collection, String strategy) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("query", query);
+        body.put("topK", topK);
+        if (subject != null && !subject.isBlank()) body.put("subject", subject);
+        if (collection != null && !collection.isBlank()) body.put("collection", collection);
+        if (strategy != null && !strategy.isBlank()) body.put("strategy", strategy);
+        return postData("/knowledge/search", body);
+    }
+
+    /**
      * 15. 错题智能推荐（薄弱知识点 → 个性化补救建议）
      * POST {ai-base-url}/internal/recommend/weakness
      * 传入候选教材 / 候选基础题标题，约束 LLM 只从候选里推荐（防幻觉）。
