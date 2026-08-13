@@ -170,9 +170,10 @@ public class AuthServiceImpl implements AuthService {
             if (auditStatus == 1) {
                 throw new BizException(ResultCode.TEACHER_AUDIT_PENDING);
             }
-            if (auditStatus == 3) {
-                throw new BizException(ResultCode.TEACHER_AUDIT_REJECTED);
-            }
+            // P1-2 修复：允许被驳回教师（auditStatus=3）登录，以便重新提交资质材料。
+            // MustChangePasswordInterceptor 会限制被驳回教师仅能访问 /auth/me、/auth/password、
+            // /auth/logout、/auth/refresh 和 /teacher/profile/audit-submit，其余端点一律拒绝。
+            // 旧实现拒绝 auditStatus=3 登录 → 教师无法获取 token → 无法调用 submitAudit → 死锁。
         }
 
         updateLastLogin(user.getId());

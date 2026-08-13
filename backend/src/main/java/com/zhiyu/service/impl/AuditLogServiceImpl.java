@@ -25,31 +25,30 @@ public class AuditLogServiceImpl implements AuditLogService {
 
     @Override
     public void record(String action, String targetType, Long targetId, String beforeJson, String afterJson) {
-        try {
-            AuditLog auditLog = new AuditLog();
-            auditLog.setAction(action);
-            auditLog.setTargetType(targetType);
-            auditLog.setTargetId(targetId);
-            auditLog.setBeforeJson(beforeJson);
-            auditLog.setAfterJson(afterJson);
-            auditLog.setIpAddress(getClientIp());
-            auditLog.setCreatedAt(LocalDateTime.now());
+        // P1-5 修复：移除 try-catch，让 DB 写入异常传播到 @Transactional 调用方。
+        // 旧实现吞掉异常 → 业务操作成功但审计日志丢失 → 安全审计与业务状态不一致。
+        // 现在：审计日志写入失败 → 异常传播 → @Transactional 回滚 → 业务操作也回滚 → 一致。
+        // getClientIp() 内部已有 try-catch，不会抛异常。
+        AuditLog auditLog = new AuditLog();
+        auditLog.setAction(action);
+        auditLog.setTargetType(targetType);
+        auditLog.setTargetId(targetId);
+        auditLog.setBeforeJson(beforeJson);
+        auditLog.setAfterJson(afterJson);
+        auditLog.setIpAddress(getClientIp());
+        auditLog.setCreatedAt(LocalDateTime.now());
 
-            // 从用户上下文取操作人信息（内部回调无用户上下文时记为系统操作）
-            UserContext.LoginUser user = UserContext.get();
-            if (user != null) {
-                auditLog.setOperatorId(user.getUserId());
-                auditLog.setOperatorRole(user.getRole());
-            } else {
-                auditLog.setOperatorId(0L);
-                auditLog.setOperatorRole(null);
-            }
-
-            auditLogMapper.insert(auditLog);
-        } catch (Exception e) {
-            // 审计日志写入失败不应影响主业务流程
-            log.error("审计日志写入失败: action={}, targetType={}, targetId={}", action, targetType, targetId, e);
+        // 从用户上下文取操作人信息（内部回调无用户上下文时记为系统操作）
+        UserContext.LoginUser user = UserContext.get();
+        if (user != null) {
+            auditLog.setOperatorId(user.getUserId());
+            auditLog.setOperatorRole(user.getRole());
+        } else {
+            auditLog.setOperatorId(0L);
+            auditLog.setOperatorRole(null);
         }
+
+        auditLogMapper.insert(auditLog);
     }
 
     /**

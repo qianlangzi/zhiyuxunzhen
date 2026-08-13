@@ -169,11 +169,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// 场景：请求 A 发出 → 1001 响应排队 → 用户重新登录 →
   ///   1001 触发的 clearSession 排在新登录后面 → 清除新会话的 token。
   /// 防护：clearSessionIfCurrent 检查 gen，若期间发生了新登录（gen 变化），跳过清除。
+  ///
+  /// P1-3 修复：旧实现在 CAS 成功前先清空 AuthState，若 CAS 失败（会话已变更），
+  /// state 已被清空但新会话仍有效 → UI 显示未登录但 API 有 token。
+  /// 修复：先执行 CAS，仅在 CAS 通过后才清空 state。
   Future<void> _handleAutoLogout() async {
     final genAtTrigger = ApiClient.sessionGeneration;
-    state = const AuthState();
     // CAS：仅当 gen 未变时才清除 token（防止迟到 1001 清除新会话）
-    await ApiClient.clearSessionIfCurrent(expectedGen: genAtTrigger);
+    final cleared = await ApiClient.clearSessionIfCurrent(expectedGen: genAtTrigger);
+    if (cleared) {
+      state = const AuthState();
+    }
   }
 
   /// 将用户数据持久化到本地

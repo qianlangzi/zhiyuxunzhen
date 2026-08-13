@@ -154,13 +154,18 @@ public class AdminServiceImpl implements AdminService {
         // PermissionInterceptor 依赖 auditStatus=2 才允许教师写操作，旧 token 中的
         // auditStatus=1（待审核）会让教师无法写操作；但若攻击者在审核通过前拿到 token，
         // 审核通过后旧 token 仍带 auditStatus=1，需递增版本强制重新登录拿 auditStatus=2 的新 token。
+        //
+        // P1-1 修复：CAS 条件增加 .eq("audit_status", 1)，仅待审核状态才可审核通过。
+        // 防止迟到 approve 覆盖较新的 reject（管理员先驳回再批准，但迟到的批准请求
+        // 在驳回之后执行，把已驳回的账号又变成通过）。
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
+                        .eq("audit_status", 1)
                         .set("audit_status", 2)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
-            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+            throw new BizException(ResultCode.BAD_REQUEST, "教师不在待审核状态，无法审核通过");
         }
 
         String afterJson = toJson(Map.of("auditStatus", 2));
@@ -184,13 +189,18 @@ public class AdminServiceImpl implements AdminService {
 
         // P1：审核驳回时递增 credential_version，撤销旧 token，强制教师重新登录拿 auditStatus=3 的新 token。
         // 驳回后旧 token 的 auditStatus=1（待审核）仍能尝试写操作，递增版本后旧 token 被立即拒绝。
+        //
+        // P1-1 修复：CAS 条件增加 .eq("audit_status", 1)，仅待审核状态才可驳回。
+        // 防止迟到 reject 覆盖较新的 approve（管理员先批准再驳回，但迟到的驳回请求
+        // 在批准之后执行，把已通过的账号又变成驳回）。
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
+                        .eq("audit_status", 1)
                         .set("audit_status", 3)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
-            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+            throw new BizException(ResultCode.BAD_REQUEST, "教师不在待审核状态，无法驳回");
         }
 
         Map<String, Object> afterMap = new HashMap<>();
@@ -405,10 +415,18 @@ public class AdminServiceImpl implements AdminService {
         // P0-4 修复：使用窄字段 UpdateWrapper 只更新 status，不使用 updateById(user)。
         // updateById 会写入完整实体快照，并发场景下可能把另一个事务已递增的 credential_version
         // 或修改的 role/passwordHash 写回旧值，导致撤销被回滚。窄字段 UPDATE 只动 status 列。
-        userMapper.update(null,
+        //
+        // P1-1 修复：CAS 条件增加 .eq("status", 1)，仅当前为冻结状态才解冻。
+        // 防止迟到 unfreeze 覆盖较新的 freeze（管理员先冻结再解冻，但迟到的解冻请求
+        // 在冻结之后执行，把已冻结的账号又解冻了）。
+        int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
+                        .eq("status", 1)
                         .set("status", 0));
+        if (rows == 0) {
+            throw new BizException(ResultCode.BAD_REQUEST, "账号未处于冻结状态，无需解冻");
+        }
         String afterJson = toJson(Map.of("status", 0));
         auditLogService.record("user_unfreeze", "user", userId, beforeJson, afterJson);
         log.info("账号解冻: userId={}, operator={}", userId, UserContext.requireUserId());

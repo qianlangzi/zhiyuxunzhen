@@ -97,8 +97,24 @@ public class MustChangePasswordInterceptor implements HandlerInterceptor {
             throw new BizException(ResultCode.ACCOUNT_FROZEN, "账号已被冻结，请联系管理员");
         }
 
+        // P1-2 修复：被驳回教师（role=1, auditStatus=3）仅允许重新提交资质 + 基本账户操作。
+        // 驳回后旧 token 被递增的 credential_version 撤销，教师需重新登录拿 auditStatus=3 的新 token。
+        // 但不能让被驳回教师访问业务端点（布置作业等），仅允许白名单端点 + 资质提交端点。
+        // 旧实现拒绝 auditStatus=3 登录 → 教师无法获取 token → 无法调用 submitAudit → 死锁。
+        if (entity.getRole() != null && entity.getRole() == 1
+                && entity.getAuditStatus() != null && entity.getAuditStatus() == 3) {
+            if (isWhitelisted(method, uri)
+                    || ("POST".equalsIgnoreCase(method)
+                            && "/api/v1/teacher/profile/audit-submit".equals(uri))) {
+                return true;
+            }
+            log.debug("被驳回教师访问受限: userId={} uri={} method={}", user.getUserId(), uri, method);
+            throw new BizException(ResultCode.TEACHER_AUDIT_REJECTED,
+                    "资质审核未通过，请重新提交资质材料后等待审核");
+        }
+
         // 白名单：改密 / 查当前用户 / 登出 / 刷新 token 仅绕过 mustChangePassword 校验
-        // 注意：版本校验 + 冻结校验已在上方完成，旧 token 和冻结账号到不了这里
+        // 注意：版本校验 + 冻结校验 + 驳回教师校验已在上方完成，旧 token 和冻结账号到不了这里
         if (isWhitelisted(method, uri)) {
             return true;
         }

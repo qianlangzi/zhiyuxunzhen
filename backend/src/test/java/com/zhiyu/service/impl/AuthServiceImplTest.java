@@ -313,6 +313,31 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("login 被驳回教师 -> 允许登录并签发 token（P1-2: 解除死锁）")
+    void should_allow_rejected_teacher_login() {
+        SysUser user = new SysUser();
+        user.setId(11L);
+        user.setUsername("teacher03");
+        user.setPasswordHash("$2a$10$hash");
+        user.setRole(1);
+        user.setStatus(0);
+        user.setAuditStatus(3); // 驳回
+        when(userMapper.selectOne(any())).thenReturn(user);
+        when(passwordEncoder.matches("study2026", user.getPasswordHash())).thenReturn(true);
+        when(jwtUtils.issueToken(11L, "teacher03", 1, 3, 0)).thenReturn("access");
+        when(jwtUtils.issueRefreshToken(11L, 0)).thenReturn("refresh");
+        when(jwtUtils.getAccessExpireMs()).thenReturn(3600_000L);
+
+        LoginRequest req = new LoginRequest();
+        req.setUsername("teacher03");
+        req.setPassword("study2026");
+
+        LoginResponse resp = authService.login(req);
+        assertThat(resp.getToken()).isEqualTo("access");
+        assertThat(resp.getAuditStatus()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("login 管理员成功 -> 签发保留真实角色的 Web 管理 Token")
     void should_allow_admin_login_for_web_console() {
         SysUser user = new SysUser();

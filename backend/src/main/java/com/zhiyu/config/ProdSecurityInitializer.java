@@ -57,11 +57,21 @@ public class ProdSecurityInitializer implements CommandLineRunner {
             // P0-4 修复：冻结时同步递增 credential_version，撤销该账号所有已签发 token。
             // 使用 UpdateWrapper（列名字符串）而非 LambdaUpdateWrapper，避免 lambda cache
             // 在隔离运行时未预热导致 NPE。setSql 原子递增版本，防止并发覆盖。
-            userMapper.update(null,
+            //
+            // P1-4 修复：CAS 条件增加 password_hash 和 status=0，确保仅在密码未变且未冻结时才冻结。
+            // 旧实现在 read 和 update 之间非原子：若用户在此期间改了密码，CAS 因 password_hash
+            // 不匹配而失败（rows=0），避免冻结已改密的账号。多实例启动时也防止重复冻结。
+            int rows = userMapper.update(null,
                     new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                             .eq("id", user.getId())
+                            .eq("password_hash", user.getPasswordHash())
+                            .eq("status", 0)
                             .set("status", 1)
                             .setSql("credential_version = credential_version + 1"));
+            if (rows == 0) {
+                log.info("演示账号 {} 密码已变更或状态已改变，跳过冻结", username);
+                continue;
+            }
             log.warn("安全告警：已冻结演示账号 {}（密码仍为默认 123456，已撤销所有活跃 token），请立即删除或重置密码", username);
             disabled++;
         }

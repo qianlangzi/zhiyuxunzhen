@@ -64,13 +64,21 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
         // P0-4 修复：使用窄字段 UpdateWrapper 只更新审核相关列。
         // updateById(user) 会写入完整实体快照，并发场景下可能把另一个事务已递增的
         // credential_version 或修改的 role/status/passwordHash 写回旧值，导致撤销被回滚。
+        //
+        // P1-1 修复：CAS 条件增加 .eq("audit_status", current)，仅当前状态未变才允许提交。
+        // 防止迟到提交覆盖较新的审核结果（教师提交后管理员已审批，但迟到的提交请求
+        // 在审批之后执行，把已通过/驳回的状态又改成待审核）。
         String trimmedDept = dto.getDepartment() == null ? null : dto.getDepartment().trim();
-        userMapper.update(null,
+        int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", teacherId)
+                        .eq("audit_status", current)
                         .set("audit_status", 1)
                         .set("teacher_certificate_no", dto.getCertificateNo().trim())
                         .set("department", trimmedDept));
+        if (rows == 0) {
+            throw new BizException(ResultCode.BAD_REQUEST, "审核状态已变更，请刷新后重试");
+        }
 
         // 资质材料 JSON（管理员审核时查询）
         Map<String, Object> material = new HashMap<>();

@@ -180,11 +180,16 @@ class ApiClient {
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
         await _secure.delete(key: SecureKeys.accessToken);
+      } catch (e) {
+        log('clearSession 删除 access token 失败: $e', name: 'api_client');
+      }
+      try {
         await _secure.delete(key: SecureKeys.refreshToken);
       } catch (e) {
-        log('clearSession 删除凭证失败: $e', name: 'api_client');
+        log('clearSession 删除 refresh token 失败: $e', name: 'api_client');
       }
     });
   }
@@ -204,11 +209,16 @@ class ApiClient {
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
         await _secure.delete(key: SecureKeys.accessToken);
+      } catch (e) {
+        log('clearSessionIfCurrent 删除 access token 失败: $e', name: 'api_client');
+      }
+      try {
         await _secure.delete(key: SecureKeys.refreshToken);
       } catch (e) {
-        log('clearSessionIfCurrent 删除凭证失败: $e', name: 'api_client');
+        log('clearSessionIfCurrent 删除 refresh token 失败: $e', name: 'api_client');
       }
       return true;
     });
