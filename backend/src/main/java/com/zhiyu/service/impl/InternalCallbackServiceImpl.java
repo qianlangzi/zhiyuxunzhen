@@ -1,6 +1,7 @@
 package com.zhiyu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.AssignmentInstance;
@@ -27,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 内部回调服务实现（PRD 9.4）
@@ -43,6 +46,7 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
     private final StudentMistakesMapper studentMistakesMapper;
     private final StudentWeaknessMapper studentWeaknessMapper;
     private final AuditLogService auditLogService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -166,11 +170,19 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
                 dto.getEventType(), dto.getModelName(), dto.getErrorMessage(), dto.getDetailJson());
 
         // 记录审计日志，便于管理端追踪
-        String afterJson = String.format(
-                "{\"eventType\":\"%s\",\"modelName\":\"%s\",\"errorMessage\":\"%s\"}",
-                dto.getEventType(),
-                dto.getModelName() != null ? dto.getModelName() : "",
-                dto.getErrorMessage() != null ? dto.getErrorMessage() : "");
+        // M2 修复：String.format 拼接 JSON 在 errorMessage 含引号/反斜杠/换行时产生非法 JSON，
+        // 写入 MySQL JSON 列失败 → P1-5 后审计异常传播 → 事务回滚 → 事件丢失。
+        // 改用 ObjectMapper 序列化 Map，自动转义特殊字符。
+        Map<String, Object> afterMap = new HashMap<>();
+        afterMap.put("eventType", dto.getEventType());
+        afterMap.put("modelName", dto.getModelName() != null ? dto.getModelName() : "");
+        afterMap.put("errorMessage", dto.getErrorMessage() != null ? dto.getErrorMessage() : "");
+        String afterJson;
+        try {
+            afterJson = objectMapper.writeValueAsString(afterMap);
+        } catch (Exception e) {
+            afterJson = "{}";
+        }
         auditLogService.record("model_event_" + (dto.getEventType() != null ? dto.getEventType() : "unknown"),
                 "model", null, null, afterJson);
     }

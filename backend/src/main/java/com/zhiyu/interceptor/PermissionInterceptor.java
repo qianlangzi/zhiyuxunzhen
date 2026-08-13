@@ -66,12 +66,13 @@ public class PermissionInterceptor implements HandlerInterceptor {
             if (role == null || role != 1) {
                 throw new BizException(ResultCode.FORBIDDEN);
             }
-            // 教师需资质审核通过才能操作写接口（GET 预览/试诊放宽）
+            // H2 修复：audit_status!=2 时禁止所有教师业务接口（含 GET），仅放行资质提交。
+            // 旧实现仅拦截非 GET 请求 → 驳回教师重新提交后 audit_status 3→1，
+            // 即可访问批阅/作业/AI 等全部 GET 接口，绕过审核等待。
+            // 现改为所有方法均校验，audit_status!=2 时仅允许 audit-submit。
             Integer audit = user.getAuditStatus();
-            boolean isWrite = !"GET".equalsIgnoreCase(req.getMethod());
-            // 例外：资质认证提交接口允许未审核教师调用（PRD 9.1）
             boolean isAuditSubmit = "/api/v1/teacher/profile/audit-submit".equals(uri);
-            if (isWrite && !isAuditSubmit && (audit == null || audit != 2)) {
+            if (!isAuditSubmit && (audit == null || audit != 2)) {
                 throw new BizException(ResultCode.TEACHER_NOT_AUDITED);
             }
         } else if (uri.startsWith("/api/v1/student/")) {

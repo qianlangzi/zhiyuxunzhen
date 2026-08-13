@@ -1,6 +1,7 @@
 package com.zhiyu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
@@ -58,6 +59,7 @@ public class UserImportServiceImpl implements UserImportService {
     private final SysUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -182,11 +184,19 @@ public class UserImportServiceImpl implements UserImportService {
         }
 
         // 记录审计日志
+        // H1 修复：afterMap.toString() 生成 {fileName=x} 不是合法 JSON，写入 MySQL JSON 列会失败。
+        // P1-5 后审计异常向外传播，会导致整个导入事务回滚。改用 ObjectMapper 序列化。
         Map<String, Object> afterMap = new HashMap<>();
         afterMap.put("fileName", fileName);
         afterMap.put("successCount", successCount);
         afterMap.put("failCount", failCount);
-        auditLogService.record("student_import", "user", null, null, afterMap.toString());
+        String afterJson;
+        try {
+            afterJson = objectMapper.writeValueAsString(afterMap);
+        } catch (Exception e) {
+            afterJson = "{}";
+        }
+        auditLogService.record("student_import", "user", null, null, afterJson);
 
         // 失败明细上限：超出仅保留前 MAX_FAILURES 条，避免响应过大
         if (failures.size() > MAX_FAILURES) {

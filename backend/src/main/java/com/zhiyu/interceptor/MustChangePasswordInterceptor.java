@@ -101,16 +101,24 @@ public class MustChangePasswordInterceptor implements HandlerInterceptor {
         // 驳回后旧 token 被递增的 credential_version 撤销，教师需重新登录拿 auditStatus=3 的新 token。
         // 但不能让被驳回教师访问业务端点（布置作业等），仅允许白名单端点 + 资质提交端点。
         // 旧实现拒绝 auditStatus=3 登录 → 教师无法获取 token → 无法调用 submitAudit → 死锁。
+        //
+        // M1 修复：audit-submit 不再 return true 绕过 mustChangePassword 校验。
+        // 旧实现：audit-submit 命中后直接 return true → mustChangePassword=true 的被驳回教师
+        // 也能提交资质，绕过强制改密。现改为：audit-submit 不抛驳回异常，但继续向下校验
+        // mustChangePassword。白名单端点（改密/查状态/登出/刷新）仍可直接 return true。
         if (entity.getRole() != null && entity.getRole() == 1
                 && entity.getAuditStatus() != null && entity.getAuditStatus() == 3) {
-            if (isWhitelisted(method, uri)
-                    || ("POST".equalsIgnoreCase(method)
-                            && "/api/v1/teacher/profile/audit-submit".equals(uri))) {
+            if (isWhitelisted(method, uri)) {
                 return true;
             }
-            log.debug("被驳回教师访问受限: userId={} uri={} method={}", user.getUserId(), uri, method);
-            throw new BizException(ResultCode.TEACHER_AUDIT_REJECTED,
-                    "资质审核未通过，请重新提交资质材料后等待审核");
+            boolean isAuditSubmit = "POST".equalsIgnoreCase(method)
+                    && "/api/v1/teacher/profile/audit-submit".equals(uri);
+            if (!isAuditSubmit) {
+                log.debug("被驳回教师访问受限: userId={} uri={} method={}", user.getUserId(), uri, method);
+                throw new BizException(ResultCode.TEACHER_AUDIT_REJECTED,
+                        "资质审核未通过，请重新提交资质材料后等待审核");
+            }
+            // audit-submit：不抛异常，继续校验 mustChangePassword（fall through）
         }
 
         // 白名单：改密 / 查当前用户 / 登出 / 刷新 token 仅绕过 mustChangePassword 校验

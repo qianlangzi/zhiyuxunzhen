@@ -29,6 +29,7 @@ import com.zhiyu.vo.DashboardVO;
 import com.zhiyu.vo.TeacherAuditVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -58,6 +59,10 @@ public class AdminServiceImpl implements AdminService {
     private final AuditLogMapper auditLogMapper;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+    private final PasswordEncoder passwordEncoder;
+
+    /** 默认演示密码，与 ProdSecurityInitializer.DEMO_PASSWORD 保持一致 */
+    private static final String DEMO_PASSWORD = "123456";
 
     // ==================== 驾驶舱（PRD 4.13） ====================
 
@@ -158,10 +163,15 @@ public class AdminServiceImpl implements AdminService {
         // P1-1 修复：CAS 条件增加 .eq("audit_status", 1)，仅待审核状态才可审核通过。
         // 防止迟到 approve 覆盖较新的 reject（管理员先驳回再批准，但迟到的批准请求
         // 在驳回之后执行，把已驳回的账号又变成通过）。
+        //
+        // H3 修复：CAS 增加 .eq("credential_version", user.getCredentialVersion()) 消除 ABA。
+        // 旧 CAS 仅匹配 audit_status=1 → ABA：待审(1)→驳回(3,cv+1)→教师重提交(1)→旧 approve 恢复，
+        // 旧请求批准了未经审核的新材料。加入 cv 条件后，驳回递增了 cv，旧 approve 持有的旧 cv 不匹配。
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
                         .eq("audit_status", 1)
+                        .eq("credential_version", user.getCredentialVersion())
                         .set("audit_status", 2)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
@@ -193,10 +203,13 @@ public class AdminServiceImpl implements AdminService {
         // P1-1 修复：CAS 条件增加 .eq("audit_status", 1)，仅待审核状态才可驳回。
         // 防止迟到 reject 覆盖较新的 approve（管理员先批准再驳回，但迟到的驳回请求
         // 在批准之后执行，把已通过的账号又变成驳回）。
+        //
+        // H3 修复：CAS 增加 .eq("credential_version", user.getCredentialVersion()) 消除 ABA。
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
                         .eq("audit_status", 1)
+                        .eq("credential_version", user.getCredentialVersion())
                         .set("audit_status", 3)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
@@ -408,6 +421,13 @@ public class AdminServiceImpl implements AdminService {
         if (user == null) {
             throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
         }
+        // H4 修复：禁止解冻仍使用默认弱密码的账号。
+        // ProdSecurityInitializer 会冻结密码仍为 123456 的演示账号，但解冻时不检查密码，
+        // 其他管理员一旦解冻 admin01，公开弱密码立即重新可用。
+        if (passwordEncoder.matches(DEMO_PASSWORD, user.getPasswordHash())) {
+            throw new BizException(ResultCode.BAD_REQUEST,
+                    "该账号仍在使用默认弱密码，请先重置密码后再解冻");
+        }
         String beforeJson = toJson(Map.of("status", user.getStatus()));
         // 解冻不递增 credential_version：冻结时已撤销旧 token，用户解冻后需重新登录获取新 token。
         // 若解冻也递增版本，会导致用户刚解冻就被迫再次重登（体验差且无安全收益）。
@@ -419,10 +439,15 @@ public class AdminServiceImpl implements AdminService {
         // P1-1 修复：CAS 条件增加 .eq("status", 1)，仅当前为冻结状态才解冻。
         // 防止迟到 unfreeze 覆盖较新的 freeze（管理员先冻结再解冻，但迟到的解冻请求
         // 在冻结之后执行，把已冻结的账号又解冻了）。
+        //
+        // H3 修复：CAS 增加 .eq("credential_version", user.getCredentialVersion()) 消除 ABA。
+        // 冻结递增 cv → 解冻不递增 → 再次冻结递增 cv。旧解冻持有的旧 cv 不匹配，防止
+        // 1→0→1 后旧解冻请求撤销最新冻结。
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
                         .eq("status", 1)
+                        .eq("credential_version", user.getCredentialVersion())
                         .set("status", 0));
         if (rows == 0) {
             throw new BizException(ResultCode.BAD_REQUEST, "账号未处于冻结状态，无需解冻");

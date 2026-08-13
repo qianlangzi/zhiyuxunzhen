@@ -3,6 +3,7 @@ import 'dart:developer';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/api_config.dart';
 import '../constants/app_constants.dart';
@@ -48,6 +49,11 @@ class ApiClient {
   /// 消除「access 写完 / refresh 未写」窗口内另一会话插入导致的跨账号混票。
   /// 实现：每个调用者 await 前一个 future，形成串行链。
   static Future<void> _sessionLockChain = Future<void>.value();
+
+  /// M3 修复：forceLogout 标志键。
+  /// clearSession 删除 secure storage 失败时写入 true，冷启动 init() 检测后重试清理，
+  /// 防止残留有效 token 在重启后被错误恢复。
+  static const String _forceLogoutKey = 'zhiyu_force_logout';
 
   /// 会话失效回调：由 AuthNotifier 注册，触发后清理本地登录态并跳转登录页
   static void Function(SessionExpiredReason)? onSessionExpired;
@@ -174,23 +180,29 @@ class ApiClient {
   ///
   /// best-effort：即使 secure storage 删除失败也不阻塞，因为内存 _token 已清。
   /// 递增 generation 后，任何在途的迟到响应都会被忽略。
+  /// M3 修复：删除失败时写 forceLogout 标志到 SharedPreferences，冷启动 init() 检测后重试清理。
   static Future<void> clearSession() async {
     await _withSessionLock(() async {
       _token = null;
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      bool anyFailure = false;
       // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
         await _secure.delete(key: SecureKeys.accessToken);
       } catch (e) {
         log('clearSession 删除 access token 失败: $e', name: 'api_client');
+        anyFailure = true;
       }
       try {
         await _secure.delete(key: SecureKeys.refreshToken);
       } catch (e) {
         log('clearSession 删除 refresh token 失败: $e', name: 'api_client');
+        anyFailure = true;
       }
+      // M3 修复：写入 forceLogout 标志，冷启动时重试清理
+      await _setForceLogout(anyFailure);
     });
   }
 
@@ -209,17 +221,22 @@ class ApiClient {
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      bool anyFailure = false;
       // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
         await _secure.delete(key: SecureKeys.accessToken);
       } catch (e) {
         log('clearSessionIfCurrent 删除 access token 失败: $e', name: 'api_client');
+        anyFailure = true;
       }
       try {
         await _secure.delete(key: SecureKeys.refreshToken);
       } catch (e) {
         log('clearSessionIfCurrent 删除 refresh token 失败: $e', name: 'api_client');
+        anyFailure = true;
       }
+      // M3 修复：写入 forceLogout 标志，冷启动时重试清理
+      await _setForceLogout(anyFailure);
       return true;
     });
   }
@@ -262,7 +279,23 @@ class ApiClient {
   }
 
   /// 应用启动时调用：从 secure storage 恢复 access token 到内存
+  ///
+  /// M3 修复：先检查 forceLogout 标志。如果上次 clearSession 删除 secure storage 失败，
+  /// 残留 token 会在冷启动时被错误恢复。检测到标志后重试清理，阻止恢复。
   static Future<void> init() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_forceLogoutKey) == true) {
+        log('检测到 forceLogout 标志，重试清理 secure storage 残留 token', name: 'api_client');
+        try { await _secure.delete(key: SecureKeys.accessToken); } catch (_) {}
+        try { await _secure.delete(key: SecureKeys.refreshToken); } catch (_) {}
+        await prefs.setBool(_forceLogoutKey, false);
+        _token = null;
+        return;
+      }
+    } catch (e) {
+      log('读取 forceLogout 标志失败: $e', name: 'api_client');
+    }
     try {
       _token = await _secure.read(key: SecureKeys.accessToken);
     } catch (e) {
@@ -273,6 +306,19 @@ class ApiClient {
 
   /// 清除所有认证凭证（兼容旧调用，内部委托 clearSession）
   static Future<void> clearAuth() => clearSession();
+
+  /// M3 修复：写入 forceLogout 标志到 SharedPreferences
+  ///
+  /// clearSession/clearSessionIfCurrent 删除 secure storage 失败时写入 true，
+  /// 冷启动 init() 检测后重试清理。删除全部成功时写入 false。
+  static Future<void> _setForceLogout(bool value) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_forceLogoutKey, value);
+    } catch (e) {
+      log('写入 forceLogout 标志失败: $e', name: 'api_client');
+    }
+  }
 
   static Dio _create() {
     final dio = Dio(BaseOptions(

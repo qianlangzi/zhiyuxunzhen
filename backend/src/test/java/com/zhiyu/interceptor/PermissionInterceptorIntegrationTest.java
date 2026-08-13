@@ -258,14 +258,15 @@ class PermissionInterceptorIntegrationTest {
     }
 
     @Test
-    @DisplayName("教师(1, audit=0) GET /teacher → 通过(0)（GET 不检查 audit）")
-    void should_allow_unaudited_teacher_get_teacher() throws Exception {
+    @DisplayName("教师(1, audit=0) GET /teacher → TEACHER_NOT_AUDITED(2003)（H2: GET 也检查 audit）")
+    void should_deny_unaudited_teacher_get_teacher() throws Exception {
+        // H2 修复：audit_status!=2 禁止所有教师业务接口（含 GET），仅放行 audit-submit
         mockJwtUser(10L, "teacher01", 1, 0);
 
         mockMvc.perform(get("/api/v1/teacher/test")
                         .header("Authorization", "Bearer token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(2003));
     }
 
     // ==================== /api/v1/student/** ====================

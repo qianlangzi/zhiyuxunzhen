@@ -163,17 +163,14 @@ class TeacherCaseControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /teacher/cases 教师 audit=0（GET 不检查 audit）→ 200, R<PageResult>")
-    void should_allow_get_when_teacher_audit_not_2() throws Exception {
-        // GET 请求不检查 audit_status，教师未审核也可以查看列表
+    @DisplayName("GET /teacher/cases 教师 audit=0 → 403 TEACHER_NOT_AUDITED(2003)（H2: GET 也检查 audit）")
+    void should_deny_get_when_teacher_audit_not_2() throws Exception {
+        // H2 修复：audit_status!=2 禁止所有教师业务接口（含 GET），仅放行 audit-submit
         mockJwtUser(10L, "teacher01", 1, 0);
-
-        PageResult<TeacherCaseListVO> pageResult = PageResult.of(List.of(), 0, 1, 10);
-        when(teacherCaseService.myCases(any(), any(), any(), any())).thenReturn(pageResult);
 
         mockMvc.perform(get("/api/v1/teacher/cases")
                         .header("Authorization", "Bearer teacher-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(2003));
     }
 }

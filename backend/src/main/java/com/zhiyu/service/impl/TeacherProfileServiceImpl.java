@@ -68,11 +68,14 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
         // P1-1 修复：CAS 条件增加 .eq("audit_status", current)，仅当前状态未变才允许提交。
         // 防止迟到提交覆盖较新的审核结果（教师提交后管理员已审批，但迟到的提交请求
         // 在审批之后执行，把已通过/驳回的状态又改成待审核）。
+        //
+        // H3 修复：CAS 增加 .eq("credential_version", user.getCredentialVersion()) 消除 ABA。
         String trimmedDept = dto.getDepartment() == null ? null : dto.getDepartment().trim();
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", teacherId)
                         .eq("audit_status", current)
+                        .eq("credential_version", user.getCredentialVersion())
                         .set("audit_status", 1)
                         .set("teacher_certificate_no", dto.getCertificateNo().trim())
                         .set("department", trimmedDept));
