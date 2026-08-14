@@ -89,7 +89,7 @@ public class InternalCallbackController {
 
     @Operation(summary = "记录模型异常和降级事件")
     @PostMapping("/model-event/log")
-    public R<Void> logModelEvent(@RequestBody ModelEventLogDTO dto) {
+    public R<Void> logModelEvent(@RequestBody @Valid ModelEventLogDTO dto) {
         internalCallbackService.logModelEvent(dto);
         return R.ok();
     }

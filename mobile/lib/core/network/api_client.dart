@@ -123,6 +123,8 @@ class ApiClient {
       _currentUserId = userId;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // M3 复审 P1-B: 新会话成功后清除旧 forceLogout 标志，防止下次启动误删新 token
+      await _setForceLogout(false);
     });
   }
 
@@ -172,6 +174,8 @@ class ApiClient {
       _token = access;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // M3 复审 P1-B: 新会话成功后清除旧 forceLogout 标志
+      await _setForceLogout(false);
       return true;
     });
   }
@@ -180,15 +184,20 @@ class ApiClient {
   ///
   /// best-effort：即使 secure storage 删除失败也不阻塞，因为内存 _token 已清。
   /// 递增 generation 后，任何在途的迟到响应都会被忽略。
-  /// M3 修复：删除失败时写 forceLogout 标志到 SharedPreferences，冷启动 init() 检测后重试清理。
+  ///
+  /// M3 复审 P1-B 修复：正确顺序为「先写墓碑 → 删 token → 成功后清墓碑」。
+  /// 旧实现先删 token 后写标志 → 进程中途终止会留下有效 token 且没有标志。
+  /// 现在先写 forceLogout=true 墓碑，删除两枚 token 后仅当都成功才清墓碑。
   static Future<void> clearSession() async {
     await _withSessionLock(() async {
       _token = null;
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // Step 1: 先写墓碑，防止进程中途终止留下有效 token 而无标志
+      await _setForceLogout(true);
+      // Step 2: 删除两枚 token（独立 try-catch，第一枚失败不跳过第二枚）
       bool anyFailure = false;
-      // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
         await _secure.delete(key: SecureKeys.accessToken);
       } catch (e) {
@@ -201,8 +210,10 @@ class ApiClient {
         log('clearSession 删除 refresh token 失败: $e', name: 'api_client');
         anyFailure = true;
       }
-      // M3 修复：写入 forceLogout 标志，冷启动时重试清理
-      await _setForceLogout(anyFailure);
+      // Step 3: 仅当两枚 token 都删除成功时才清墓碑
+      if (!anyFailure) {
+        await _setForceLogout(false);
+      }
     });
   }
 
@@ -221,6 +232,8 @@ class ApiClient {
       _currentUserId = null;
       _sessionGeneration++;
       _sessionExpiredHandling = false;
+      // M3 复审 P1-B: 先写墓碑
+      await _setForceLogout(true);
       bool anyFailure = false;
       // P1-3 修复：两枚 token 独立 try-catch，第一枚删除失败不跳过第二枚
       try {
@@ -235,8 +248,10 @@ class ApiClient {
         log('clearSessionIfCurrent 删除 refresh token 失败: $e', name: 'api_client');
         anyFailure = true;
       }
-      // M3 修复：写入 forceLogout 标志，冷启动时重试清理
-      await _setForceLogout(anyFailure);
+      // M3 复审 P1-B: 仅当两枚都删除成功时才清墓碑
+      if (!anyFailure) {
+        await _setForceLogout(false);
+      }
       return true;
     });
   }
@@ -287,11 +302,15 @@ class ApiClient {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_forceLogoutKey) == true) {
         log('检测到 forceLogout 标志，重试清理 secure storage 残留 token', name: 'api_client');
-        try { await _secure.delete(key: SecureKeys.accessToken); } catch (_) {}
-        try { await _secure.delete(key: SecureKeys.refreshToken); } catch (_) {}
-        await prefs.setBool(_forceLogoutKey, false);
+        // M3 复审 P1-B: 删除失败时不清标志，下次冷启动再次重试
+        bool anyFailure = false;
+        try { await _secure.delete(key: SecureKeys.accessToken); } catch (_) { anyFailure = true; }
+        try { await _secure.delete(key: SecureKeys.refreshToken); } catch (_) { anyFailure = true; }
+        if (!anyFailure) {
+          await prefs.setBool(_forceLogoutKey, false);
+        }
         _token = null;
-        return;
+        return; // 标志未清时不恢复任何 token
       }
     } catch (e) {
       log('读取 forceLogout 标志失败: $e', name: 'api_client');
@@ -311,12 +330,14 @@ class ApiClient {
   ///
   /// clearSession/clearSessionIfCurrent 删除 secure storage 失败时写入 true，
   /// 冷启动 init() 检测后重试清理。删除全部成功时写入 false。
-  static Future<void> _setForceLogout(bool value) async {
+  /// 返回 setBool 结果，false 表示写入失败。
+  static Future<bool> _setForceLogout(bool value) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_forceLogoutKey, value);
+      return await prefs.setBool(_forceLogoutKey, value);
     } catch (e) {
       log('写入 forceLogout 标志失败: $e', name: 'api_client');
+      return false;
     }
   }
 
