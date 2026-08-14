@@ -64,12 +64,21 @@ onMounted(fetchDashboard)
     </section>
 
     <!-- 待办审核 & 敏感操作：暂为 Mock，后续接真实接口 -->
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="demo-alert"
+      title="演示数据"
+      description="以下「待办审核」与「最近敏感操作」面板尚未对接后端接口，所示为示例数据。上方统计卡片为真实数据。"
+    />
+
     <section class="dashboard-grid">
       <article class="surface-card panel">
         <div class="panel-head">
           <div class="panel-title">
             <h2 class="admin-section-title">待办审核</h2>
-            <el-tag size="small" type="warning" effect="plain">Mock</el-tag>
+            <el-tag size="small" type="warning" effect="plain">演示数据</el-tag>
           </div>
           <el-tag type="danger" effect="plain">{{ caseAudits.filter((item) => item.status === '待审').length }} 项</el-tag>
         </div>
@@ -86,7 +95,7 @@ onMounted(fetchDashboard)
         <div class="panel-head">
           <div class="panel-title">
             <h2 class="admin-section-title">最近敏感操作</h2>
-            <el-tag size="small" type="warning" effect="plain">Mock</el-tag>
+            <el-tag size="small" type="warning" effect="plain">演示数据</el-tag>
           </div>
         </div>
         <div v-for="item in auditLogs" :key="`${item.time}-${item.action}`" class="list-row">
@@ -101,6 +110,10 @@ onMounted(fetchDashboard)
 </template>
 
 <style scoped>
+.demo-alert {
+  margin-bottom: 16px;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

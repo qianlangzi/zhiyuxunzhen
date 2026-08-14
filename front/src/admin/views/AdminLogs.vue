@@ -19,8 +19,17 @@ const filteredLogs = computed(() => {
         <span>审计日志</span>
         <h1>追踪所有敏感操作</h1>
       </div>
-      <el-button plain>导出日志</el-button>
+      <el-button plain disabled>导出日志</el-button>
     </section>
+
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="demo-alert"
+      title="演示模式"
+      description="当前页面尚未对接后端接口，所示日志为示例数据，导出操作已禁用。"
+    />
 
     <section class="surface-card log-panel">
       <div class="filter-row">
@@ -48,6 +57,10 @@ const filteredLogs = computed(() => {
 </template>
 
 <style scoped>
+.demo-alert {
+  margin-bottom: 16px;
+}
+
 .log-panel {
   padding: 12px;
 }

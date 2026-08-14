@@ -33,7 +33,6 @@ import { ApiResult, ApiError, LoginResponse, ResultCode } from '../types'
 
 // ---------- Token 存储键（与主应用隔离）----------
 const ACCESS_TOKEN_KEY = 'zhiyu_admin_access_token'
-const REFRESH_TOKEN_KEY = 'zhiyu_admin_refresh_token'
 
 /** 刷新 token 的 API 路径 */
 const REFRESH_URL = '/api/v1/auth/refresh'
@@ -64,7 +63,7 @@ let _sessionGeneration = 0
 //   - 同用户 token 刷新 → 仅 gen++，不重载（避免频繁刷新影响 UX）
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (e) => {
-    if (e.key === ACCESS_TOKEN_KEY || e.key === REFRESH_TOKEN_KEY) {
+    if (e.key === ACCESS_TOKEN_KEY) {
       _sessionGeneration++
       // P0-3：检测用户身份是否变更
       const oldUserId = getUserIdFromToken(e.oldValue)
@@ -104,11 +103,13 @@ function getUserIdFromToken(token: string | null): string | null {
 // ---------- 主实例（带拦截器）----------
 const instance: AxiosInstance = axios.create({
   timeout: 15000,
+  withCredentials: true, // A1 修复：携带 httpOnly refresh token cookie
 })
 
 // ---------- 刷新专用实例（无拦截器，避免递归）----------
 const refreshInstance: AxiosInstance = axios.create({
   timeout: 15000,
+  withCredentials: true, // A1 修复：携带 httpOnly refresh token cookie
 })
 
 // ---------- 扩展 config 类型：标记已重放 + 会话快照 ----------
@@ -293,28 +294,12 @@ async function handleTokenExpired(
 ): Promise<any> {
   // 进入时再检查一次会话版本号：防止请求排队期间 Tab B 已登录
   const genAtEntry = _sessionGeneration
-  const refreshToken = tokenStorage.getRefresh()
-  if (!refreshToken) {
-    if (genAtEntry !== _sessionGeneration) {
-      // 期间会话已变更，不清新会话
-      return Promise.reject(
-        new ApiError(ResultCode.UNAUTHORIZED, '会话已变更，迟到请求已丢弃'),
-      )
-    }
-    // 无 refresh token：确定性失败，清登录态（并发时只弹一次）
-    if (!refreshFailureNotified) {
-      refreshFailureNotified = true
-      clearAuthAndRedirect()
-      ElMessage.error('登录已过期，请重新登录')
-    }
-    return Promise.reject(
-      new ApiError(ResultCode.UNAUTHORIZED, '无 refresh token'),
-    )
-  }
+  // A1 修复：refresh token 在 httpOnly cookie 中，无需从 localStorage 读取。
+  // 如果 cookie 不存在或过期，后端 /auth/refresh 返回 1001/1002，按 fatal 处理。
 
-  // 单飞：已有刷新请求在进行时复用其 Promise
+  // 单飞：已有刷新请求正在进行时复用其 Promise
   if (!refreshPromise) {
-    refreshPromise = doRefresh(refreshToken, genAtEntry).finally(() => {
+    refreshPromise = doRefresh(genAtEntry).finally(() => {
       refreshPromise = null
       // 重置去重标志，允许下次 refresh 失败时重新弹窗
       refreshFailureNotified = false
@@ -374,14 +359,14 @@ async function handleTokenExpired(
 // ---------- 执行刷新请求（使用独立实例，跳过拦截器）----------
 // genAtCall: 调用 doRefresh 时的会话版本号，用于写入前二次校验
 async function doRefresh(
-  refreshToken: string,
   genAtCall: number,
 ): Promise<string | null> {
   let response
   try {
+    // A1 修复：refresh token 在 httpOnly cookie 中，浏览器自动携带（withCredentials）。
+    // 不再从 localStorage 读取 refresh token，也不在 body 传递。
     response = await refreshInstance.post<ApiResult<LoginResponse>>(
       REFRESH_URL,
-      { refreshToken },
     )
   } catch (e) {
     // refresh 请求返回非 2xx：尝试解析后端结构化错误并转为 ApiError
@@ -398,17 +383,15 @@ async function doRefresh(
     throw new ApiError(result.code, result.message)
   }
 
-  // 写入前双重校验：
-  //   1. 会话版本号未变（genAtCall === 当前 gen）
-  //   2. 当前 refresh token 仍与发起刷新时一致
-  // 任一不满足则静默丢弃：不写 token、不派事件、不重放请求
+  // 写入前校验会话版本号：若 Tab B 在此期间登录（gen 变化），静默丢弃
   // 防止 Tab A refresh 返回时 Tab B 已登录，A 的新 token 覆盖 B 的会话
-  if (genAtCall !== _sessionGeneration || tokenStorage.getRefresh() !== refreshToken) {
+  if (genAtCall !== _sessionGeneration) {
     return null
   }
 
-  const { token, refreshToken: newRefreshToken } = result.data
-  tokenStorage.set(token, newRefreshToken)
+  const { token } = result.data
+  // A1 修复：只存 access token，refresh token 在 httpOnly cookie 中（前端不可读）
+  tokenStorage.setAccess(token)
 
   // 派发事件：store 监听后更新角色并重算菜单权限
   window.dispatchEvent(
@@ -432,17 +415,13 @@ export const tokenStorage = {
   getAccess(): string | null {
     return localStorage.getItem(ACCESS_TOKEN_KEY)
   },
-  getRefresh(): string | null {
-    return localStorage.getItem(REFRESH_TOKEN_KEY)
-  },
-  set(access: string, refresh: string): void {
+  /** A1 修复：refresh token 在 httpOnly cookie 中，不再持久化到 localStorage */
+  setAccess(access: string): void {
     localStorage.setItem(ACCESS_TOKEN_KEY, access)
-    localStorage.setItem(REFRESH_TOKEN_KEY, refresh)
     _sessionGeneration++
   },
   clear(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY)
-    localStorage.removeItem(REFRESH_TOKEN_KEY)
     _sessionGeneration++
   },
   /** 当前会话版本号（供 auth store 做 CAS） */

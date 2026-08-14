@@ -48,7 +48,7 @@ export const useAuthStore = defineStore('admin-auth', () => {
   /** 登录：保存 token → 拉取用户信息 → 返回默认落地路径 */
   async function login(req: LoginRequest): Promise<string> {
     const resp: LoginResponse = await authApi.login(req)
-    tokenStorage.set(resp.token, resp.refreshToken)
+    tokenStorage.setAccess(resp.token)
 
     // 拉取完整用户信息（/auth/me 返回 UserInfoVO，含 id/status 等）
     const userInfo = await authApi.me()
@@ -117,7 +117,7 @@ export const useAuthStore = defineStore('admin-auth', () => {
 
     // 替换新 token（携带递增后的 credentialVersion，旧 token 立即失效）
     // tokenStorage.set 内部会递增 gen，使在途请求的迟到响应被过滤
-    tokenStorage.set(resp.token, resp.refreshToken)
+    tokenStorage.setAccess(resp.token)
     mustChangePassword.value = false
     if (user.value) {
       user.value = { ...user.value, mustChangePassword: false }

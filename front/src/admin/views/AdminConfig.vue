@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
 
 const model = ref({
   primary: 'Spark Max',
@@ -9,10 +8,6 @@ const model = ref({
   tokenBudget: 180000,
   sensitiveWords: '真实处方, 制毒, 自伤'
 })
-
-function saveConfig() {
-  ElMessage.success('系统配置已保存')
-}
 </script>
 
 <template>
@@ -22,8 +17,17 @@ function saveConfig() {
         <span>系统配置</span>
         <h1>模型容灾、每日一题和安全规则</h1>
       </div>
-      <el-button type="primary" @click="saveConfig">保存配置</el-button>
+      <el-button type="primary" disabled>保存配置</el-button>
     </section>
+
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="demo-alert"
+      title="演示模式"
+      description="当前页面尚未对接后端接口，所示配置为示例数据，保存操作已禁用。"
+    />
 
     <section class="config-grid">
       <article class="surface-card config-panel">
@@ -66,6 +70,10 @@ function saveConfig() {
 </template>
 
 <style scoped>
+.demo-alert {
+  margin-bottom: 16px;
+}
+
 .config-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

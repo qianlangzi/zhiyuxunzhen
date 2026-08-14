@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import { ElMessage } from 'element-plus'
 import { caseAudits, teacherAudits } from '@/views/mockData'
-
-function handleAudit(action: string, target: string) {
-  ElMessage.success(`${action}：${target}`)
-}
 </script>
 
 <template>
@@ -16,6 +11,15 @@ function handleAudit(action: string, target: string) {
       </div>
     </section>
 
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="demo-alert"
+      title="演示模式"
+      description="当前页面尚未对接后端接口，所示审核数据为示例，通过/退回操作已禁用。"
+    />
+
     <section class="audit-grid">
       <article class="surface-card audit-panel">
         <h2 class="admin-section-title">教师入驻审核</h2>
@@ -26,10 +30,10 @@ function handleAudit(action: string, target: string) {
           </div>
           <div class="action-row">
             <el-tag effect="plain">{{ item.status }}</el-tag>
-            <el-button v-if="item.status === '待审核'" size="small" type="primary" @click="handleAudit('通过教师审核', item.name)">
+            <el-button v-if="item.status === '待审核'" size="small" type="primary" disabled>
               通过
             </el-button>
-            <el-button v-if="item.status === '待审核'" size="small" plain @click="handleAudit('退回材料', item.name)">
+            <el-button v-if="item.status === '待审核'" size="small" plain disabled>
               退回
             </el-button>
           </div>
@@ -45,7 +49,7 @@ function handleAudit(action: string, target: string) {
           </div>
           <div class="action-row">
             <el-tag :type="item.status === '通过' ? 'success' : 'warning'" effect="plain">{{ item.status }}</el-tag>
-            <el-button v-if="item.status === '待审'" size="small" plain @click="handleAudit('模拟审阅', item.title)">
+            <el-button v-if="item.status === '待审'" size="small" plain disabled>
               模拟审阅
             </el-button>
           </div>
@@ -56,6 +60,10 @@ function handleAudit(action: string, target: string) {
 </template>
 
 <style scoped>
+.demo-alert {
+  margin-bottom: 16px;
+}
+
 .audit-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
