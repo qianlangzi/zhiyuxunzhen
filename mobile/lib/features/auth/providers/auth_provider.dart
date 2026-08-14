@@ -83,7 +83,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     };
 
     // 1. 先恢复 JWT 到 ApiClient 内存，确保后续请求带 Authorization 头
-    await ApiClient.init();
+    // N4 修复：init 返回恢复状态。未成功恢复（墓碑阻止/清理失败/读取异常）时
+    // 跳过直读 secure storage，避免绕过墓碑恢复本应清除的 token。
+    // 旧实现无条件直读 → 墓碑清理失败时残留 token 被直读 → UI 短暂显示已登录
+    // → 首请求无 Authorization（_token=null）→ 1001 → 被踢。fail-closed：未恢复=未认证。
+    final restored = await ApiClient.init();
+    if (!restored) {
+      log('init 未成功恢复 token（墓碑阻止或读取失败），跳过会话恢复', name: 'auth');
+      state = const AuthState();
+      return;
+    }
 
     try {
       final prefs = await SharedPreferences.getInstance();

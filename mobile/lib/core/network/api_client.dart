@@ -124,7 +124,11 @@ class ApiClient {
       _sessionGeneration++;
       _sessionExpiredHandling = false;
       // M3 复审 P1-B: 新会话成功后清除旧 forceLogout 标志，防止下次启动误删新 token
-      await _setForceLogout(false);
+      // N1 修复：检查返回值，清墓碑失败时记录告警（概率极低，但后果是下次冷启动误删新 token）
+      final cleared = await _setForceLogout(false);
+      if (!cleared) {
+        log('警告: 新会话已建立但清墓碑失败，下次冷启动可能误删新 token', name: 'api_client');
+      }
     });
   }
 
@@ -175,7 +179,11 @@ class ApiClient {
       _sessionGeneration++;
       _sessionExpiredHandling = false;
       // M3 复审 P1-B: 新会话成功后清除旧 forceLogout 标志
-      await _setForceLogout(false);
+      // N1 修复：检查返回值，清墓碑失败时记录告警
+      final cleared = await _setForceLogout(false);
+      if (!cleared) {
+        log('警告: 改密会话已建立但清墓碑失败，下次冷启动可能误删新 token', name: 'api_client');
+      }
       return true;
     });
   }
@@ -297,7 +305,10 @@ class ApiClient {
   ///
   /// M3 修复：先检查 forceLogout 标志。如果上次 clearSession 删除 secure storage 失败，
   /// 残留 token 会在冷启动时被错误恢复。检测到标志后重试清理，阻止恢复。
-  static Future<void> init() async {
+  ///
+  /// N4 修复：返回 bool 表示是否成功恢复。调用方（_loadUser）应据此决定是否直读
+  /// secure storage——未恢复时跳过直读，避免绕过墓碑恢复本应清除的 token。
+  static Future<bool> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (prefs.getBool(_forceLogoutKey) == true) {
@@ -310,16 +321,19 @@ class ApiClient {
           await prefs.setBool(_forceLogoutKey, false);
         }
         _token = null;
-        return; // 标志未清时不恢复任何 token
+        return false; // 墓碑阻止恢复
       }
     } catch (e) {
-      log('读取 forceLogout 标志失败: $e', name: 'api_client');
+      // N2 修复：try 块含 getBool 读 + setBool 写，文案改为"标志处理失败"更准确
+      log('forceLogout 标志处理失败: $e', name: 'api_client');
     }
     try {
       _token = await _secure.read(key: SecureKeys.accessToken);
+      return _token != null;
     } catch (e) {
       log('恢复 access token 失败: $e', name: 'api_client');
       _token = null;
+      return false;
     }
   }
 
