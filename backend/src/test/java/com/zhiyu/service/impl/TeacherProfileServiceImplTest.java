@@ -14,12 +14,15 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -107,6 +110,28 @@ class TeacherProfileServiceImplTest {
 
         // 审计日志不应被调用（CAS 失败，无业务操作）
         verify(auditLogService, never()).record(any(), any(), any(), any(), any());
+
+        // F4 加固：捕获 CAS 条件，断言 credential_version 占位符绑定的值是 token cv=5 而非 DB cv=6。
+        // 这是区分新旧实现的唯一断言——若回退为 user.getCredentialVersion()（DB cv=6），
+        // 绑定值变为 6，本断言变红，测试构成有效回归保护。
+        // 做法：从 WHERE SQL 段正则提取 credential_version 对应的占位符名（MPGENVALN），
+        // 再从 paramNameValuePairs 取该占位符的实际值。占位符编号随调用顺序动态变化，
+        // 正则提取保证对重排序鲁棒。
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>> captor =
+                ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper.class);
+        verify(userMapper).update(any(), captor.capture());
+        String whereSql = captor.getValue().getSqlSegment();
+        assertThat(whereSql).contains("credential_version");
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile(
+                "credential_version\\s*=\\s*#\\{ew\\.paramNameValuePairs\\.(MPGENVAL\\d+)\\}")
+                .matcher(whereSql);
+        assertThat(m.find())
+                .as("WHERE 子句应包含 credential_version = #{...} 条件").isTrue();
+        Object cvParam = captor.getValue().getParamNameValuePairs().get(m.group(1));
+        assertThat(cvParam)
+                .as("CAS credential_version 条件应使用 token cv=5，而非 DB cv=6")
+                .isEqualTo(5);
     }
 
     @Test
