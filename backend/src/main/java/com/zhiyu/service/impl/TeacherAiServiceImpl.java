@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.constant.ResultCode;
+import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
@@ -15,6 +16,7 @@ import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.entity.StudentWeakness;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.TeachingClass;
+import com.zhiyu.entity.TeacherClassAuthorization;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
@@ -23,6 +25,7 @@ import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.mapper.StudentWeaknessMapper;
 import com.zhiyu.mapper.SysUserMapper;
+import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.service.TeacherAiService;
 import com.zhiyu.service.dto.CaseDraftDTO;
@@ -64,6 +67,7 @@ public class TeacherAiServiceImpl implements TeacherAiService {
     private final SysUserMapper userMapper;
     private final StudentMistakesMapper mistakesMapper;
     private final StudentWeaknessMapper weaknessMapper;
+    private final TeacherClassAuthorizationMapper classAuthMapper;
 
     // ==================== 1. AI 生成 SP 病例草稿 ====================
 
@@ -131,6 +135,11 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         if (inst == null) {
             throw new BizException(ResultCode.NOT_FOUND, "作业实例不存在");
         }
+        // B-P0-2 修复：校验当前教师对该作业实例对应学生的授权。
+        // 旧实现无校验，教师可读任意 instanceId 的学生病历全文。
+        if (inst.getStudentId() != null) {
+            requireStudentAuthorization(UserContext.requireUserId(), inst.getStudentId());
+        }
         // 最新 AI 批阅
         List<MedicalRecordReview> reviews = reviewMapper.selectList(
                 new LambdaQueryWrapper<MedicalRecordReview>()
@@ -161,6 +170,10 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         if (clazz == null) {
             throw new BizException(ResultCode.NOT_FOUND, "班级不存在");
         }
+        // B-P0-2 修复：校验当前教师对该班级的授权。
+        // 旧实现无校验，教师可聚合任意 classId 的学生薄弱点。
+        Long teacherId = UserContext.requireUserId();
+        requireClassAuthorization(teacherId, classId);
         // 班级学生
         List<Long> studentIds = userMapper.selectList(
                         new LambdaQueryWrapper<SysUser>()
@@ -172,7 +185,6 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         List<Map<String, Object>> weaknesses = aggregateWeaknesses(studentIds);
 
         // 候选病例库：该教师自己创建的已发布病例
-        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
         List<SpCaseConfig> myCases = caseMapper.selectList(
                 new LambdaQueryWrapper<SpCaseConfig>()
                         .eq(SpCaseConfig::getCreatorId, teacherId)
@@ -197,6 +209,11 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         if (c == null) {
             throw new BizException(ResultCode.CASE_NOT_FOUND);
         }
+        // B-P0-2 修复：只有病例创建者才能查看 hiddenDisease/standardPathJson（答案核心）。
+        // 旧实现无校验，教师可读任意 caseId 的标准答案。
+        if (!UserContext.requireUserId().equals(c.getCreatorId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "无权操作该病例");
+        }
         return aiPlatformClient.qualityCheck(
                 caseId,
                 c.getTitle(),
@@ -214,6 +231,10 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         if (c == null) {
             throw new BizException(ResultCode.CASE_NOT_FOUND);
         }
+        // B-P0-2 修复：只有病例创建者才能基于 hiddenDisease/standardPathJson 生成练习题。
+        if (!UserContext.requireUserId().equals(c.getCreatorId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "无权操作该病例");
+        }
         return aiPlatformClient.practiceQuestions(
                 caseId,
                 c.getHiddenDisease(),
@@ -222,6 +243,32 @@ public class TeacherAiServiceImpl implements TeacherAiService {
     }
 
     // ==================== 私有辅助 ====================
+
+    /**
+     * B-P0-2 修复：校验当前教师是否被授权访问指定班级。
+     * 通过 teacher_class_authorization 表验证 (teacherId, classId) 存在。
+     */
+    private void requireClassAuthorization(Long teacherId, Long classId) {
+        Long count = classAuthMapper.selectCount(
+                new LambdaQueryWrapper<TeacherClassAuthorization>()
+                        .eq(TeacherClassAuthorization::getTeacherId, teacherId)
+                        .eq(TeacherClassAuthorization::getClassId, classId));
+        if (count == null || count == 0) {
+            throw new BizException(ResultCode.FORBIDDEN, "无权访问该班级数据");
+        }
+    }
+
+    /**
+     * B-P0-2 修复：通过学生 ID 查找其所在班级，并校验当前教师对该班级的授权。
+     * 链路：studentId → SysUser.classId → TeacherClassAuthorization(teacherId, classId)
+     */
+    private void requireStudentAuthorization(Long teacherId, Long studentId) {
+        SysUser student = userMapper.selectById(studentId);
+        if (student == null || student.getClassId() == null) {
+            throw new BizException(ResultCode.FORBIDDEN, "无权访问该学生数据");
+        }
+        requireClassAuthorization(teacherId, student.getClassId());
+    }
 
     /** 从 chat_session.osceScoreJson 聚合各维度均分 */
     private Map<String, Integer> aggregateOsceScores(List<Long> studentIds) {

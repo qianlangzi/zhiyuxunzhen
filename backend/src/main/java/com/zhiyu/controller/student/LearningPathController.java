@@ -27,8 +27,10 @@ public class LearningPathController {
     @Operation(summary = "生成学习路径")
     @PostMapping("/generate")
     public R<String> generate(@RequestBody LearningPathRequest req) {
+        // B-P0-3 修复：忽略客户端传入的 studentId，强制使用当前登录用户 ID。
+        // 旧实现把 req.getStudentId() 直接发给 AI，学生可传入任意 studentId 获取他人学习路径。
         Long userId = UserContext.requireUserId();
-        return R.ok(aiPlatformClient.generateLearningPath(req.getStudentId()));
+        return R.ok(aiPlatformClient.generateLearningPath(userId));
     }
 
     @Data
