@@ -181,6 +181,7 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
         try {
             afterJson = objectMapper.writeValueAsString(afterMap);
         } catch (Exception e) {
+            log.error("审计 JSON 序列化失败，降级为空 JSON", e);
             afterJson = "{}";
         }
         auditLogService.record("model_event_" + (dto.getEventType() != null ? dto.getEventType() : "unknown"),

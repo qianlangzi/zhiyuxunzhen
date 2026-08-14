@@ -40,6 +40,13 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
     @Transactional(rollbackFor = Exception.class)
     public void submitAudit(TeacherAuditSubmitDTO dto) {
         Long teacherId = UserContext.requireUserId();
+        // F1 修复：提前校验 token 携带的 credentialVersion，防止非 HTTP 路径调用时
+        // Integer 拆箱 NPE。requireUserId() 保证上下文非空，但 credentialVersion 可能为 null。
+        UserContext.LoginUser lu = UserContext.requireUser();
+        Integer tokenCv = lu.getCredentialVersion();
+        if (tokenCv == null) {
+            throw new BizException(ResultCode.UNAUTHORIZED, "凭证已失效，请重新登录");
+        }
         SysUser user = userMapper.selectById(teacherId);
         if (user == null) {
             throw new BizException(ResultCode.NOT_FOUND, "用户不存在");
@@ -77,7 +84,7 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
         // 旧 token（版本 v）仍能提交资质。改用 token 版本后，DB 版本已变为 v+1，
         // CAS .eq("credential_version", v) 失败 → 旧 token 被拒绝。
         // 同时增加 .eq("status", 0) 和 .eq("role", 1) 确保账号未被冻结且角色未变。
-        int tokenCv = UserContext.get().getCredentialVersion();
+        // F1 修复：tokenCv 已在方法开头通过 null-check，此处直接使用。
         String trimmedDept = dto.getDepartment() == null ? null : dto.getDepartment().trim();
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
@@ -86,11 +93,13 @@ public class TeacherProfileServiceImpl implements TeacherProfileService {
                         .eq("credential_version", tokenCv)
                         .eq("status", 0)
                         .eq("role", 1)
+                        .eq("is_deleted", 0)
                         .set("audit_status", 1)
                         .set("teacher_certificate_no", dto.getCertificateNo().trim())
                         .set("department", trimmedDept));
+        // F2 修复：CAS 有 4 种失败原因（审核状态/凭证版本/冻结/角色），统一提示重新登录
         if (rows == 0) {
-            throw new BizException(ResultCode.BAD_REQUEST, "审核状态已变更，请刷新后重试");
+            throw new BizException(ResultCode.BAD_REQUEST, "账号状态或凭证已变更，请重新登录后重试");
         }
 
         // 资质材料 JSON（管理员审核时查询）

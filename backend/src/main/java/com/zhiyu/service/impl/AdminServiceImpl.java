@@ -172,6 +172,7 @@ public class AdminServiceImpl implements AdminService {
                         .eq("id", userId)
                         .eq("audit_status", 1)
                         .eq("credential_version", user.getCredentialVersion())
+                        .eq("is_deleted", 0)
                         .set("audit_status", 2)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
@@ -210,6 +211,7 @@ public class AdminServiceImpl implements AdminService {
                         .eq("id", userId)
                         .eq("audit_status", 1)
                         .eq("credential_version", user.getCredentialVersion())
+                        .eq("is_deleted", 0)
                         .set("audit_status", 3)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
@@ -404,10 +406,12 @@ public class AdminServiceImpl implements AdminService {
         int rows = userMapper.update(null,
                 new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
                         .eq("id", userId)
+                        .eq("status", 0)
+                        .eq("is_deleted", 0)
                         .set("status", 1)
                         .setSql("credential_version = credential_version + 1"));
         if (rows == 0) {
-            throw new BizException(ResultCode.NOT_FOUND, "用户不存在或已被删除");
+            throw new BizException(ResultCode.NOT_FOUND, "用户不存在、已删除或已被冻结");
         }
         String afterJson = toJson(Map.of("status", 1));
         auditLogService.record("user_freeze", "user", userId, beforeJson, afterJson);
@@ -448,6 +452,7 @@ public class AdminServiceImpl implements AdminService {
                         .eq("id", userId)
                         .eq("status", 1)
                         .eq("credential_version", user.getCredentialVersion())
+                        .eq("is_deleted", 0)
                         .set("status", 0));
         if (rows == 0) {
             throw new BizException(ResultCode.BAD_REQUEST, "账号未处于冻结状态，无需解冻");
