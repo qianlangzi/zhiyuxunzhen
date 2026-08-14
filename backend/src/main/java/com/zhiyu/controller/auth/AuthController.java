@@ -90,6 +90,8 @@ public class AuthController {
                                    HttpServletResponse response) {
         LoginResponse loginResponse = authService.login(req);
         setRefreshCookie(response, loginResponse.getRefreshToken());
+        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
+        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -99,6 +101,8 @@ public class AuthController {
                                            HttpServletResponse response) {
         LoginResponse loginResponse = authService.login(req);
         setRefreshCookie(response, loginResponse.getRefreshToken());
+        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
+        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -125,6 +129,8 @@ public class AuthController {
                                       HttpServletResponse response) {
         LoginResponse loginResponse = authService.smsLogin(req);
         setRefreshCookie(response, loginResponse.getRefreshToken());
+        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
+        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -145,6 +151,8 @@ public class AuthController {
         LoginResponse loginResponse = authService.refresh(refreshToken);
         // 轮换 refresh token：设置新 cookie
         setRefreshCookie(response, loginResponse.getRefreshToken());
+        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
+        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -168,6 +176,8 @@ public class AuthController {
         // 客户端必须用新 token 替换旧 token；旧 token 因版本不匹配被 MustChangePasswordInterceptor 拒绝
         LoginResponse loginResponse = authService.changePassword(UserContext.requireUserId(), req);
         setRefreshCookie(response, loginResponse.getRefreshToken());
+        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
+        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
