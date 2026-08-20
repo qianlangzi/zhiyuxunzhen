@@ -184,7 +184,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
             const SizedBox(width: 6),
             AppChip(label: difficultyLabel, type: ChipType.amber),
             const Spacer(),
-            MonoText('第 ${_currentIndex + 1} 题', fontSize: 11, color: AppColors.text4Of(context)),
+            MonoText('第 ${_currentIndex + 1} 题', fontSize: 11, color: AppColors.text4Of(context), weight: FontWeight.w700),
           ],
         ),
         const SizedBox(height: 16),
@@ -217,10 +217,12 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
               onPressed: () => Navigator.of(context).maybePop(),
             ),
         ] else
-          AppPrimaryButton(
-            label: _submitting ? '判题中…' : '提交答案',
-            fullWidth: true,
-            onPressed: _submitting ? null : _submit,
+          AppGradientButton(
+            label: '提交答案',
+            color: AppColors.primaryOf(context),
+            height: 48,
+            loading: _submitting,
+            onPressed: _submit,
           ),
       ],
     );
@@ -264,7 +266,9 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
                     _multiSelected.add(idx);
                   }
                 }),
-        child: Container(
+        child: PressableScale(
+          enabled: !resolved,
+          child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: bg,
@@ -288,6 +292,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
               Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: fg))),
             ],
           ),
+        ),
         ),
       ),
     );
@@ -334,6 +339,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
       decoration: BoxDecoration(
         color: isCorrect ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,7 +407,9 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
       padding: const EdgeInsets.only(bottom: 8),
       child: GestureDetector(
         onTap: resolved ? null : () => setState(() => _selected = idx),
-        child: Container(
+        child: PressableScale(
+          enabled: !resolved,
+          child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: bg,
@@ -436,6 +444,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
                 const Icon(Icons.check_circle, size: 16, color: AppColors.primary),
             ],
           ),
+        ),
         ),
       ),
     );

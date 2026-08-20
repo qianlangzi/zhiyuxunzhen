@@ -71,7 +71,7 @@ async def test_resolve_tools_executes_and_backfills(monkeypatch):
     fake = _build_fake_client([_tool_call_msg(), _text_msg()])
     monkeypatch.setattr(llm_client, "_client", fake)
 
-    async def fake_search(query, top_k=5, trace_id="-"):
+    async def fake_search(query, top_k=5, trace_id="-", rewrite=False, history=None):
         return [SimpleNamespace(model_dump=lambda: {"book_name": "《内科学》", "chapter": "第3章", "chunk_text": "胸痛要点"})]
 
     monkeypatch.setattr(rag_service, "search", fake_search)
@@ -99,7 +99,7 @@ async def test_resolve_tools_degrades_when_llm_unavailable(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_search_textbook_tool_returns_message_when_no_result(monkeypatch):
-    async def fake_search(query, top_k=5, trace_id="-"):
+    async def fake_search(query, top_k=5, trace_id="-", rewrite=False, history=None):
         return []
 
     monkeypatch.setattr(rag_service, "search", fake_search)

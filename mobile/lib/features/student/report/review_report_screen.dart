@@ -178,6 +178,7 @@ class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         children: [
@@ -219,7 +220,7 @@ class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
             num,
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
@@ -287,7 +288,7 @@ class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
               MonoText(name,
                   fontSize: 12, color: AppColors.text2Of(context)),
               MonoText(score.toStringAsFixed(0),
-                  fontSize: 12, color: color),
+                  fontSize: 12, color: color, weight: FontWeight.w700),
             ],
           ),
           const SizedBox(height: 4),
@@ -376,6 +377,7 @@ class _ReviewReportScreenState extends ConsumerState<ReviewReportScreen> {
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.sm),
+        boxShadow: AppShadow.card(context),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

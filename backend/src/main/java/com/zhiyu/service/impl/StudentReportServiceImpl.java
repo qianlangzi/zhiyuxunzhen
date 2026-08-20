@@ -5,16 +5,15 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.context.UserContext;
-import com.zhiyu.entity.AuditLog;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.entity.DailyCaseSubmission;
 import com.zhiyu.entity.StudentPracticeRecord;
-import com.zhiyu.mapper.AuditLogMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.DailyCaseSubmissionMapper;
 import com.zhiyu.mapper.StudentPracticeRecordMapper;
+import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.StudentReportService;
 import com.zhiyu.service.dto.ExportReportDTO;
 import com.zhiyu.vo.ReportSessionVO;
@@ -51,11 +50,11 @@ public class StudentReportServiceImpl implements StudentReportService {
 
     private final ChatSessionMapper sessionMapper;
     private final SpCaseConfigMapper caseMapper;
-    private final AuditLogMapper auditLogMapper;
     private final ObjectMapper objectMapper;
     private final AiPlatformClient aiPlatformClient;
     private final DailyCaseSubmissionMapper dailySubmissionMapper;
     private final StudentPracticeRecordMapper practiceRecordMapper;
+    private final AuditLogService auditLogService;
 
     @Override
     public StudentLearningOverviewVO overview() {
@@ -150,12 +149,15 @@ public class StudentReportServiceImpl implements StudentReportService {
 
             // 仅对已完成的会话调用 AI 生成报告（PRD 4.11.3 / 9.3）
             // AI 不可用时降级返回 null，不阻断报告导出
-            // PDF 生成是未来增强功能，当前仅保留扩展点，pdfUrl 暂为 null
-            String pdfUrl = null;
+            // AI 返回结构化报告内容（title/overview/typicalMistakes/standardPath/textbookRefs/nextSteps），
+            // 回填到 reportContent 供前端渲染；PDF 渲染为后续增强，pdfUrl 暂为 null
+            String reportContent = null;
             if (s.getStatus() != null && s.getStatus() == 1) {
                 try {
                     Map<String, Object> reportData = aiPlatformClient.generateReviewPdf(s.getId());
-                    // AI 返回的 JSON 报告数据暂不用于前端展示，仅保留扩展点
+                    if (reportData != null) {
+                        reportContent = toJson(reportData);
+                    }
                 } catch (Exception e) {
                     log.warn("AI生成报告失败，降级处理: sessionId={} error={}", s.getId(), e.getMessage());
                 }
@@ -170,7 +172,8 @@ public class StudentReportServiceImpl implements StudentReportService {
                     .totalExamCost(cost)
                     .endedAt(s.getEndedAt())
                     .createdAt(s.getCreatedAt())
-                    .pdfUrl(pdfUrl)
+                    .pdfUrl(null)
+                    .reportContent(reportContent)
                     .build());
         }
 
@@ -182,15 +185,8 @@ public class StudentReportServiceImpl implements StudentReportService {
                 .sessions(sessionVOs)
                 .build();
 
-        // 写审计日志
-        AuditLog auditLog = new AuditLog();
-        auditLog.setOperatorId(studentId);
-        auditLog.setOperatorRole(0);
-        auditLog.setAction("export_report");
-        auditLog.setTargetType("review_report");
-        auditLog.setAfterJson(toJson(report));
-        auditLog.setCreatedAt(LocalDateTime.now());
-        auditLogMapper.insert(auditLog);
+        // 写审计日志（AuditLogService 自动带操作人角色与客户端 IP）
+        auditLogService.record("export_report", "review_report", null, null, toJson(report));
 
         log.info("学生{}导出复盘报告，会话数={}", studentId, sessions.size());
         return report;

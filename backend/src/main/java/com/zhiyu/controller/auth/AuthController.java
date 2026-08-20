@@ -24,7 +24,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -87,6 +90,15 @@ public class AuthController {
     @GetMapping("/captcha")
     public R<CaptchaResponse> captcha(HttpServletRequest request) {
         return R.ok(captchaService.generate(clientIp(request)));
+    }
+
+    @Operation(summary = "获取图形验证码图片（PNG）")
+    @GetMapping(value = "/captcha/{captchaId}/image", produces = "image/png")
+    public ResponseEntity<byte[]> captchaImage(@PathVariable String captchaId) {
+        byte[] image = captchaService.generateImage(captchaId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(image);
     }
 
     @Operation(summary = "获取手机登录验证码")

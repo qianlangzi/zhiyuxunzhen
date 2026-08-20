@@ -24,16 +24,15 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
       port: Number(env.FRONT_PORT) || 5173,
       // 开发期通过 Vite 代理转发到后端,避免浏览器跨域
+      // 注意:后端 controller 路由为 /api/v1/...,因此必须保留 /api 前缀(不能 rewrite 剥掉)
       proxy: {
         '/api': {
           target: env.VITE_API_BASE || 'http://backend:8080',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '')
+          changeOrigin: true
         },
         '/ai': {
           target: env.VITE_AI_BASE || 'http://ai:8000',
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/ai/, '')
+          changeOrigin: true
         }
       }
     }

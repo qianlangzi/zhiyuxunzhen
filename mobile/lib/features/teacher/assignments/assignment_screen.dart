@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
@@ -29,7 +28,13 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
   }
 
   Future<void> _loadAssignments() async {
-    final data = await TeacherService().getAssignmentList();
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getAssignmentList();
+    } catch (e) {
+      // 兜底：加载异常也要结束 loading，避免页面永久转圈、无法返回
+      debugPrint('loadAssignments error: $e');
+    }
     if (mounted) {
       setState(() {
         _assignmentData = data;
@@ -249,6 +254,7 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -324,6 +330,7 @@ const EyebrowText('ASSIGNMENT · 进行中', color: AppColors.moss),
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         children: [
@@ -386,7 +393,7 @@ const EyebrowText('ASSIGNMENT · 进行中', color: AppColors.moss),
 completionRate,
                     style: TextStyle(
                       fontSize: 24,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.primaryOf(context),
                     ),
                   ),

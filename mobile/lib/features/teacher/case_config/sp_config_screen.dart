@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -18,6 +19,21 @@ class SpConfigScreen extends StatefulWidget {
 class _SpConfigScreenState extends State<SpConfigScreen> {
   int _difficulty = 1; // 0=简单, 1=标准, 2=困难
   final _tags = ['ACS', '心电图判读', '鉴别诊断'];
+
+  // 下拉选择当前值（原为写死的占位，现可交互选择）
+  String _grade = '大四';
+  String _department = '心血管内科';
+  String _gender = '男';
+  final _personalityTags = ['焦虑', '表达不清'];
+
+  // 检查项目（可用“添加检查项”新增）
+  final List<({String name, String cost, String? mark, int type})> _exams = [
+    (name: '18 导联心电图', cost: '¥120', mark: '关键', type: 1),
+    (name: '肌钙蛋白 I', cost: '¥280', mark: '关键', type: 1),
+    (name: '心肌酶谱', cost: '¥280', mark: '可过度', type: 2),
+    (name: 'D-二聚体', cost: '¥180', mark: null, type: 0),
+    (name: '胸主动脉 CTA', cost: '¥1,800', mark: '高价', type: 2),
+  ];
   bool _saving = false;
   bool _aiLoading = false;
 
@@ -44,6 +60,18 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
 7. 鉴别 ACS / 主动脉夹层 / 肺栓塞''',
   );
 
+  // 隐藏疾病 / 真实诊断（可编辑，保存时落库并被作业引用）
+  final _hiddenCtl = TextEditingController(
+    text: '''急性下壁+右室心肌梗死
+阳性：胸骨后压榨痛、大汗、BP 90/60、心电图 II/III/aVF ST↑
+阴性：无胸膜摩擦音、无奇脉
+误导：上腹痛
+鉴别：主动脉夹层、肺栓塞、急性心包炎''',
+  );
+
+  // 已保存到后端的病例 ID；为 null 表示尚未保存（首次保存走创建）
+  int? _savedCaseId;
+
   @override
   void dispose() {
     _titleCtl.dispose();
@@ -54,6 +82,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     _pastHxCtl.dispose();
     _allergyCtl.dispose();
     _pathCtl.dispose();
+    _hiddenCtl.dispose();
     super.dispose();
   }
 
@@ -66,12 +95,69 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     return null;
   }
 
+  /// 把表单序列化为后端 CaseCreateDTO 字段（JSON 字符串）
+  Map<String, dynamic> _buildPayload() {
+    return {
+      'title': _titleCtl.text.trim(),
+      'department': _department,
+      'difficulty': _difficulty + 1, // 0/1/2 -> 1/2/3
+      'patientProfile': jsonEncode({
+        'age': _ageCtl.text.trim(),
+        'gender': _gender,
+        'grade': _grade,
+        'occupation': _occupationCtl.text.trim(),
+        'complaint': _complaintCtl.text.trim(),
+        'presentIllness': _historyCtl.text.trim(),
+        'pastHistory': _pastHxCtl.text.trim(),
+        'allergy': _allergyCtl.text.trim(),
+        'personality': _personalityTags,
+      }),
+      'hiddenDisease': _hiddenCtl.text.trim(),
+      'standardPathJson': jsonEncode(
+        _pathCtl.text
+            .trim()
+            .split('\n')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList(),
+      ),
+      'presetExams': jsonEncode(
+        _exams
+            .map((e) => {
+                  'name': e.name,
+                  'cost': e.cost.replaceAll('¥', '').replaceAll(',', ''),
+                  'mark': e.mark,
+                  'type': e.type,
+                })
+            .toList(),
+      ),
+      'knowledgeTags': jsonEncode(_tags),
+    };
+  }
+
+  /// 确保病例已保存到后端，返回病例 ID；失败返回 null
+  Future<int?> _ensureSaved() async {
+    final payload = _buildPayload();
+    if (_savedCaseId == null) {
+      final id = await TeacherService().createCaseId(payload);
+      if (id != null) _savedCaseId = id;
+      return id;
+    }
+    final ok = await TeacherService().updateCase(_savedCaseId!, payload);
+    return ok ? _savedCaseId : null;
+  }
+
   Future<void> _saveDraft() async {
+    final err = _validate();
+    if (err != null) {
+      AppFeedback.error(context, err);
+      return;
+    }
     setState(() => _saving = true);
-  await Future.delayed( Duration(milliseconds: 700));
+    final id = await _ensureSaved();
     if (!mounted) return;
     setState(() => _saving = false);
-    AppFeedback.success(context, '草稿已保存 · ${DateTime.now().toIso8601String().substring(11, 16)}');
+    AppFeedback.success(context, id != null ? '草稿已保存' : '保存失败，请稍后重试');
   }
 
   Future<void> _publish() async {
@@ -80,20 +166,204 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
       AppFeedback.error(context, err);
       return;
     }
-    final ok = await AppFeedback.confirm(
-      context,
-      title: '发布作业',
-      content: '将基于该病例创建作业并分发到班级，学生即可开始训练。确认发布？',
-      confirmText: '发布',
-    );
-    if (!ok) return;
     setState(() => _saving = true);
-    // 模拟发布（接入后端后替换为 POST /api/v1/teacher/assignments）
-  await Future.delayed( Duration(milliseconds: 1000));
+    final caseId = await _ensureSaved();
     if (!mounted) return;
     setState(() => _saving = false);
-    AppFeedback.success(context, '作业已发布，已分发至心血管 03 班');
+    if (caseId == null) {
+      AppFeedback.error(context, '病例保存失败，无法发布');
+      return;
+    }
+    await _publishAssignmentFlow(caseId);
+  }
+
+  /// 发布作业：选择目标班级（仅限已授权班级）+ 截止时间，然后创建作业
+  Future<void> _publishAssignmentFlow(int caseId) async {
+    final classes = await TeacherService().getClasses();
+    if (!mounted) return;
+    if (classes.isEmpty) {
+      AppFeedback.error(context, '暂无可授权班级，请先联系管理员完成班级授权');
+      return;
+    }
+
+    final titleCtl = TextEditingController(text: _titleCtl.text.trim());
+    final selected = <int>{};
+    var deadline = DateTime.now().add(const Duration(days: 7));
+    // 用于在 sheet 确认时把选中的截止时间带出
+    var pickedDeadline = deadline;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, sb) => Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.ruleOf(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  child: Text(
+                    '发布作业 · 选择班级',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textOf(context),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: TextField(
+                    controller: titleCtl,
+                    decoration: InputDecoration(
+                      labelText: '作业标题',
+                      filled: true,
+                      fillColor: AppColors.bgOf(context),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        borderSide: BorderSide(color: AppColors.ruleOf(context)),
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+                  child: _deadlineRow(ctx, pickedDeadline, (d) {
+                    pickedDeadline = d!;
+                    sb(() => deadline = d);
+                  }),
+                ),
+                Divider(height: 20, color: AppColors.ruleOf(context)),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: classes.map((c) {
+                      final id = (c['id'] as num).toInt();
+                      final name =
+                          (c['name'] as String?) ?? '班级 #$id';
+                      final sub = [
+                        if (c['grade'] is String && (c['grade'] as String).isNotEmpty)
+                          c['grade'],
+                        if (c['studentCount'] != null) '${c['studentCount']} 人',
+                      ].join(' · ');
+                      return CheckboxListTile(
+                        value: selected.contains(id),
+                        activeColor: AppColors.primaryOf(context),
+                        dense: true,
+                        onChanged: (v) => sb(() {
+                          if (v == true) {
+                            selected.add(id);
+                          } else {
+                            selected.remove(id);
+                          }
+                        }),
+                        title: Text(name,
+                            style: TextStyle(
+                                fontSize: 14, color: AppColors.textOf(context))),
+                        subtitle: sub.isEmpty
+                            ? null
+                            : Text(sub,
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.text3Of(context))),
+                      );
+                    }).toList(),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                  child: AppPrimaryButton(
+                    label: '发布到 ${selected.length} 个班级',
+                    fullWidth: true,
+                    onPressed: () {
+                      if (selected.isEmpty) {
+                        AppFeedback.error(ctx, '请至少选择一个班级');
+                        return;
+                      }
+                      deadline = pickedDeadline;
+                      Navigator.pop(ctx, true);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    titleCtl.dispose();
+    if (!mounted) return;
+    if (confirmed != true) return;
+
+    setState(() => _saving = true);
+    final deployed = await TeacherService().createAssignment({
+      'caseId': caseId,
+      'title': titleCtl.text.trim().isEmpty
+          ? _titleCtl.text.trim()
+          : titleCtl.text.trim(),
+      'description': '',
+      'requireMedicalRecord': true,
+      'deadline': deadline.toIso8601String(),
+      'classIds': selected.toList(),
+    });
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (deployed == null) {
+      AppFeedback.error(context, '发布失败，请检查班级授权或稍后重试');
+      return;
+    }
+    AppFeedback.success(context, '作业已发布 · 覆盖 ${selected.length} 个班级');
     context.goNamed(RouteNames.assignment);
+  }
+
+  Widget _deadlineRow(BuildContext ctx, DateTime d, ValueChanged<DateTime?> onPick) {
+    return Row(
+      children: [
+        const Icon(Icons.schedule, size: 16, color: AppColors.amber),
+        const SizedBox(width: 8),
+        Text(
+          '截止 ${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}',
+          style: TextStyle(fontSize: 13, color: AppColors.text2Of(context)),
+        ),
+        const Spacer(),
+        GestureDetector(
+          onTap: () async {
+            final date = await showDatePicker(
+              context: ctx,
+              initialDate: d,
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+            );
+            if (date == null) return;
+            final time = await showTimePicker(
+              context: ctx,
+              initialTime: TimeOfDay.fromDateTime(d),
+            );
+            if (time == null) return;
+            onPick(DateTime(date.year, date.month, date.day, time.hour, time.minute));
+          },
+          child: MonoText('修改', fontSize: 12, color: AppColors.primaryOf(context)),
+        ),
+      ],
+    );
   }
 
   Future<void> _preview() async {
@@ -102,10 +372,91 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
       AppFeedback.error(context, err);
       return;
     }
-    AppFeedback.info(context, '进入教师预览试诊（演示版）');
-  await Future.delayed( Duration(milliseconds: 400));
     if (!mounted) return;
-    context.pushNamed(RouteNames.chat);
+    _previewSheet();
+  }
+
+  /// 学生端预览（本地组装当前表单，不跳转其它路由，避免被角色守卫重定向到工作台）
+  void _previewSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: SerifText('学生端预览 · 模拟问诊', fontSize: 17)),
+                  AppGhostButton(
+                    label: '关闭',
+                    small: true,
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('仅教师可见 · 基于当前表单实时预览', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    _draftBlock(
+                      '主诉',
+                      _complaintCtl.text.trim().isEmpty ? '（未填写）' : _complaintCtl.text.trim(),
+                    ),
+                    _draftBlock(
+                      '患者画像',
+                      '${_ageCtl.text.trim().isEmpty ? '（未填写）' : _ageCtl.text.trim()} 岁患者'
+                      '，本次以「${_complaintCtl.text.trim().isEmpty ? '（未填写）' : _complaintCtl.text.trim()}」主诉进入模拟问诊。',
+                    ),
+                    if (_tags.isNotEmpty)
+                      _draftBlock('知识点标签', _tags.join('、')),
+                    _draftBlock(
+                      '标准问诊路径',
+                      _pathCtl.text.trim().isEmpty ? '（未填写）' : _pathCtl.text.trim(),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.mossTintOf(context),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      child: MonoText(
+                        '以上为标准病人向学生呈现的问诊起点；真实诊断与隐藏疾病仅教师可见，不会在此露出。',
+                        fontSize: 11,
+                        color: AppColors.primaryOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// AI 生成 SP 病例草稿（RAG 教材锚点，防幻觉）
@@ -305,9 +656,11 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: AppPrimaryButton(
-                            label: _saving ? '发布中…' : '发布作业',
-                            fullWidth: true,
+                          child: AppGradientButton(
+                            label: '发布作业',
+                            color: AppColors.primaryOf(context),
+                            height: 44,
+                            loading: _saving,
                             onPressed: _saving ? null : _publish,
                           ),
                         ),
@@ -348,20 +701,50 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     );
   }
 
+  /// 草稿保存状态（基于真实保存结果，替代原先硬编码的“自动保存于 14:14”假数据）
   Widget _buildDraftStatus() {
+    // 完整度 = 已填必填项数量 / 必填项总数（用于给教师一个直观的完成参考）
+    int filled = 0, total = 0;
+    for (final ok in [
+      _titleCtl.text.trim().isNotEmpty, // 标题
+      _ageCtl.text.trim().isNotEmpty, // 年龄
+      _complaintCtl.text.trim().isNotEmpty, // 主诉
+      _historyCtl.text.trim().isNotEmpty, // 现病史
+      _pathCtl.text.trim().isNotEmpty, // 标准路径
+      _tags.isNotEmpty, // 知识点标签
+    ]) {
+      total++;
+      if (ok) filled++;
+    }
+    final percent = total == 0 ? 0 : (filled * 100 / total).round();
+    final saved = _savedCaseId != null;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.amberSoftOf(context),
-        border: Border.all(color: AppColors.amber, style: BorderStyle.solid),
+        color: saved ? AppColors.mossTintOf(context) : AppColors.amberSoftOf(context),
+        border: Border.all(
+          color: saved ? AppColors.mossSoftOf(context) : AppColors.amber,
+          style: BorderStyle.solid,
+        ),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
-    children: [
-          Icon(Icons.warning_amber, size: 12, color: AppColors.amber),
-          SizedBox(width: 6),
-          MonoText('草稿 · 自动保存于 14:14 · 完整度 72%', fontSize: 11, color: AppColors.amber),
+        children: [
+          Icon(
+            saved ? Icons.check_circle_outline : Icons.info_outline,
+            size: 12,
+            color: saved ? AppColors.primaryOf(context) : AppColors.amber,
+          ),
+          const SizedBox(width: 6),
+          MonoText(
+            saved
+                ? '已保存草稿 · 病例 #$_savedCaseId · 完整度 $percent%'
+                : '草稿 · 暂未保存 · 完整度 $percent%',
+            fontSize: 11,
+            color: saved ? AppColors.primaryOf(context) : AppColors.amber,
+          ),
         ],
       ),
     );
@@ -375,6 +758,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,15 +790,15 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
       const SizedBox(height: 10),
       Row(
         children: [
-          Expanded(child: _field('适用年级 *', _select(['大四', '大三', '大五/规培']))),
+          Expanded(child: _field('适用年级 *', _select('适用年级', _grade, (v) => setState(() => _grade = v), ['大四', '大三', '大五/规培']))),
           const SizedBox(width: 10),
-          Expanded(child: _field('科室 *', _select(['心血管内科', '呼吸内科', '消化内科']))),
+          Expanded(child: _field('科室 *', _select('科室', _department, (v) => setState(() => _department = v), ['心血管内科', '呼吸内科', '消化内科']))),
         ],
       ),
       const SizedBox(height: 10),
       _field('难度 *', _difficultySelector()),
       const SizedBox(height: 10),
-      _field('知识点标签 · 最多 8 个 (3/8)', _tagInput()),
+      _field('知识点标签 · 最多 8 个 (${_tags.length}/8)', _tagInput(_tags)),
     ]);
   }
 
@@ -424,7 +808,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         children: [
           Expanded(child: _field('年龄 *', TextField(decoration: _inputDec(), controller: _ageCtl, keyboardType: TextInputType.number))),
           const SizedBox(width: 10),
-          Expanded(child: _field('性别 *', _select(['男', '女']))),
+          Expanded(child: _field('性别 *', _select('性别', _gender, (v) => setState(() => _gender = v), ['男', '女']))),
         ],
       ),
       const SizedBox(height: 10),
@@ -446,7 +830,7 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         ],
       ),
       const SizedBox(height: 10),
-      _field('性格与沟通风格', _tagInput(tags: ['焦虑', '表达不清'])),
+      _field('性格与沟通风格', _tagInput(_personalityTags)),
     ]);
   }
 
@@ -454,40 +838,11 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     return _buildFormSection('03', '隐藏疾病 · 标准路径',
       hintWidget: const MonoText('仅教师可见', fontSize: 11, color: AppColors.vermilion),
       children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.vermilionSoftOf(context),
-            border: Border.all(color: AppColors.vermilion, style: BorderStyle.solid),
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.lock, size: 16, color: AppColors.vermilion),
-              const SizedBox(width: 10),
-              Expanded(
-                child: RichText(
-         text: TextSpan(
-                    style: TextStyle(fontSize: 12, color: AppColors.text2Of(context), height: 1.5),
-                    children: [
-                      TextSpan(text: '真实诊断：', style: TextStyle(color: AppColors.vermilion, fontWeight: FontWeight.bold)),
-                      TextSpan(text: '急性下壁+右室心肌梗死\n'),
-                      TextSpan(text: '关键阳性体征：', style: TextStyle(color: AppColors.vermilion, fontWeight: FontWeight.bold)),
-                      TextSpan(text: '胸骨后压榨痛、大汗、BP 90/60、心电图 II/III/aVF ST↑\n'),
-                      TextSpan(text: '关键阴性体征：', style: TextStyle(color: AppColors.vermilion, fontWeight: FontWeight.bold)),
-                      TextSpan(text: '无胸膜摩擦音、无奇脉\n'),
-                      TextSpan(text: '误导信息：', style: TextStyle(color: AppColors.vermilion, fontWeight: FontWeight.bold)),
-                      TextSpan(text: '上腹痛（可能误诊为胃病）\n'),
-                      TextSpan(text: '鉴别诊断：', style: TextStyle(color: AppColors.vermilion, fontWeight: FontWeight.bold)),
-                      TextSpan(text: '主动脉夹层、肺栓塞、急性心包炎'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+        _field('隐藏疾病 / 真实诊断', TextField(
+          decoration: _inputDec(),
+          maxLines: 7,
+          controller: _hiddenCtl,
+        )),
         const SizedBox(height: 12),
         _field('标准问诊路径', TextField(
           decoration: _inputDec(),
@@ -498,15 +853,8 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
   }
 
   Widget _buildExamConfig() {
-    final exams = [
-      ('18 导联心电图', '¥120', '关键', ChipType.moss),
-      ('肌钙蛋白 I', '¥280', '关键', ChipType.moss),
-      ('心肌酶谱', '¥280', '可过度', ChipType.amber),
-      ('D-二聚体', '¥180', null, null),
-      ('胸主动脉 CTA', '¥1,800', '高价', ChipType.amber),
-    ];
-    return _buildFormSection('04', '检查项目配置', hint: '5 项', children: [
-      ...exams.map((e) => Container(
+    return _buildFormSection('04', '检查项目配置', hint: '${_exams.length} 项', children: [
+      ..._exams.map((e) => Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
@@ -516,17 +864,97 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         ),
         child: Row(
           children: [
-      Expanded(child: Text(e.$1, style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context)))),
-            MonoText(e.$2, fontSize: 11, color: AppColors.amber),
+            Expanded(child: Text(e.name, style: TextStyle(fontSize: 12.5, color: AppColors.textOf(context)))),
+            MonoText(e.cost, fontSize: 11, color: AppColors.amber),
             const SizedBox(width: 8),
-            if (e.$3 != null)
-              AppChip(label: e.$3!, type: e.$4 ?? ChipType.default_, fontSize: 10),
+            if (e.mark != null)
+              AppChip(label: e.mark!, type: e.type == 2 ? ChipType.amber : ChipType.moss, fontSize: 10),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => _removeExam(e.name),
+              child: Icon(Icons.close, size: 14, color: AppColors.text4Of(context)),
+            ),
           ],
         ),
       )),
       const SizedBox(height: 8),
-      AppGhostButton(label: '+ 添加检查项', fullWidth: true, small: true, dashed: true),
+      AppGhostButton(
+        label: '+ 添加检查项',
+        fullWidth: true,
+        small: true,
+        dashed: true,
+        onPressed: _addExam,
+      ),
     ]);
+  }
+
+  /// 删除检查项
+  void _removeExam(String name) {
+    setState(() => _exams.removeWhere((e) => e.name == name));
+  }
+
+  /// 新增检查项（名称 + 费用）
+  Future<void> _addExam() async {
+    final nameCtl = TextEditingController();
+    final costCtl = TextEditingController(text: '0');
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceOf(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+        title: Text('添加检查项',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textOf(context))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameCtl,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: '检查名称',
+                hintText: '如：超声心动图',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+              ),
+              style: TextStyle(color: AppColors.textOf(context)),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: costCtl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: '费用（元）',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+              ),
+              style: TextStyle(color: AppColors.textOf(context)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text('取消', style: TextStyle(color: AppColors.text3Of(context)))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: Text('确定', style: TextStyle(color: AppColors.primaryOf(context), fontWeight: FontWeight.w600))),
+        ],
+      ),
+    );
+    final name = nameCtl.text.trim();
+    final cost = costCtl.text.trim();
+    if (created != true || name.isEmpty || !mounted) return;
+    setState(() {
+      _exams.add((
+        name: name,
+        cost: _formatCost(cost),
+        mark: null,
+        type: 0,
+      ));
+    });
+  }
+
+  /// 把数字字符串格式化为“¥价格”显示
+  String _formatCost(String raw) {
+    final n = int.tryParse(raw.replaceAll(RegExp(r'[^\d]'), ''));
+    if (n == null) return '¥0';
+    return '¥${n >= 1000 ? n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+$)'), (m) => '${m[1]},') : n}';
   }
 
   // ====== 表单辅助 ======
@@ -560,22 +988,90 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     );
   }
 
-  Widget _select(List<String> options) {
-    return Container(
-   padding: EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.ruleOf(context)),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-     Text(options.first, style: TextStyle(fontSize: 13.5, color: AppColors.textOf(context))),
-      Icon(Icons.expand_more, size: 18, color: AppColors.text3Of(context)),
-        ],
+  /// 下拉选择：显示当前值 `current`，点击弹出底部选项面板并回调选中项
+  Widget _select(
+    String label,
+    String current,
+    ValueChanged<String> onChanged,
+    List<String> options, {
+    String? placeholder,
+  }) {
+    return GestureDetector(
+      onTap: () => _pickOption(label, current, onChanged, options),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          border: Border.all(color: AppColors.ruleOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                current.isEmpty
+                    ? (placeholder ?? '请选择')
+                    : current,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: current.isEmpty
+                      ? AppColors.text4Of(context)
+                      : AppColors.textOf(context),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Icon(Icons.expand_more, size: 18, color: AppColors.text3Of(context)),
+          ],
+        ),
       ),
     );
+  }
+
+  /// 弹出选项面板，非空即回调
+  Future<void> _pickOption(
+    String label,
+    String current,
+    ValueChanged<String> onChanged,
+    List<String> options,
+  ) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SerifText(label, fontSize: 17),
+            ),
+            const SizedBox(height: 4),
+            Divider(height: 20, color: AppColors.ruleOf(context)),
+            ...options.map((o) {
+              final active = o == current;
+              return ListTile(
+                dense: true,
+                title: MonoText(o, fontSize: 13,
+                    color: active ? AppColors.primaryOf(context) : AppColors.textOf(context)),
+                trailing: active
+                    ? Icon(Icons.check, size: 18, color: AppColors.primaryOf(context))
+                    : null,
+                onTap: () => Navigator.pop(ctx, o),
+              );
+            }),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && mounted) onChanged(picked);
   }
 
   Widget _difficultySelector() {
@@ -608,10 +1104,9 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     );
   }
 
-  Widget _tagInput({List<String>? tags}) {
-    final items = tags ?? _tags;
+  Widget _tagInput(List<String> items) {
     return Container(
-   padding: EdgeInsets.all(6),
+      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.ruleOf(context)),
@@ -621,32 +1116,93 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         spacing: 4,
         runSpacing: 4,
         children: [
-          ...items.map((t) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.mossTintOf(context),
-              border: Border.all(color: AppColors.mossSoftOf(context)),
-              borderRadius: BorderRadius.circular(AppRadius.xs),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                MonoText(t, fontSize: 11, color: AppColors.primaryOf(context)),
-                const SizedBox(width: 4),
-                Icon(Icons.close, size: 10, color: AppColors.primaryOf(context)),
-              ],
+          ...items.map((t) => GestureDetector(
+            onTap: () => _removeTag(items, t),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                color: AppColors.mossTintOf(context),
+                border: Border.all(color: AppColors.mossSoftOf(context)),
+                borderRadius: BorderRadius.circular(AppRadius.xs),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MonoText(t, fontSize: 11, color: AppColors.primaryOf(context)),
+                  const SizedBox(width: 4),
+                  Icon(Icons.close, size: 10, color: AppColors.primaryOf(context)),
+                ],
+              ),
             ),
           )),
-          Container(
-      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.ruleOf(context), style: BorderStyle.solid),
-              borderRadius: BorderRadius.circular(AppRadius.xs),
+          GestureDetector(
+            onTap: () => _addTag(items),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.ruleOf(context), style: BorderStyle.solid),
+                borderRadius: BorderRadius.circular(AppRadius.xs),
+              ),
+              child: MonoText('+ 添加', fontSize: 11, color: AppColors.text3Of(context)),
             ),
-      child: MonoText('+ 添加', fontSize: 11, color: AppColors.text3Of(context)),
           ),
         ],
       ),
     );
+  }
+
+  /// 删除标签
+  void _removeTag(List<String> items, String t) {
+    setState(() => items.remove(t));
+  }
+
+  /// 新增标签（知识点标签最多 8 个）
+  Future<void> _addTag(List<String> items) async {
+    if (identical(items, _tags) && items.length >= 8) {
+      AppFeedback.info(context, '知识点标签最多 8 个');
+      return;
+    }
+    final v = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final ctl = TextEditingController();
+        return AlertDialog(
+          backgroundColor: AppColors.surfaceOf(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+          title: Text('添加标签',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.textOf(context))),
+          content: TextField(
+            controller: ctl,
+            autofocus: true,
+            decoration: InputDecoration(
+              hintText: '输入标签，如：心电图判读',
+              hintStyle: TextStyle(color: AppColors.text4Of(context)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                borderSide: BorderSide(color: AppColors.surfaceEdgeOf(context)),
+              ),
+            ),
+            style: TextStyle(color: AppColors.textOf(context)),
+            onSubmitted: (s) => Navigator.pop(ctx, s),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('取消', style: TextStyle(color: AppColors.text3Of(context))),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, ctl.text),
+              child: Text('确定',
+                  style: TextStyle(color: AppColors.primaryOf(context), fontWeight: FontWeight.w600)),
+            ),
+          ],
+        );
+      },
+    );
+    final trimmed = v?.trim() ?? '';
+    if (trimmed.isEmpty || !mounted) return;
+    setState(() {
+      if (!items.contains(trimmed)) items.add(trimmed);
+    });
   }
 }

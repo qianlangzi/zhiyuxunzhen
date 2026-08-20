@@ -23,6 +23,9 @@ spring:
 zhiyu:
   jwt:
     secret: ${JWT_SECRET}
+  # 内部回调 token 亦必须在生产环境显式注入，缺失即启动失败，避免使用可预测默认值
+  ai:
+    internal-token: ${AI_INTERNAL_TOKEN}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
 

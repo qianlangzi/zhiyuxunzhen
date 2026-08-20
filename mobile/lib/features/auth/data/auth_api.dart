@@ -8,21 +8,22 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_response.dart';
 import '../../../data/models/models.dart';
 
-/// 图形验证码数据（数学题防盗刷）
+/// 图形验证码数据（字母+数字图片，防盗刷）
 ///
-/// 由 `GET /api/v1/auth/captcha` 返回，发送短信验证码前需先获取并让用户作答。
+/// 由 `GET /api/v1/auth/captcha` 返回，用户需从 [imageUrl] 处读取验证码图片
+/// 并输入识别出的字符，供短信验证码接口防刷校验。
 class CaptchaData {
   const CaptchaData({
     required this.captchaId,
-    required this.question,
+    required this.imageUrl,
     required this.expiresIn,
   });
 
   /// 验证码唯一标识，提交短信接口时回传给后端
   final String captchaId;
 
-  /// 数学题题面，如 `"3 + 5 = ?"`
-  final String question;
+  /// 验证码图片地址（`GET /api/v1/auth/captcha/{id}/image`）
+  final String imageUrl;
 
   /// 有效期（秒）
   final int expiresIn;
@@ -107,8 +108,12 @@ sealed class RegisterResult {
 }
 
 class RegisterOk extends RegisterResult {
-  const RegisterOk(this.user);
+  const RegisterOk(this.user, {this.token});
+
   final UserModel user;
+
+  /// 学生注册成功后后端直接返回的 token（请为空则需手动登录，如教师待审核）
+  final String? token;
 }
 
 class RegisterFail extends RegisterResult {
@@ -136,9 +141,9 @@ class AuthApi {
     _dio.close();
   }
 
-  /// 获取图形验证码（数学题，防盗刷）
+  /// 获取图形验证码（字母+数字图片，防盗刷）
   ///
-  /// `GET /api/v1/auth/captcha` → `{code:0, data:{captchaId, question, expiresIn}}`
+  /// `GET /api/v1/auth/captcha` → `{code:0, data:{captchaId, expiresIn}}`
   /// 失败返回 null，由调用方决定重试策略。
   Future<CaptchaData?> getCaptcha() async {
     try {
@@ -150,9 +155,10 @@ class AuthApi {
       if (code != 0) return null;
       final payload = data['data'] as Map<String, dynamic>?;
       if (payload == null) return null;
+      final captchaId = payload['captchaId'] as String;
       return CaptchaData(
-        captchaId: payload['captchaId'] as String,
-        question: payload['question'] as String,
+        captchaId: captchaId,
+        imageUrl: '${AuthApiConfig.baseUrl}/api/v1/auth/captcha/$captchaId/image',
         expiresIn: payload['expiresIn'] as int? ?? 300,
       );
     } catch (_) {
@@ -350,7 +356,11 @@ class AuthApi {
       if (parsed == null) {
         return const RegisterFail('注册失败：无法解析用户信息');
       }
-      return RegisterOk(parsed.user);
+      // 学生注册成功后后端返回 token，拿到后立即写入，供主页直接使用
+      if (parsed.token != null && parsed.token!.isNotEmpty) {
+        ApiClient.setToken(parsed.token);
+      }
+      return RegisterOk(parsed.user, token: parsed.token);
     } on DioException catch (e) {
       return RegisterFail(_mapDioError(e, '注册'));
     } catch (e) {

@@ -62,7 +62,10 @@ class SearchTextbookTool(AgentTool):
         if not query:
             return "检索关键词不能为空。"
         try:
-            citations = await rag_service.search(query, top_k=3, trace_id=trace_id)
+            # rewrite=True：Agent 传来的口语化关键词先做医学术语规范化再检索
+            citations = await rag_service.search(
+                query, top_k=3, trace_id=trace_id, rewrite=True,
+            )
         except Exception:  # noqa: BLE001 - 知识库不可用时返回可读提示
             return "知识库暂不可用，无法检索。"
         if not citations:

@@ -6,6 +6,51 @@ import '../../core/constants/app_constants.dart';
 const EdgeInsets _kCardPadding = EdgeInsets.all(14.0);
 
 // ============================================================
+// 灵动反馈工具
+// ============================================================
+
+/// 按压缩放反馈 —— 给可点击元素加「轻压回弹」的灵动感。
+///
+/// 用原始 [Listener] 监听指针按起，避免与内部按钮/InkWell 的手势竞技场冲突；
+/// 按压时微缩（0.97）+ 松手回弹（elasticOut），克制而自然，不阻断点击。
+class PressableScale extends StatefulWidget {
+  const PressableScale({
+    super.key,
+    required this.child,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final bool enabled;
+
+  @override
+  State<PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<PressableScale> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: widget.enabled ? (_) => setState(() => _pressed = true) : null,
+      onPointerUp:
+          widget.enabled ? (_) => setState(() => _pressed = false) : null,
+      onPointerCancel:
+          widget.enabled ? (_) => setState(() => _pressed = false) : null,
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: _pressed
+            ? const Duration(milliseconds: 90)
+            : const Duration(milliseconds: 180),
+        curve: _pressed ? Curves.easeOut : Curves.elasticOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+// ============================================================
 // 按钮
 // ============================================================
 
@@ -28,34 +73,39 @@ const   AppPrimaryButton({
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: fullWidth ? double.infinity : null,
-      height: small ? 32 : 40,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryOf(context),
-          foregroundColor: AppColors.onPrimaryOf(context),
-          elevation: 0,
-          padding: EdgeInsets.symmetric(
-            horizontal: small ? 12 : 16,
-            vertical: small ? 6 : 10,
+    return PressableScale(
+      enabled: onPressed != null,
+      child: SizedBox(
+        width: fullWidth ? double.infinity : null,
+        height: small ? 34 : 44,
+        child: ElevatedButton(
+          onPressed: onPressed,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryOf(context),
+            foregroundColor: AppColors.onPrimaryOf(context),
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            padding: EdgeInsets.symmetric(
+              horizontal: small ? 14 : 20,
+              vertical: small ? 6 : 12,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.full),
+            ),
+            textStyle: TextStyle(
+              fontSize: small ? 12 : 14,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
           ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          textStyle: TextStyle(
-            fontSize: small ? 12 : 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+          child: Row(
+            mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
       if (icon != null) ...[icon!, SizedBox(width: 6)],
-            Text(label),
-          ],
+              Text(label),
+            ],
+          ),
         ),
       ),
     );
@@ -89,23 +139,25 @@ const   AppGhostButton({
 
     // dashed 边框用 CustomPainter 绘制，Border.all 不支持虚线
     if (dashed) {
-      return SizedBox(
+      return PressableScale(
+        enabled: onPressed != null,
+        child: SizedBox(
         width: fullWidth ? double.infinity : null,
-        height: small ? 32 : 40,
+        height: small ? 34 : 44,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderRadius: BorderRadius.circular(AppRadius.full),
             child: CustomPaint(
               foregroundPainter: _DashedBorderPainter(
                 color: borderColor,
-                radius: AppRadius.sm,
+                radius: AppRadius.full,
               ),
               child: Padding(
                 padding: EdgeInsets.symmetric(
-                  horizontal: small ? 12 : 16,
-                  vertical: small ? 6 : 10,
+                  horizontal: small ? 14 : 20,
+                  vertical: small ? 6 : 12,
                 ),
                 child: Row(
                   mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
@@ -115,9 +167,10 @@ const   AppGhostButton({
                     Text(
                       label,
                       style: TextStyle(
-                        fontSize: small ? 12 : 13,
-                        fontWeight: FontWeight.w500,
+                        fontSize: small ? 12 : 14,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.text2Of(context),
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ],
@@ -126,12 +179,15 @@ const   AppGhostButton({
             ),
           ),
         ),
+      ),
       );
     }
 
-    return SizedBox(
+    return PressableScale(
+      enabled: onPressed != null,
+      child: SizedBox(
       width: fullWidth ? double.infinity : null,
-      height: small ? 32 : 40,
+      height: small ? 34 : 44,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
@@ -139,16 +195,17 @@ const   AppGhostButton({
           backgroundColor: Colors.transparent,
           side: BorderSide(color: borderColor),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.sm),
+            borderRadius: BorderRadius.circular(AppRadius.full),
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: small ? 12 : 16,
-            vertical: small ? 6 : 10,
+            horizontal: small ? 14 : 20,
+            vertical: small ? 6 : 12,
           ),
           textStyle: TextStyle(
-            fontSize: small ? 12 : 13,
-            fontWeight: FontWeight.w500,
+            fontSize: small ? 12 : 14,
+            fontWeight: FontWeight.w600,
             color: AppColors.text2Of(context),
+            letterSpacing: 0.2,
           ),
         ),
         child: Row(
@@ -158,6 +215,85 @@ const   AppGhostButton({
       if (icon != null) ...[icon!, SizedBox(width: 6)],
             Text(label),
           ],
+        ),
+      ),
+    ),
+    );
+  }
+}
+
+// ============================================================
+// 按键区 —— 渐变胶囊主按钮（用于登录/注册等首屏 CTA）
+// ============================================================
+
+/// 渐变胶囊主按钮 —— 在纯色按钮基础上叠一层同色系柔和渐变 + 底部高光受光，
+/// 提升首屏 CTA 的质感。克制使用：仅用于登录、注册等关键行动按钮。
+class AppGradientButton extends StatelessWidget {
+  const AppGradientButton({
+    super.key,
+    required this.label,
+    required this.color,
+    this.onPressed,
+    this.height = 52,
+    this.loading = false,
+    this.letterSpacing = 2,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback? onPressed;
+  final double height;
+  final bool loading;
+  final double letterSpacing;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressableScale(
+      enabled: !loading && onPressed != null,
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.full),
+          child: InkWell(
+            onTap: (loading) ? null : onPressed,
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            child: Ink(
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(AppRadius.full),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.20),
+                    offset: const Offset(0, 4),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: loading
+                    ? SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white.withValues(alpha: 0.85),
+                        ),
+                      )
+                    : Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: letterSpacing,
+                          color: Colors.white,
+                        ),
+                      ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -263,11 +399,12 @@ AppCard({
     return Opacity(
       opacity: opacity,
       child: Container(
-        clipBehavior: Clip.hardEdge,
+        clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
-          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context).withValues(alpha: 0.7)),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Stack(
           children: [
@@ -276,7 +413,13 @@ AppCard({
                 left: 0,
                 top: 0,
                 bottom: 0,
-                child: Container(width: 3, color: borderLeft),
+                child: Container(
+                  width: 4,
+                  decoration: BoxDecoration(
+                    color: borderLeft,
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppRadius.md)),
+                  ),
+                ),
               ),
             Padding(
               padding: padding,
@@ -335,12 +478,12 @@ class AppChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg) = _colorsOf(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.xs),
+        borderRadius: BorderRadius.circular(AppRadius.full),
         border: type == ChipType.default_
-            ? Border.all(color: AppColors.ruleOf(context))
+            ? Border.all(color: AppColors.ruleOf(context).withValues(alpha: 0.6), width: 1)
             : null,
       ),
       child: Text(
@@ -350,6 +493,7 @@ class AppChip extends StatelessWidget {
           fontFamily: 'JetBrainsMono',
           color: fg,
           letterSpacing: 0.02,
+          fontWeight: FontWeight.w500,
         ),
       ),
     );
@@ -392,10 +536,10 @@ class AppStatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg) = _colorsOf(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(AppRadius.xs),
+        borderRadius: BorderRadius.circular(AppRadius.full),
       ),
       child: Text(
         label,
@@ -404,6 +548,7 @@ class AppStatusBadge extends StatelessWidget {
           fontFamily: 'JetBrainsMono',
           color: fg,
           letterSpacing: 0.04,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -699,12 +844,12 @@ const   MedicalDisclaimer({super.key});
   @override
   Widget build(BuildContext context) {
     return Container(
-   margin: EdgeInsets.only(top: 24),
-   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: EdgeInsets.only(top: 24),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.ruleOf(context), style: BorderStyle.solid),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        color: AppColors.surfaceOf(context).withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Text(
         AppConstants.medicalDisclaimer,
@@ -740,21 +885,28 @@ const   AppBackAppBar({
   @override
   Widget build(BuildContext context) {
     return Container(
-   padding: EdgeInsets.only(left: 8, right: 20, bottom: 12, top: 8),
-      decoration: BoxDecoration(
-        color: AppColors.bgOf(context),
-        border: Border(bottom: BorderSide(color: AppColors.ruleOf(context))),
-      ),
+      padding: EdgeInsets.only(left: 16, right: 20, bottom: 10, top: 6),
       child: Row(
         children: [
-          AppIconButton(
-            icon: const Icon(Icons.chevron_left, size: 22),
-            onPressed: onBack ?? () => Navigator.of(context).maybePop(),
+          InkWell(
+            onTap: onBack ?? () => Navigator.of(context).maybePop(),
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.only(right: 8),
+              child: Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: AppColors.text2Of(context),
+              ),
+            ),
           ),
+          const SizedBox(width: 4),
           Expanded(
             child: Text(
               title,
-       style: TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
@@ -788,11 +940,7 @@ const   AppTitleAppBar({
   @override
   Widget build(BuildContext context) {
     return Container(
-   padding: EdgeInsets.only(left: 20, right: 20, bottom: 12, top: 8),
-      decoration: BoxDecoration(
-        color: AppColors.bgOf(context),
-        border: Border(bottom: BorderSide(color: AppColors.ruleOf(context))),
-      ),
+      padding: EdgeInsets.only(left: 20, right: 20, bottom: 10, top: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -800,14 +948,14 @@ const   AppTitleAppBar({
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               AppHeaderTag(label: tag),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textOf(context),
-                  letterSpacing: -0.01,
+                  letterSpacing: -0.02,
                 ),
               ),
             ],
@@ -819,7 +967,7 @@ const   AppTitleAppBar({
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(60);
+  Size get preferredSize => const Size.fromHeight(62);
 }
 
 // ============================================================

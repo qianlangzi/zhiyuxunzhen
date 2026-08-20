@@ -216,13 +216,7 @@ class _StudentCaseMarketScreenState
         color: AppColors.surfaceOf(context),
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A1F1C).withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: AppShadow.card(context),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(

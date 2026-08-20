@@ -109,6 +109,23 @@ class Settings(BaseSettings):
     redis_pool_size: int = 50
     milvus_thread_pool_size: int = 8
 
+    # ---------- RAG 检索增强 ----------
+    # Citation 原文片段最大字符（修复：原 500 截断导致生成上下文语义丢失）
+    citation_max_chars: int = 2000
+    # 入库 embedding 并发数（修复：DashScope 不支持批量，原逐条串行太慢）
+    embed_concurrency: int = 8
+    # BM25 内存索引规模上限，超过则 hybrid 自动降级 dense 并告警
+    bm25_max_docs: int = 200_000
+    # BM25 索引磁盘持久化目录（修复：原纯内存索引重启即失效、不可扩展）
+    bm25_cache_dir: str = "./data/bm25_cache"
+    # 查询改写：口语→医学术语规范化 + 多轮指代消解（需 LLM）
+    query_rewrite_enabled: bool = True
+    # 自适应迭代检索：top1 分数低于阈值时改写 query 重查一轮并融合
+    iterative_search_enabled: bool = True
+    iterative_score_threshold: float = 0.45
+    # 生成侧多模态：命中带图 chunk 时调用 VLM 生成图述并入生成上下文
+    image_caption_enabled: bool = True
+
     @model_validator(mode="after")
     def validate_prod(self) -> "Settings":
         """生产环境启动校验：拒绝默认密钥和空 JWT"""

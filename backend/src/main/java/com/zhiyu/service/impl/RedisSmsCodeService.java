@@ -103,7 +103,9 @@ public class RedisSmsCodeService implements SmsCodeService {
         redisTemplate.opsForValue().set(key("code", phone), passwordEncoder.encode(code), CODE_TTL);
         redisTemplate.opsForValue().set(key("attempts", phone), "0", CODE_TTL);
         redisTemplate.opsForValue().set(cooldownKey, "1", COOLDOWN);
-        return new SmsCodeResponse(true, Math.toIntExact(CODE_TTL.toSeconds()), code);
+        // 生产环境禁止把验证码回吐给调用方（否则短信校验形同虚设，可被用于任意账号接管）；
+        // 仅 dev/test 环境回显便于联调。
+        return new SmsCodeResponse(true, Math.toIntExact(CODE_TTL.toSeconds()), development ? code : null);
     }
 
     @Override

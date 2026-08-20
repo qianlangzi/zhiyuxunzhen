@@ -152,27 +152,49 @@ class RagService:
                       trace_id=trace_id, error=type(e).__name__, msg=str(e))
             raise RetrievalUnavailableError("Embedding 服务调用失败", trace_id) from e
 
-    async def search(
+    async def embed_multimodal_batch(
         self,
-        query: str,
-        top_k: int = 5,
+        items: list[tuple[str, str | None]],
         trace_id: str = "-",
-        subject: str | None = None,
-        collection_name: str | None = None,
-        strategy: str = "dense",
-    ) -> list[Citation]:
-        """检索教材，返回 Citation 列表。
+        concurrency: int | None = None,
+    ) -> list[list[float] | None]:
+        """批量多模态 embedding（并发池，结果与输入顺序一致）。
+
+        DashScope 不支持批量接口，原逐条串行一本书要上千次往返；
+        此处用 semaphore 并发（默认 settings.embed_concurrency），失败项返回 None
+        由调用方决定跳过/重试。
 
         Args:
-            subject: 学科过滤（如 "内科"/"心电"），None 表示不过滤
-            collection_name: 指定 Milvus collection，None 用默认
-            strategy: 检索策略
-                - "dense": 纯向量检索（默认，最快）
-                - "hybrid": BM25 + Dense RRF 融合（大数据集更优）
-                - "rerank": hybrid + LLM 重排序（高精度，+3-5s 延迟）
+            items: [(text, image_path), ...]
         """
-        if not query.strip():
-            return []
+        import asyncio as _aio
+
+        sem = _aio.Semaphore(concurrency or settings.embed_concurrency)
+
+        async def _one(text: str, image_path: str | None) -> list[float] | None:
+            async with sem:
+                try:
+                    return await self.embed_multimodal(text, image_path, trace_id)
+                except Exception:  # noqa: BLE001 - 单条失败不拖垮整批
+                    return None
+
+        return list(await _aio.gather(*[_one(t, p) for t, p in items]))
+
+    async def _search_once(
+        self,
+        query: str,
+        top_k: int,
+        trace_id: str,
+        subject: str | None,
+        collection_name: str | None,
+        strategy: str,
+    ) -> tuple[list[dict], float | None]:
+        """单轮检索（dense / hybrid / rerank 三策略）。
+
+        返回 (hits, dense_top1_score)：dense_top1 是向量通道 top1 余弦分。
+        三种策略统一用它衡量检索质量（hybrid 的 RRF 分 / rerank 的 LLM 分
+        与余弦分量级不同，不可直接比较），供自适应迭代检索判断是否重查。
+        """
         vec = await self.embed(query, trace_id)
         col = collection_name or settings.milvus_collection
 
@@ -182,12 +204,18 @@ class RagService:
                 subject_filter=subject,
                 collection_name=collection_name,
             )
-        elif strategy in ("hybrid", "rerank"):
+            top1 = float(hits[0]["score"]) if hits and hits[0].get("score") is not None else None
+            return hits, top1
+        if strategy in ("hybrid", "rerank"):
             # Dense 检索 top-20
             dense_hits = await milvus_service.search(
                 vec, top_k=20, trace_id=trace_id,
                 subject_filter=subject,
                 collection_name=collection_name,
+            )
+            dense_top1 = (
+                float(dense_hits[0]["score"])
+                if dense_hits and dense_hits[0].get("score") is not None else None
             )
 
             # BM25 稀疏检索 top-20
@@ -201,7 +229,7 @@ class RagService:
                 # RRF 融合
                 hits = rrf_fusion(dense_hits, sparse_hits, k=60, top_k=20)
             else:
-                # BM25 不可用，降级为纯 Dense
+                # BM25 不可用（含规模超限），降级为纯 Dense
                 log_event(logger, WARNING, "hybrid_fallback_dense",
                           trace_id=trace_id, reason="bm25_unavailable")
                 hits = dense_hits[:top_k]
@@ -211,12 +239,102 @@ class RagService:
                 hits = await llm_rerank(query, hits, top_k=top_k, trace_id=trace_id)
             else:
                 hits = hits[:top_k]
-        else:
-            hits = await milvus_service.search(
-                vec, top_k=top_k, trace_id=trace_id,
-                subject_filter=subject,
-                collection_name=collection_name,
-            )
+            return hits, dense_top1
+        hits = await milvus_service.search(
+            vec, top_k=top_k, trace_id=trace_id,
+            subject_filter=subject,
+            collection_name=collection_name,
+        )
+        top1 = float(hits[0]["score"]) if hits and hits[0].get("score") is not None else None
+        return hits, top1
+
+    async def search(
+        self,
+        query: str,
+        top_k: int = 5,
+        trace_id: str = "-",
+        subject: str | None = None,
+        collection_name: str | None = None,
+        strategy: str = "dense",
+        rewrite: bool = False,
+        history: list[dict[str, str]] | None = None,
+    ) -> list[Citation]:
+        """检索教材，返回 Citation 列表。
+
+        Args:
+            subject: 学科过滤（如 "内科"/"心电"），None 表示不过滤
+            collection_name: 指定 Milvus collection，None 用默认
+            strategy: 检索策略
+                - "dense": 纯向量检索（默认，最快）
+                - "hybrid": BM25 + Dense RRF 融合（大数据集更优）
+                - "rerank": hybrid + LLM 重排序（高精度，+3-5s 延迟）
+            rewrite: 检索前做 LLM 查询改写（口语→术语 + 指代消解）
+            history: 多轮对话历史（rewrite 指代消解用），如 [{"role","content"}]
+        """
+        query = query.strip()
+        if not query:
+            return []
+
+        # ---- 查询改写（口语→医学术语 + 指代消解）----
+        effective_query = query
+        if rewrite:
+            from app.services.query_rewriting import rewrite_query
+            effective_query = await rewrite_query(query, history=history, trace_id=trace_id)
+
+        # ---- 第一轮检索 ----
+        hits, dense_top1 = await self._search_once(
+            effective_query, top_k, trace_id, subject, collection_name, strategy,
+        )
+
+        # ---- 自适应迭代检索：向量通道 top1 分数低 → 用"另一形态的 query"重查一轮并融合 ----
+        # dense/hybrid/rerank 三种策略统一用向量余弦分判断（RRF/LLM 分量级不同）。
+        # 修复"条件限制"：原逻辑在 rewrite=True（生产主路径）时 retry_query 恒等于
+        # effective_query，导致迭代检索永不触发。正确做法是对着还没试过的形态重试：
+        #   首轮用改写 R 且 R != 原句   → 补一轮原始 query；
+        #   首轮用原句（未改写/改写无变化）→ 补一轮改写 query。
+        # LRU 缓存已保证 rewrite_query 重复调用命中，不会为本流程引入多余 LLM 调用。
+        if (
+            settings.iterative_search_enabled
+            and hits
+            and dense_top1 is not None
+            and dense_top1 < settings.iterative_score_threshold
+        ):
+            from app.services.query_rewriting import rewrite_query
+            retry_query = (
+                query if effective_query != query          # 已试改写 R，改试原句
+                else await rewrite_query(query, history=history, trace_id=trace_id)
+            )  # 已试原句，改写重试；同句重搜无意义（LRU 也只会给回原句）
+            if retry_query and retry_query != effective_query:
+                try:
+                    second, _ = await self._search_once(
+                        retry_query, top_k, trace_id, subject, collection_name, strategy,
+                    )
+                except Exception as e:  # noqa: BLE001 - 重查失败不丢弃已就绪的首轮结果
+                    log_event(logger, WARNING, "iterative_retry_failed",
+                              trace_id=trace_id, error=type(e).__name__)
+                    second = []
+                if second:
+                    # 简单去重后融合：第二轮结果按 score 降序补进第一轮
+                    seen = {h.get("id") for h in hits if h.get("id")}
+                    merged = hits + [h for h in second
+                                     if not h.get("id") or h.get("id") not in seen]
+                    merged.sort(key=lambda h: h.get("score") or 0, reverse=True)
+                    hits = merged[:top_k]
+                    log_event(logger, INFO, "iterative_search_fused",
+                              trace_id=trace_id, dense_top1=round(dense_top1, 3),
+                              strategy=strategy, retry_query=retry_query[:50])
+
+        # ---- 附加图片映射（生成侧多模态）----
+        image_keys: dict[int, str] = {}
+        try:
+            from app.services.image_index_service import image_index_service
+            for i, h in enumerate(hits):
+                if h.get("id"):
+                    key = await image_index_service.lookup(str(h["id"]))
+                    if key:
+                        image_keys[i] = key
+        except Exception:  # noqa: BLE001 - 图片映射失败不影响检索结果
+            pass
 
         citations = [
             Citation(
@@ -224,16 +342,19 @@ class RagService:
                 edition=h.get("edition"),
                 chapter=h.get("chapter"),
                 page_number=h.get("page_number"),
-                chunk_text=(h.get("chunk_text") or "")[:500],
+                chunk_text=(h.get("chunk_text") or "")[: settings.citation_max_chars],
                 subject=h.get("subject"),
                 score=h.get("score") or h.get("rrf_score") or h.get("rerank_score"),
+                image_key=image_keys.get(i),
             )
-            for h in hits
+            for i, h in enumerate(hits)
             if h.get("book_name") or h.get("chunk_text")
         ]
         log_event(logger, INFO, "rag_search",
                   trace_id=trace_id, query_len=len(query),
-                  hits=len(citations), subject=subject, strategy=strategy)
+                  hits=len(citations), subject=subject, strategy=strategy,
+                  rewritten=effective_query != query,
+                  with_images=len(image_keys))
         return citations
 
 

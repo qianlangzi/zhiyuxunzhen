@@ -208,12 +208,13 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
   Widget _filterChip(String text, bool selected, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: PressableScale(
+        child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryOf(context) : AppColors.surfaceOf(context),
           border: Border.all(color: selected ? AppColors.primaryOf(context) : AppColors.surfaceEdgeOf(context)),
-          borderRadius: BorderRadius.circular(AppRadius.xs),
+          borderRadius: BorderRadius.circular(AppRadius.full),
         ),
         child: Text(
           text,
@@ -223,6 +224,7 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
             color: selected ? AppColors.onPrimaryOf(context) : AppColors.text2Of(context),
           ),
         ),
+      ),
       ),
     );
   }
@@ -238,16 +240,26 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
         ),
         GestureDetector(
           onTap: _openPractice,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: PressableScale(
+            child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: AppColors.primaryOf(context),
-              borderRadius: BorderRadius.circular(AppRadius.xs),
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              boxShadow: AppShadow.lifted(context),
             ),
-            child: Text(
-              '开始作答',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onPrimaryOf(context)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.play_arrow_rounded, size: 14, color: AppColors.onPrimaryOf(context)),
+                const SizedBox(width: 4),
+                Text(
+                  '开始作答',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.onPrimaryOf(context)),
+                ),
+              ],
             ),
+          ),
           ),
         ),
       ],
@@ -294,20 +306,22 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
           questionType: _questionType,
         ),
       )),
-      child: Container(
+      child: PressableScale(
+        child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
           border: Border.all(color: AppColors.surfaceEdgeOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                MonoText('${index + 1}.', fontSize: 12, color: AppColors.primaryOf(context)),
+                MonoText('${index + 1}.', fontSize: 12, color: AppColors.primaryOf(context), weight: FontWeight.w700),
                 const SizedBox(width: 6),
                 if (dept.isNotEmpty) AppChip(label: dept, type: ChipType.moss),
                 const SizedBox(width: 6),
@@ -325,6 +339,7 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -354,15 +369,18 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
   Widget _pageButton(IconData icon, bool enabled, VoidCallback onTap) {
     return GestureDetector(
       onTap: enabled ? onTap : null,
-      child: Container(
-        width: 32,
-        height: 32,
+      child: PressableScale(
+        enabled: enabled,
+        child: Container(
+        width: 34,
+        height: 34,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: enabled ? AppColors.primaryOf(context) : AppColors.paper2Of(context),
-          borderRadius: BorderRadius.circular(AppRadius.xs),
+          shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 18, color: enabled ? AppColors.onPrimaryOf(context) : AppColors.text4Of(context)),
+      ),
       ),
     );
   }

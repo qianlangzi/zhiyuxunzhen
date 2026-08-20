@@ -102,15 +102,29 @@ public class AuthServiceImpl implements AuthService {
         }
 
         log.info("用户注册成功: {} (role={})", username, req.getRole());
+
+        // 学生注册即视为可用，直接发放 token 免二次登录；教师需人工审核，不发放。
+        String token = null;
+        if (!teacher) {
+            token = issueToken(user);
+        }
         return RegistrationResponse.builder()
                 .userId(user.getId())
                 .username(username)
+                .realName(realName)
                 .role(req.getRole())
                 .auditStatus(user.getAuditStatus())
+                .token(token)
                 .message(teacher
                         ? "教师注册申请已提交，请等待管理员审核后登录"
-                        : "注册成功，请使用新账号登录")
+                        : "注册成功")
                 .build();
+    }
+
+    /** 为学生注册生成 JWT（复用登录签发逻辑，但不更新 lastLoginAt） */
+    private String issueToken(SysUser user) {
+        Integer auditStatus = user.getAuditStatus() == null ? 0 : user.getAuditStatus();
+        return jwtUtils.issueToken(user.getId(), user.getUsername(), user.getRole(), auditStatus);
     }
 
     private void ensureRegistrationAvailable(String username, String phone) {
@@ -130,18 +144,30 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest req) {
+        String identifier = req.getUsername() == null ? "" : req.getUsername().trim();
         SysUser user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getUsername, req.getUsername()));
+                        .eq(SysUser::getUsername, identifier));
+        // 支持手机号登录：非用户名时按手机号再查一次
+        if (user == null && isPhone(identifier)) {
+            user = userMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                            .eq(SysUser::getPhone, identifier));
+        }
         if (user == null) {
-            log.warn("登录失败，用户不存在: {}", req.getUsername());
+            log.warn("登录失败，用户不存在: {}", identifier);
             throw new BizException(ResultCode.USERNAME_OR_PASSWORD_ERROR);
         }
         if (!passwordEncoder.matches(req.getPassword(), user.getPasswordHash())) {
-            log.warn("登录失败，密码错误: {}", req.getUsername());
+            log.warn("登录失败，密码错误: {}", identifier);
             throw new BizException(ResultCode.USERNAME_OR_PASSWORD_ERROR);
         }
         return issueLogin(user);
+    }
+
+    /** 判断是否为合法的 11 位手机号（用于账号/手机号二合一登录） */
+    private boolean isPhone(String str) {
+        return str != null && str.matches("^1[3-9]\\d{9}$");
     }
 
     @Override

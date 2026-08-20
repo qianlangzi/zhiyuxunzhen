@@ -73,12 +73,8 @@ services:
       ETCD_ENDPOINTS: etcd:2379
       MINIO_ADDRESS: minio:9000
       <<: *no-proxy-env
-    # Windows Docker Desktop 容器内 DNS 解析服务名可能失败，用 extra_hosts 静态映射绕过
-    # 注意：IP 可能因 Docker 网络重建而漂移，重建容器后请用
-    # `docker inspect zhiyu-etcd zhiyu-minio --format '{{.Name}} => {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` 重新确认
-    extra_hosts:
-      - "etcd:172.21.0.4"
-      - "minio:172.21.0.5"
+    # 用 Docker 内建 DNS 按服务名解析（同一自定义网络内），避免静态 IP 漂移导致的失联。
+    # 若个别环境 DNS 解析异常，可在此临时加入 extra_hosts，但必须与 docker inspect 实际 IP 一致。
     depends_on:
       - etcd
       - minio
@@ -124,7 +120,7 @@ services:
     depends_on:
       - milvus
       - redis
-    environment:
+    environment: &ai-env
       <<: *no-proxy-env
       ENV_MODE: ${ENV_MODE:-dev}
       # LLM（OpenAI 兼容协议，留空则降级）
@@ -171,6 +167,8 @@ services:
       ENABLE_MILVUS_FALLBACK: ${ENABLE_MILVUS_FALLBACK:-false}
     volumes:
       - ./data/objects:/app/data/objects:ro
+      # BM25 磁盘缓存持久化（hybrid 检索索引，容器重建不丢失）
+      - ./data/bm25_cache:/app/data/bm25_cache
 
   ai-worker:
     build:
@@ -182,12 +180,13 @@ services:
       - backend
       - milvus
       - redis
-    environment: &ai-env
+    environment: &ai-worker-env
       <<: *ai-env
       AI_WORKER_TYPES: ${AI_WORKER_TYPES:-review,report,knowledge_ingest}
       AI_WORKER_POLL_SECONDS: ${AI_WORKER_POLL_SECONDS:-1}
     volumes:
       - ./data/objects:/app/data/objects:ro
+      - ./data/bm25_cache:/app/data/bm25_cache
     command: ["python", "-m", "app.workers.runner"]
 
   # ==================== MMORE PDF 处理服务 ====================
@@ -197,6 +196,9 @@ services:
     build:
       context: ./mmore
       dockerfile: Dockerfile
+      # BuildKit 命名上下文：直接从实验仓库引用 MMORE 源码，避免复制大目录
+      additional_contexts:
+        repo: ./experiments/mmore/repo
     container_name: zhiyu-mmore
     restart: unless-stopped
     ports:
@@ -234,8 +236,14 @@ services:
 # ==================== 数据卷 ====================
 volumes:
   mysql_data:
+  # 复用既有（外部）数据卷，避免容器重建/项目化后向量库等数据被孤立。
+  # 这些卷由早期手动容器创建（未加 zhiyu_ 前缀），已含真实数据。
   redis_data:
+    external: true
   milvus_data:
+    external: true
   etcd_data:
+    external: true
   minio_data:
+    external: true
   flutter_pub_cache:

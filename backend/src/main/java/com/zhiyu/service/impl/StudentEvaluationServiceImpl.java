@@ -167,6 +167,11 @@ public class StudentEvaluationServiceImpl implements StudentEvaluationService {
         if (session == null) {
             throw new BizException(ResultCode.NOT_FOUND, "问诊会话不存在");
         }
+        // 归属校验：学生只能读取本人会话的评估与思维树（防 IDOR 越权）
+        Long currentUserId = UserContext.requireUserId();
+        if (session.getStudentId() == null || !currentUserId.equals(session.getStudentId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "问诊会话不属于当前学生");
+        }
         return session;
     }
 

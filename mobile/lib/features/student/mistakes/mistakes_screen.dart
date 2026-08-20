@@ -179,7 +179,7 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
             num,
             style: TextStyle(
               fontSize: 24,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w700,
               color: color,
             ),
           ),
@@ -206,12 +206,13 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
           final active = _filters[i] == _selectedFilter;
           return GestureDetector(
             onTap: () => setState(() => _selectedFilter = _filters[i]),
-            child: Container(
-       padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: PressableScale(
+              child: Container(
+       padding: EdgeInsets.symmetric(horizontal: 13, vertical: 6),
               decoration: BoxDecoration(
                 color: active ? AppColors.primaryOf(context) : AppColors.surfaceOf(context),
                 border: Border.all(color: active ? AppColors.primaryOf(context) : AppColors.ruleOf(context)),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.full),
               ),
               child: Center(
                 child: Text(
@@ -225,8 +226,9 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
                 ),
               ),
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }
@@ -235,12 +237,14 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
   Widget _buildRecommendEntry() {
     return GestureDetector(
       onTap: () => context.pushNamed(RouteNames.recommendation),
-      child: Container(
+      child: PressableScale(
+        child: Container(
         margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.primaryOf(context),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Row(
           children: [
@@ -249,7 +253,7 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
               height: 34,
               decoration: BoxDecoration(
                 color: AppColors.onPrimaryOf(context).withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
+                shape: BoxShape.circle,
               ),
               child: Icon(Icons.auto_awesome, size: 18, color: AppColors.onPrimaryOf(context)),
             ),
@@ -281,6 +285,7 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -308,7 +313,8 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
           _expanded.add(id);
         }
       }),
-      child: AnimatedSize(
+      child: PressableScale(
+        child: AnimatedSize(
         duration: const Duration(milliseconds: 180),
         curve: Curves.easeOut,
         alignment: Alignment.topCenter,
@@ -319,6 +325,7 @@ _statItem(mastered.toString(), '已掌握', AppColors.moss),
             color: AppColors.surfaceOf(context),
             border: Border.all(color: AppColors.surfaceEdgeOf(context)),
             borderRadius: BorderRadius.circular(AppRadius.md),
+            boxShadow: AppShadow.card(context),
           ),
           child: Stack(
             children: [
@@ -342,7 +349,7 @@ child: Container(width: 3, color: resolved ? AppColors.moss : AppColors.vermilio
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
 color: resolved ? AppColors.mossTint : AppColors.vermilionSoft,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(AppRadius.full),
                       ),
                       child: MonoText(
                         '● $typeLabel',
@@ -421,6 +428,7 @@ color: resolved ? AppColors.mossTint : AppColors.vermilionSoft,
               ],
             ),
         ),
+      ),
       ),
     );
   }

@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
+import '../../auth/providers/auth_provider.dart';
 
 /// 教师首页 · 工作台
 class TeacherHomeScreen extends ConsumerStatefulWidget {
@@ -25,7 +26,13 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
   }
 
   Future<void> _loadData() async {
-    final data = await TeacherService().getDashboardOverview();
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getDashboardOverview();
+    } catch (e) {
+      // 兜底：加载异常也退出 loading，返回兜底数据，避免首页永久转圈
+      debugPrint('loadTeacherHome error: $e');
+    }
     if (mounted) {
       setState(() {
         _dashboardData = data;
@@ -44,7 +51,7 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
           children: [
             AppTitleAppBar(
               tag: '内科教研 · 教师端',
-              title: '王老师 · 工作台',
+              title: '${_displayName} · 工作台',
               action: AppPrimaryButton(
                 label: '+ 新建病例',
                 small: true,
@@ -81,7 +88,7 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '下午好，王老师',
+          '下午好，$_displayName',
           style: TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.w600,
@@ -91,16 +98,27 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
           ),
         ),
         const SizedBox(height: 4),
-        MonoText('附属第一医院 · 心血管内科 · 带教 3 个班级', fontSize: 12),
+        MonoText('带教 $_classCountText 个班级 · ${_myCasesText} 个病例', fontSize: 12),
       ],
     );
   }
 
+  String get _displayName {
+    final user = ref.watch(authProvider).user;
+    final name = user?.nickname?.isNotEmpty == true
+        ? user!.nickname!
+        : (user?.realName?.isNotEmpty == true ? user!.realName! : '老师');
+    return name;
+  }
+
+  String get _classCountText => _dashboardData?['classCount']?.toString() ?? '—';
+  String get _myCasesText => _dashboardData?['myCases']?.toString() ?? '—';
+
   Widget _buildStats(BuildContext context) {
     final data = _dashboardData;
-    final pendingReview = data?['pendingReview']?.toString() ?? '12';
-    final activeAssignments = data?['activeAssignments']?.toString() ?? '3';
-    final myCases = data?['myCases']?.toString() ?? '28';
+    final pendingReview = data?['pendingReview']?.toString() ?? '0';
+    final activeAssignments = data?['activeAssignments']?.toString() ?? '0';
+    final myCases = data?['myCases']?.toString() ?? '0';
 
     return Row(
       children: [
@@ -116,21 +134,21 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
   Widget _statCard(BuildContext context, String num, String label, Color color, {bool urgent = false}) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
           color: urgent ? AppColors.vermilionSoftOf(context) : AppColors.surfaceOf(context),
-          border: Border.all(color: urgent ? AppColors.vermilionSoftOf(context) : AppColors.surfaceEdgeOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Stack(
           children: [
             if (urgent)
               Positioned(
-                top: 0,
-                right: 0,
+                top: 10,
+                right: 10,
                 child: Container(
-                  width: 6,
-                  height: 6,
+                  width: 8,
+                  height: 8,
                   decoration: const BoxDecoration(
                     color: AppColors.vermilion,
                     shape: BoxShape.circle,
@@ -139,18 +157,20 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
               ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
                   num,
                   style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
                     color: color,
                     height: 1,
                     letterSpacing: -0.02,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 MonoText(label, fontSize: 11, color: AppColors.text3Of(context)),
               ],
             ),
@@ -162,39 +182,47 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
 
   Widget _buildTextbookEntry(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.goNamed(RouteNames.teacherTextbook),
+      onTap: () => context.pushNamed(RouteNames.teacherTextbook),
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [AppColors.indigoSoftOf(context), AppColors.surfaceOf(context)],
           ),
-          border: Border.all(color: AppColors.indigoSoftOf(context)),
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: AppShadow.card(context),
         ),
         child: Row(
           children: [
             Container(
-              width: 40,
-              height: 40,
+              width: 46,
+              height: 46,
               decoration: BoxDecoration(
                 color: AppColors.indigo.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-              child: const Icon(Icons.menu_book_rounded, size: 20, color: AppColors.indigo),
+              child: const Icon(Icons.menu_book_rounded, size: 22, color: AppColors.indigo),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SerifText('教材制作', fontSize: 14, color: AppColors.textOf(context)),
-                  const SizedBox(height: 2),
+                  SerifText('教材制作', fontSize: 15, color: AppColors.textOf(context)),
+                  const SizedBox(height: 3),
                   MonoText('AI 向量化教材 · 供学生智能查阅', fontSize: 10, color: AppColors.text3Of(context)),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, size: 18, color: AppColors.indigo),
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: AppColors.indigo.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.chevron_right, size: 18, color: AppColors.indigo),
+            ),
           ],
         ),
       ),
@@ -221,12 +249,12 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
 
   /// 待批阅（红色，突出）
   Widget _reviewCard(BuildContext context) {
-    final pendingCount = _dashboardData?['pendingReview']?.toString() ?? '12';
+    final pendingCount = _dashboardData?['pendingReview']?.toString() ?? '0';
     return _blockShell(
       context,
       bg: AppColors.vermilionSoftOf(context),
       height: 120,
-      onTap: () => context.goNamed(RouteNames.review),
+      onTap: () => context.pushNamed(RouteNames.review),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -256,12 +284,12 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
 
   /// 班级概览（靛蓝）
   Widget _classCard(BuildContext context) {
-    final classes = (_dashboardData?['classes'] as List<dynamic>?)?.length ?? 2;
+    final classes = _dashboardData?['classCount']?.toString() ?? '0';
     return _blockShell(
       context,
       bg: AppColors.indigoSoftOf(context),
       height: 120,
-      onTap: () => context.goNamed(RouteNames.assignment),
+      onTap: () => context.pushNamed(RouteNames.assignment),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -283,9 +311,9 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
 
   /// 病历广场动态（苔藓绿）
   Widget _marketCard(BuildContext context) {
-    final dynamicData = _dashboardData?['marketDynamic'] as Map<String, dynamic>?;
-    final totalRefs = dynamicData?['totalRefs'] as String? ?? '23';
-    final rating = dynamicData?['rating'] as String? ?? '4.8';
+    final totalRefs = _dashboardData?['marketRefs']?.toString() ?? '0';
+    final ratingRaw = _dashboardData?['marketRating'];
+    final rating = ratingRaw == null ? '—' : ratingRaw.toString();
     return _blockShell(
       context,
       bg: AppColors.mossTintOf(context),
@@ -328,10 +356,11 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
       child: Container(
         width: double.infinity,
         height: height,
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: AppShadow.card(context),
         ),
         child: child,
       ),
@@ -340,13 +369,13 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
 
   Widget _blockIcon(BuildContext context, Color color, IconData icon) {
     return Container(
-      width: 34,
-      height: 34,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Icon(icon, size: 18, color: color),
+      child: Icon(icon, size: 20, color: color),
     );
   }
 }

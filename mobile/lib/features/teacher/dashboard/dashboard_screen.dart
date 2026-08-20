@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
@@ -30,7 +29,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _loadDashboard() async {
-    final data = await TeacherService().getDashboardOverview();
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getDashboardOverview();
+    } catch (e) {
+      // 兜底：加载异常也要结束 loading，避免页面永久转圈、无法返回
+      debugPrint('loadDashboard error: $e');
+    }
     if (mounted) {
       setState(() {
         _dashboardData = data;
@@ -202,7 +207,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
             Expanded(
-child: _isLoading
+              child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : SingleChildScrollView(
                       padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 100),
@@ -259,6 +264,7 @@ child: _isLoading
             color: AppColors.surfaceOf(context),
             border: Border.all(color: AppColors.surfaceEdgeOf(context)),
             borderRadius: BorderRadius.circular(AppRadius.md),
+            boxShadow: AppShadow.card(context),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +275,7 @@ child: _isLoading
                 value,
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.textOf(context),
                   letterSpacing: -0.02,
                 ),

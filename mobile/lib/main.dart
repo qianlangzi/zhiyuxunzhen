@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/network/api_client.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/common/settings/settings_provider.dart';
 
@@ -57,8 +58,17 @@ void main() async {
   // 创建 ProviderContainer 并预热 authProvider + settingsProvider，
   // 确保用户态和主题在 runApp 前加载完毕，消除 redirect 竞态和主题闪烁
   final container = ProviderContainer();
+  await ApiClient.restoreToken();
   await container.read(authProvider.notifier).ensureInitialized();
   await container.read(settingsProvider.notifier).ensureLoaded();
+
+  // token 过期/无效时统一退出登录（清空用户态），路由 redirect 会回到登录页
+  ApiClient.onUnauthorized = () {
+    final auth = container.read(authProvider);
+    if (auth.isAuthenticated) {
+      container.read(authProvider.notifier).logout();
+    }
+  };
 
   runApp(
     UncontrolledProviderScope(

@@ -221,9 +221,45 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   /// 品牌区（朴素标题，回退到美化前状态）
   Widget _buildBrand() {
+    final brandColor = _roleColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // 克制点缀：柔和中轴渐变光晕（品牌圆环意象），不喧宾夺主
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [
+                brandColor.withValues(alpha: 0.16),
+                brandColor.withValues(alpha: 0.05),
+                brandColor.withValues(alpha: 0.0),
+              ],
+            ),
+          ),
+          child: Center(
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: brandColor.withValues(alpha: 0.10),
+                border: Border.all(
+                  color: brandColor.withValues(alpha: 0.35),
+                  width: 1.5,
+                ),
+              ),
+              child: Icon(
+                Icons.local_hospital_outlined,
+                size: 20,
+                color: brandColor.withValues(alpha: 0.75),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
         Text(
           AppConstants.appName,
           textAlign: TextAlign.center,
@@ -247,19 +283,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   /// 登录卡片（普通 Container，默认完全可见）
   Widget _buildCard() {
     return Container(
-      clipBehavior: Clip.hardEdge,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadow.card(context),
       ),
       child: Stack(
         children: [
+          // 柔和渐变顶光，提升立体层次
           Positioned(
             left: 0,
+            right: 0,
             top: 0,
-            bottom: 0,
-            child: Container(width: 3, color: _roleColor),
+            child: Container(
+              height: 3,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    _roleColor.withValues(alpha: 0.0),
+                    _roleColor,
+                    _roleColor.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
           ),
           Padding(
             padding: const EdgeInsets.all(20),
@@ -418,35 +466,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _buildLoginButton() {
-    return SizedBox(
-      height: 50,
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _loggingIn ? null : _submit,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _roleColor,
-          foregroundColor: AppColors.onPrimaryOf(context),
-          disabledBackgroundColor: _roleColor.withValues(alpha: 0.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          textStyle: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
-          ),
-        ),
-        child: _loggingIn
-            ? SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: AppColors.onPrimaryOf(context),
-                ),
-              )
-            : const Text('登 录'),
-      ),
+    return AppGradientButton(
+      label: '登  录',
+      color: _roleColor,
+      loading: _loggingIn,
+      onPressed: _submit,
+      height: 52,
     );
   }
 

@@ -12,6 +12,7 @@
       → milvus_service.upsert
 """
 import json
+import os
 from typing import Any
 
 import httpx
@@ -61,6 +62,8 @@ async def handle_knowledge(payload: dict[str, Any]) -> str | None:
     textbook_id = int(payload.get("textbookId", 0))
     subject = str(payload.get("subject", "")).strip()
     book_name = str(payload.get("bookName", "")).strip()
+    # 可选：指定目标 collection（默认 settings.milvus_collection 生产集合）
+    collection = str(payload.get("collectionName", "")).strip() or None
     trace_id = payload.get("traceId", "-")
 
     if not object_key or textbook_id <= 0:
@@ -95,47 +98,91 @@ async def handle_knowledge(payload: dict[str, Any]) -> str | None:
               total_chunks=len(chunks), with_images=image_count,
               subject=subject or "auto", pipeline=pipeline)
 
-    # 3. 多模态 embedding（DashScope Qwen3-VL-Embedding）
+    # 3. 多模态 embedding（DashScope Qwen3-VL-Embedding，并发池加速）
     #    有图片的 chunk 用 text+image 融合向量，无图片的用纯文本
-    #    DashScope 不支持批量，逐条调用
+    vectors = await rag_service.embed_multimodal_batch(
+        [(c.text, c.image_path) for c in chunks], trace_id=trace_id,
+    )
+
+    # 4. 图片持久化到对象存储 + 登记 chunk_id→image_key 映射
+    #    （原临时目录图片会被清理，不持久化则生成侧多模态无法回查原图）
+    from app.services.image_index_service import image_index_service
+
     records = []
+    persisted_images = 0
+    embed_failed = 0
     for index, chunk in enumerate(chunks):
-        try:
-            vector = await rag_service.embed_multimodal(
-                chunk.text, image_path=chunk.image_path, trace_id=trace_id,
-            )
-        except Exception as e:
+        vector = vectors[index]
+        if vector is None:
+            embed_failed += 1
             log_event(logger, WARNING, "knowledge_embed_fail",
-                      trace_id=trace_id, chunk_index=index, error=str(e))
+                      trace_id=trace_id, chunk_index=index)
             continue
+
+        # 图片临时文件 → 对象存储
+        if chunk.image_path and os.path.exists(chunk.image_path):
+            with open(chunk.image_path, "rb") as f:
+                img_bytes = f.read()
+            if img_bytes:
+                ext = os.path.splitext(chunk.image_path)[1].lower().lstrip(".") or "png"
+                image_key = await image_index_service.register(
+                    f"tb{textbook_id}_c{index}", img_bytes, ext,
+                    meta={"book": chunk.book, "page": chunk.page},
+                )
+                if image_key:
+                    persisted_images += 1
 
         records.append({
             "id": f"tb{textbook_id}_c{index}",
             "vector": vector,
-            "book_name": chunk.book,
-            "edition": payload.get("edition") or "",
-            "chapter": chunk.chapter,
+            # 长度截断保护：超长（乱码/异常解析）会导致 Milvus upsert 整批失败
+            "book_name": (chunk.book or "")[:200],
+            "edition": (payload.get("edition") or "")[:50],
+            "chapter": (chunk.chapter or "")[:200],
             "page_number": chunk.page,
             "chunk_text": chunk.text[:4000],
-            "subject": chunk.subject,
-            "part": chunk.part,
-            "section": chunk.section,
+            "subject": (chunk.subject or "")[:128],
+            "part": (chunk.part or "")[:256],
+            "section": (chunk.section or "")[:256],
         })
 
     if not records:
         raise OutputSchemaInvalidError(
             f"教材 embedding 全部失败（{len(chunks)} chunks, 0 成功）"
         )
+    if embed_failed:
+        log_event(logger, WARNING, "knowledge_embed_partial_fail",
+                  trace_id=trace_id, failed=embed_failed, total=len(chunks))
 
-    # 4. 入库 Milvus
-    inserted = await milvus_service.upsert(records, trace_id=trace_id)
+    # 5. 入库 Milvus（按目标 collection schema 自动映射字段名）
+    inserted = await milvus_service.upsert(records, trace_id=trace_id, collection_name=collection)
     if inserted != len(records):
         raise RuntimeError(f"Milvus 仅写入 {inserted}/{len(records)} 个向量")
+
+    # 6. BM25 增量更新（全量视图）+ 分科视图失效（下次检索自动重建带回新数据）
+    col_name = collection or settings.milvus_collection
+    try:
+        from app.services.hybrid_retrieval import bm25_append, bm25_invalidate
+        bm25_append(
+            col_name,
+            None,
+            [{"id": r["id"], "chunk_text": r["chunk_text"], "book_name": r["book_name"],
+              "chapter": r["chapter"], "page_number": r["page_number"],
+              "subject": r["subject"], "part": r["part"], "section": r["section"]}
+             for r in records],
+        )
+        # 分科视图无法增量（新 chunk 的 subject 归属由重建时过滤决定），直接失效
+        bm25_invalidate(col_name, subject)
+        bm25_invalidate(col_name, None)  # 保险：bm25_append 无内存缓存时已清磁盘，此处幂等
+    except Exception as e:  # noqa: BLE001 - BM25 增量失败不影响入库结果
+        log_event(logger, WARNING, "bm25_append_failed",
+                  trace_id=trace_id, error=type(e).__name__)
 
     log_event(logger, INFO, "knowledge_ingested",
               trace_id=trace_id, textbook_id=textbook_id,
               inserted=inserted, subject=subject or "auto",
-              pipeline=pipeline, with_images=image_count)
+              pipeline=pipeline, with_images=image_count,
+              images_persisted=persisted_images)
     return f"knowledge:{textbook_id}:{inserted}"
 
 

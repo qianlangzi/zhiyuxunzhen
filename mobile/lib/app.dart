@@ -49,13 +49,13 @@ class _ZhiyuAppState extends ConsumerState<ZhiyuApp> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
-    final darkMode = ref.watch(settingsProvider).darkMode;
+    final settings = ref.watch(settingsProvider);
     return MaterialApp.router(
       title: '智愈寻真',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: darkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: AppTheme.of(settings.themePreset, false),
+      darkTheme: AppTheme.of(settings.themePreset, true),
+      themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
       routerConfig: appRouter,
     );
   }

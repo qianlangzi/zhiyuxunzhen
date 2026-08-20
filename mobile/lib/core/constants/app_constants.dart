@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../config/api_config.dart';
+import '../theme/app_colors.dart';
 
 /// 应用全局常量
 class AppConstants {
@@ -50,15 +51,70 @@ class AppConstants {
   static const int heatmapDays = 365;
 }
 
-/// 圆角半径
+/// 圆角半径（圆润化体系）
+///
+/// 借鉴 Apple / Material 3「更大圆角＝更灵动」的设计语言，
+/// 在保留东方纸墨美学的前提下整体上调，营造柔和、亲和、有温度的质感。
 class AppRadius {
   AppRadius._();
 
-  static const double xs = 2.0;
-  static const double sm = 6.0;
-  static const double md = 10.0;
-  static const double lg = 14.0;
-  static const double xl = 20.0;
+  /// 极小圆角：进度条、细标签等（纯线元素）
+  static const double xs = 6.0;
+
+  /// 小圆角：按钮、输入框、图标底、标签
+  static const double sm = 12.0;
+
+  /// 中圆角：卡片、分区容器（默认）
+  static const double md = 18.0;
+
+  /// 大圆角：Bento 大卡、浮层
+  static const double lg = 24.0;
+
+  /// 特大圆角
+  static const double xl = 30.0;
+
+  /// 全圆（胶囊/圆形）
+  static const double full = 999.0;
+}
+
+/// 阴影层级（柔和·低透明·多方向，仿 iOS 材质层叠）
+///
+/// 用「极淡阴影 + 少量扩散」替代生硬边框，让卡片有悬浮的立体层次，
+/// 同时保持宣纸米白的通透感。所有阴影颜色需配合当前主题亮暗自适应。
+class AppShadow {
+  AppShadow._();
+
+  /// 卡片默认投影（很淡，几乎不可见的悬浮感）
+  static List<BoxShadow> card(BuildContext ctx) => [
+        BoxShadow(
+          color: Color.lerp(Colors.transparent, AppColors.moss, 0.06)!,
+          offset: const Offset(0, 5),
+          blurRadius: 16,
+          spreadRadius: 0,
+        ),
+        BoxShadow(
+          color: Color.lerp(Colors.transparent, AppColors.moss, 0.03)!,
+          offset: const Offset(0, 1),
+          blurRadius: 3,
+          spreadRadius: 0,
+        ),
+      ];
+
+  /// 部件浮起投影（按钮、底部导航浮层）
+  static List<BoxShadow> lifted(BuildContext ctx) => [
+        BoxShadow(
+          color: Color.lerp(Colors.transparent, AppColors.moss, 0.12)!,
+          offset: const Offset(0, 8),
+          blurRadius: 24,
+          spreadRadius: 0,
+        ),
+        BoxShadow(
+          color: Color.lerp(Colors.transparent, AppColors.moss, 0.05)!,
+          offset: const Offset(0, 2),
+          blurRadius: 6,
+          spreadRadius: 0,
+        ),
+      ];
 }
 
 /// 间距

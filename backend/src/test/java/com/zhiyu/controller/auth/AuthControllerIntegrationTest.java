@@ -56,6 +56,9 @@ class AuthControllerIntegrationTest {
     @MockBean
     private SmsCodeService smsCodeService;
 
+    @MockBean
+    private com.zhiyu.service.CaptchaService captchaService;
+
     @Test
     @DisplayName("POST /register 学生注册成功 -> 无需 token 并返回注册结果")
     void should_register_student_without_token() throws Exception {

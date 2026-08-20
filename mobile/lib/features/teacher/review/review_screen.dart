@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/config/api_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
@@ -34,7 +35,13 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
   }
 
   Future<void> _loadReviews() async {
-    final data = await TeacherService().getReviewList();
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getReviewList();
+    } catch (e) {
+      // 兜底：加载异常时也结束 loading，避免页面永久转圈、无法返回
+      debugPrint('loadReviews error: $e');
+    }
     if (mounted) {
       setState(() {
         _reviewData = data;
@@ -210,9 +217,35 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       confirmText: '提交',
     );
     if (!ok) return;
-    // 模拟提交（接入后端后替换为覆盖 AI 批阅的接口）
-    await Future.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+
+    // Mock 模式：维持原有的模拟提交示意
+    if (ApiConfig.useMockAuth) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      AppFeedback.success(context, '复核已提交 · $score 分');
+      context.goNamed(RouteNames.dashboard);
+      return;
+    }
+
+    // 真实模式：调用「教师人工覆盖 AI 批阅」接口，成绩/评语真正落库
+    final data = _reviewData;
+    final instanceId = (data?['instanceId'] as num?)?.toInt();
+    final overrideFromReviewId = (data?['latestReviewId'] as num?)?.toInt();
+    if (instanceId == null || overrideFromReviewId == null) {
+      AppFeedback.error(context, '缺少批阅记录，无法提交复核');
+      return;
+    }
+    final result = await TeacherService().overrideReview(instanceId, {
+      'overrideFromReviewId': overrideFromReviewId,
+      'totalScore': score,
+      'reviewComment': _commentController.text.trim(),
+    });
+    if (!mounted) return;
+    if (result == null) {
+      AppFeedback.error(context, '复核提交失败，请稍后重试');
+      return;
+    }
     AppFeedback.success(context, '复核已提交 · $score 分');
     context.goNamed(RouteNames.dashboard);
   }
@@ -223,14 +256,14 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
       backgroundColor: AppColors.bgOf(context),
       body: SafeArea(
         bottom: false,
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
-                children: [
-                  _buildAppBar(context),
-                  _buildReviewTabs(),
-                  Expanded(
-                    child: ListView(
+        child: Column(
+          children: [
+            _buildAppBar(context),
+            _buildReviewTabs(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView(
                       padding: const EdgeInsets.only(bottom: 90),
                       children: [
                         _buildFormatShieldResult(),
@@ -266,9 +299,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
                         _buildOverrideSection(),
                       ],
                     ),
-                  ),
-                ],
-              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -379,6 +412,7 @@ Text(
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

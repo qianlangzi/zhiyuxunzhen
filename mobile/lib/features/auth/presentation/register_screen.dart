@@ -9,11 +9,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../data/models/models.dart';
 import '../data/auth_service.dart';
 import '../data/auth_api.dart';
+import '../providers/auth_provider.dart';
 import '../presentation/widgets/role_segment.dart';
 import '../presentation/widgets/auth_field.dart';
 import '../presentation/widgets/captcha_widget.dart';
@@ -231,13 +233,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         setState(() => _submitting = false);
         return;
       }
+
+      final user = result.user;
+      final token = result.token;
+
       if (_role == UserRole.teacher) {
         AppFeedback.success(context, '注册申请已提交，请等待审核');
+        if (!mounted) return;
+        context.pop();
+        return;
+      }
+
+      // 学生：若拿到 token 则自动登录直接进主页，否则退回登录页手动登录
+      if (user != null && token != null && token.isNotEmpty) {
+        await ref.read(authProvider.notifier).loginWith(user);
+        if (!mounted) return;
+        AppFeedback.success(context, '注册成功，已自动登录');
+        context.goNamed(RouteNames.studentHome);
       } else {
         AppFeedback.success(context, '注册成功，请返回登录');
+        if (!mounted) return;
+        context.pop();
       }
-      if (!mounted) return;
-      context.pop();
     } catch (e) {
       if (!mounted) return;
       AppFeedback.error(context, '注册失败：$e');

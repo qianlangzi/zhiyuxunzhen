@@ -6,6 +6,7 @@ import com.zhiyu.mapper.SysUserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -13,10 +14,12 @@ import java.util.List;
 
 /**
  * 演示数据初始化（PRD 演示账号 teacher01 / student01 / admin01，密码 123456）
- * 仅在对应账号不存在时插入，不覆盖已有数据
+ * 仅在对应账号不存在时插入，不覆盖已有数据。
+ * <p>仅在 dev/test 环境生效：生产环境不得创建带固定默认密码的账号。
  */
 @Slf4j
 @Component
+@Profile("dev || test")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 

@@ -17,6 +17,8 @@ class KnowledgeIngestRequest(BaseModel):
     objectKey: str = Field(min_length=1, max_length=500)
     bookName: str | None = Field(default=None, max_length=200)
     edition: str | None = Field(default=None, max_length=50)
+    subject: str | None = Field(default=None, max_length=128, description="学科标签（内科/心电等），写入 chunk 元数据供分科过滤")
+    collectionName: str | None = Field(default=None, max_length=128, description="目标 Milvus collection，不传用默认生产集合")
 
 
 class KnowledgeSearchRequest(BaseModel):

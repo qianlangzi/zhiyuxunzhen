@@ -5,9 +5,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../data/auth_api.dart';
 
-/// 图形验证码组件（数学题防盗刷）
+/// 图形验证码组件（字母+数字图片防盗刷）
 ///
-/// 自动从后端拉取一道数学题，用户输入答案，供短信验证码接口防刷校验。
+/// 自动从后端获取验证码 ID 与图片，用户输入图片中识别出的字符，
+/// 供短信验证码接口防刷校验。
 ///
 /// 通过 [GlobalKey<CaptchaWidgetState>] 持有引用，调用 [CaptchaWidgetState.current]
 /// 取当前验证码信息，调用 [CaptchaWidgetState.refresh] 重新获取题目。
@@ -35,7 +36,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
   final AuthApi _api = AuthApi();
 
   String? _captchaId;
-  String? _question;
+  String? _imageUrl;
   bool _loading = true;
   bool _failed = false;
 
@@ -63,7 +64,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
         _loading = false;
         _failed = true;
         _captchaId = null;
-        _question = null;
+        _imageUrl = null;
       });
       _answerCtl.clear();
       return;
@@ -71,7 +72,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
     setState(() {
       _loading = false;
       _captchaId = data.captchaId;
-      _question = data.question;
+      _imageUrl = data.imageUrl;
     });
     _answerCtl.clear();
   }
@@ -145,7 +146,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
       );
     }
 
-    if (_failed || _question == null || _captchaId == null) {
+    if (_failed || _imageUrl == null || _captchaId == null) {
       return _frame(
         context,
         GestureDetector(
@@ -184,39 +185,76 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
           width: 1,
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              _question!,
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: widget.accentColor,
+          // 验证码图片
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.network(
+              _imageUrl!,
+              width: 96,
+              height: 40,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              errorBuilder: (_, __, ___) => GestureDetector(
+                onTap: _load,
+                child: Container(
+                  width: 96,
+                  height: 40,
+                  color: AppColors.surfaceEdgeOf(context),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    '点击重试',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.vermilion,
+                    ),
+                  ),
+                ),
               ),
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return SizedBox(
+                  width: 96,
+                  height: 40,
+                  child: Center(
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: widget.accentColor,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-          SizedBox(
-            width: 80,
+          const SizedBox(width: 10),
+          // 输入识别字符
+          Expanded(
             child: TextField(
               controller: _answerCtl,
-              keyboardType: TextInputType.number,
+              textCapitalization: TextCapitalization.characters,
+              textAlign: TextAlign.center,
+              autocorrect: false,
               inputFormatters: [
                 LengthLimitingTextInputFormatter(4),
-                FilteringTextInputFormatter.digitsOnly,
               ],
-              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textOf(context),
+                letterSpacing: 2,
               ),
               decoration: InputDecoration(
-                hintText: '?',
+                hintText: '图中字符',
                 hintStyle: TextStyle(
                   color: AppColors.text4Of(context),
                   fontSize: 13,
+                  letterSpacing: 0,
                 ),
                 isDense: true,
                 contentPadding:

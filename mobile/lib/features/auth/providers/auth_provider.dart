@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/api_client.dart';
 import '../../../data/models/models.dart';
 
 /// 认证状态
@@ -106,10 +107,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     await _saveUser(updated);
   }
 
-  /// 退出登录：清空本地用户态，并让生物识别快速登录失效
+  /// 退出登录：清空本地用户态，清空 http token，并让生物识别快速登录失效
   Future<void> logout() async {
     state = const AuthState();
     await _saveUser(null);
+    ApiClient.setToken(null);
     try {
       const secure = FlutterSecureStorage();
       await secure.delete(key: SecureKeys.biometricRole);

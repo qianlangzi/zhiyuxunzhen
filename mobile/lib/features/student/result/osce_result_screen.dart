@@ -17,7 +17,6 @@ class OsceResultScreen extends ConsumerStatefulWidget {
 }
 
 class _OsceResultScreenState extends ConsumerState<OsceResultScreen> {
-  int? _sessionId;
   Map<String, dynamic>? _evaluation;
   bool _isLoading = true;
   String? _errorMsg;
@@ -39,7 +38,6 @@ class _OsceResultScreenState extends ConsumerState<OsceResultScreen> {
       });
       return;
     }
-    _sessionId = parsed;
     final data = await StudentService().getSessionEvaluation(parsed);
     if (!mounted) return;
     setState(() {
