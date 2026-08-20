@@ -7,13 +7,14 @@
 4. JSON 解析使用 StructuredOutputService，不再用"找首个 { 和最后 }"的 hack
 """
 import asyncio
+import json
 import time
 from collections.abc import AsyncIterator
 from logging import INFO as _INFO
 from logging import WARNING as _WARNING
 from typing import Any
 
-from openai import AsyncOpenAI, APIError, APITimeoutError, RateLimitError
+from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 
 from app.core.config import settings
 from app.core.logging import get_logger, log_event
@@ -140,6 +141,81 @@ class LlmClient:
         text = await self.chat(messages, model=model, trace_id=trace_id)
         return await structured_output.parse_to_dict(text, trace_id=trace_id)
 
+    # ------------------- 工具调用（function calling） -------------------
+    async def resolve_tools(
+        self,
+        messages: list[dict[str, str]],
+        tools: list[Any],
+        *,
+        model: str | None = None,
+        trace_id: str = "-",
+        max_steps: int = 3,
+    ) -> list[dict[str, Any]]:
+        """对话并自动执行工具调用。
+
+        模型返回 ``tool_calls`` 时，执行对应工具并把结果以 ``tool`` 角色
+        回填到消息里，再继续请求模型，直到模型给出最终文本或达到最大轮数。
+
+        未配置 LLM 或任何一轮调用失败时，直接返回原 messages（降级为无工具），
+        保证不阻断上层流程。
+        """
+        if not self.available:
+            return list(messages)
+
+        work_messages: list[dict[str, Any]] = list(messages)
+        tool_map = {tool.name: tool for tool in tools}
+        try:
+            for _ in range(max_steps):
+                resp = await self._client.chat.completions.create(
+                    model=model or settings.llm_model,
+                    messages=work_messages,
+                    temperature=settings.llm_temperature,
+                    max_tokens=settings.llm_max_tokens,
+                    tools=[tool.schema() for tool in tools],
+                )
+                msg = resp.choices[0].message
+                if not getattr(msg, "tool_calls", None):
+                    break
+                work_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": msg.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                },
+                            }
+                            for tc in msg.tool_calls
+                        ],
+                    }
+                )
+                for tc in msg.tool_calls:
+                    tool = tool_map.get(tc.function.name)
+                    if tool is None:
+                        out = f"未知工具：{tc.function.name}"
+                    else:
+                        try:
+                            args = json.loads(tc.function.arguments) if tc.function.arguments else {}
+                        except json.JSONDecodeError:
+                            args = {}
+                        try:
+                            out = await tool.run(args, trace_id=trace_id)
+                        except Exception as e:  # noqa: BLE001
+                            out = f"工具执行失败：{e}"
+                    work_messages.append(
+                        {"role": "tool", "tool_call_id": tc.id, "content": out}
+                    )
+        except (APIError, APITimeoutError, RateLimitError) as e:
+            log_event(logger, _WARNING, "llm_tools_error",
+                      trace_id=trace_id, error=type(e).__name__, msg=str(e))
+            await self._report_model_event("model_error", type(e).__name__, str(e))
+            return list(messages)
+        return work_messages
+
     # ------------------- 降级实现 -------------------
     async def _fallback_chat(
         self,
@@ -175,7 +251,7 @@ class LlmClient:
     async def _report_model_event(self, event_type: str, model_name: str, error_msg: str) -> None:
         """LLM 异常/降级事件异步回调业务中台（失败静默，不阻塞主流程）"""
         try:
-            from app.services.backend_client import backend_client
+            from app.services.backend_client import backend_client  # noqa: PLC0415  # 延迟导入避免循环依赖
             await backend_client.log_model_event(
                 event_type=event_type,
                 model_name=model_name,

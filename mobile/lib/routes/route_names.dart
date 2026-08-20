@@ -22,8 +22,13 @@ class RouteNames {
   static const profileEdit = 'profileEdit';
   static const recommendation = 'recommendation';
   static const questionTraining = 'questionTraining';
+  static const questionBank = 'questionBank';
+  static const questionPractice = 'questionPractice';
   static const textbookCenter = 'textbookCenter';
   static const searchResult = 'searchResult';
+  static const todoAssignments = 'todoAssignments';
+  static const todoAssignmentDetail = 'todoAssignmentDetail';
+  static const osceHistory = 'osceHistory';
 
   // Teacher
   static const teacherHome = 'teacherHome';
@@ -34,6 +39,7 @@ class RouteNames {
   static const dashboard = 'dashboard';
   static const teacherProfile = 'teacherProfile';
   static const profileEditTeacher = 'profileEditTeacher';
+  static const teacherTextbook = 'teacherTextbook';
 
   // 通用
   static const about = 'about';

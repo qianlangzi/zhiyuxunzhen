@@ -75,7 +75,8 @@ async def evaluate_and_archive(
         if mistakes:
             await backend_client.sync_mistakes(mistakes, trace_id)
 
-        # 评估器未产生薄弱知识点数据，暂不调用 sync_weakness
+        # 薄弱知识点掌握度由业务中台在错题入库后基于统计自动推算（refreshForStudent），
+        # 无需在此调用 sync_weakness；评估器不直接产出 knowledgeTag 薄弱度。
 
         return R(data={"evaluated": True, "scores": scores})
     except ApiError as e:

@@ -18,7 +18,7 @@ from app.core.errors import RetrievalUnavailableError
 
 logger = get_logger(__name__)
 
-_COLLECTION_FIELDS = ["book_name", "edition", "chapter", "page_number", "chunk_text"]
+_COLLECTION_FIELDS = ["book_name", "edition", "chapter", "page_number", "chunk_text", "subject", "part", "section"]
 
 
 class _MemoryIndex:
@@ -89,9 +89,18 @@ class MilvusService:
             schema.add_field("chapter", DataType.VARCHAR, max_length=200)
             schema.add_field("page_number", DataType.INT64)
             schema.add_field("chunk_text", DataType.VARCHAR, max_length=4000)
+            schema.add_field("subject", DataType.VARCHAR, max_length=128)
+            schema.add_field("part", DataType.VARCHAR, max_length=256)
+            schema.add_field("section", DataType.VARCHAR, max_length=256)
             index_params = client.prepare_index_params()
             index_params.add_index(
                 field_name="vector", index_type="AUTOINDEX", metric_type="COSINE"
+            )
+            index_params.add_index(
+                field_name="subject", index_type="INVERTED"
+            )
+            index_params.add_index(
+                field_name="chapter", index_type="INVERTED"
             )
             client.create_collection(
                 collection_name=name, schema=schema, index_params=index_params
@@ -157,21 +166,31 @@ class MilvusService:
         query_vec: list[float],
         top_k: int = 5,
         trace_id: str = "-",
+        subject_filter: str | None = None,
+        collection_name: str | None = None,
     ) -> list[dict[str, Any]]:
-        """向量相似度检索，返回 top_k 条带 score 的记录"""
+        """向量相似度检索，返回 top_k 条带 score 的记录。
+
+        Args:
+            subject_filter: 学科过滤（如 "内科"/"心电"），None 表示不过滤
+            collection_name: 指定 collection，None 用默认 settings.milvus_collection
+        """
         use_milvus = await self._ensure_connected()
         if not use_milvus and not settings.enable_milvus_fallback:
             raise RetrievalUnavailableError("Milvus 服务不可用", trace_id)
         if use_milvus and self._client:
             try:
-                # 同步 pymilvus 调用放入线程池
-                results = await asyncio.to_thread(
-                    self._client.search,
-                    collection_name=settings.milvus_collection,
+                col = collection_name or settings.milvus_collection
+                search_kwargs = dict(
+                    collection_name=col,
                     data=[query_vec],
                     limit=top_k,
                     output_fields=_COLLECTION_FIELDS,
                 )
+                if subject_filter:
+                    search_kwargs["filter"] = f'subject == "{subject_filter}"'
+
+                results = await asyncio.to_thread(self._client.search, **search_kwargs)
                 hits = results[0] if results else []
                 out = []
                 for hit in hits:
@@ -182,6 +201,9 @@ class MilvusService:
                         "chapter": entity.get("chapter"),
                         "page_number": entity.get("page_number"),
                         "chunk_text": entity.get("chunk_text"),
+                        "subject": entity.get("subject"),
+                        "part": entity.get("part"),
+                        "section": entity.get("section"),
                         "score": 1.0 - float(hit.get("distance", 0.5)) if isinstance(hit, dict) else 0.5,
                     })
                 return out

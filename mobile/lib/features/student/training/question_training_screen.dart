@@ -1,14 +1,20 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
+import 'question_practice_screen.dart';
 
-/// 基础题训练
+/// 基础题训练（大型题库 · 按科室模块）
+///
+/// 包含：
+/// 1. 总体正确率统计卡片
+/// 2. 各科室/模块正确率面板（进度条 + 做题数 + 薄弱高亮）
+/// 3. 题库浏览入口（可按科室/知识点/难度/题型筛选）
+/// 4. 进入科室逐题刷题
 class QuestionTrainingScreen extends ConsumerStatefulWidget {
   const QuestionTrainingScreen({super.key});
 
@@ -17,10 +23,8 @@ class QuestionTrainingScreen extends ConsumerStatefulWidget {
 }
 
 class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen> {
-  final _filters = ['全部', '胸痛鉴别', '冠心病', '病史采集', '心电图判读', '心力衰竭', '慢阻肺', '高血压'];
-  String _selectedFilter = '全部';
-  List<Map<String, dynamic>> _questions = [];
   Map<String, dynamic>? _stats;
+  List<dynamic>? _departments;
   bool _isLoading = true;
 
   @override
@@ -32,15 +36,15 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
   Future<void> _load() async {
     final service = StudentService();
     final stats = await service.getQuestionStats();
-    final data = await service.getQuestions(
-      knowledgeTag: _selectedFilter == '全部' ? null : _selectedFilter,
-    );
+    final depts = await service.getQuestionDepartments();
     if (!mounted) return;
     setState(() {
       _stats = stats;
-      _questions = (data?['list'] as List<dynamic>?)
-              ?.cast<Map<String, dynamic>>() ??
-          [];
+      _departments = depts;
+      final depts2 = _departments;
+      if (depts2 == null || depts2.isEmpty) {
+        _departments = ['心血管内科', '呼吸内科', '诊断学', '综合'];
+      }
       _isLoading = false;
     });
   }
@@ -57,19 +61,22 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
               title: '基础题训练',
               onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.studentHome),
             ),
-            _buildStats(),
-            _buildFilterBar(),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
-                  : _questions.isEmpty
-                      ? const Center(child: Text('暂无题目'))
-                      : ListView(
-                          padding: const EdgeInsets.fromLTRB(0, 6, 0, 40),
-                          children: _questions
-                              .map((q) => _QuestionCard(q: q))
-                              .toList(),
-                        ),
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
+                        children: [
+                          _buildStats(),
+                          const SizedBox(height: 18),
+                          _buildModuleAccuracy(),
+                          const SizedBox(height: 18),
+                          _buildBankEntry(),
+                        ],
+                      ),
+                    ),
             ),
           ],
         ),
@@ -77,24 +84,39 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
     );
   }
 
+  // ---------- 总体统计 ----------
   Widget _buildStats() {
     final totalAnswered = (_stats?['totalAnswered'] as num?)?.toInt() ?? 0;
     final correctCount = (_stats?['correctCount'] as num?)?.toInt() ?? 0;
     final accuracy = (_stats?['accuracy'] as num?)?.toDouble() ?? 0.0;
+    final totalCount = (_stats?['totalCount'] as num?)?.toInt() ?? 0;
     return Container(
-      margin: const EdgeInsets.fromLTRB(20, 12, 20, 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.primaryOf(context),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _statCell(accuracy.toStringAsFixed(1), '正确率', AppColors.onPrimaryOf(context)),
-          _divider(),
-          _statCell('$totalAnswered', '已做', AppColors.onPrimaryOf(context)),
-          _divider(),
-          _statCell('$correctCount', '答对', AppColors.onPrimaryOf(context)),
+          Row(
+            children: [
+              _statCell(accuracy.toStringAsFixed(1), '正确率', AppColors.onPrimaryOf(context)),
+              _divider(),
+              _statCell('$totalAnswered', '已做', AppColors.onPrimaryOf(context)),
+              _divider(),
+              _statCell('$correctCount', '答对', AppColors.onPrimaryOf(context)),
+              _divider(),
+              _statCell('$totalCount', '题库', AppColors.onPrimaryOf(context)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppProgressBar(
+            value: accuracy / 100,
+            height: 6,
+            backgroundColor: AppColors.onPrimaryOf(context).withValues(alpha: 0.25),
+            foregroundColor: AppColors.onPrimaryOf(context),
+          ),
         ],
       ),
     );
@@ -108,7 +130,7 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
             value,
             style: TextStyle(
               fontFamily: 'JetBrainsMono',
-              fontSize: 22,
+              fontSize: 20,
               fontWeight: FontWeight.w600,
               color: color,
             ),
@@ -128,258 +150,161 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
     );
   }
 
-  Widget _buildFilterBar() {
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border(bottom: BorderSide(color: AppColors.ruleOf(context))),
-      ),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _filters.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 6),
-        itemBuilder: (context, i) {
-          final active = _filters[i] == _selectedFilter;
-          return GestureDetector(
-            onTap: () {
-              setState(() => _selectedFilter = _filters[i]);
-              _isLoading = true;
-              _load();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.primaryOf(context)
-                    : AppColors.surfaceOf(context),
-                border: Border.all(
-                  color: active
-                      ? AppColors.primaryOf(context)
-                      : AppColors.ruleOf(context),
-                ),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Center(
-                child: Text(
-                  _filters[i],
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: active
-                        ? AppColors.onPrimaryOf(context)
-                        : AppColors.text2Of(context),
+  // ---------- 各科室/模块正确率面板 ----------
+  Widget _buildModuleAccuracy() {
+    final byDept = (_stats?['byDepartment'] as List<dynamic>?) ?? [];
+    final deptMap = <String, Map<String, dynamic>>{};
+    for (final d in byDept) {
+      final m = d as Map<String, dynamic>;
+      deptMap[m['department'] as String? ?? ''] = m;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            SerifText('模块正确率', fontSize: 15, color: AppColors.textOf(context)),
+            MonoText('薄弱模块', fontSize: 10, color: AppColors.vermilion),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '各科室做题数、正确率一览，正确率偏低模块建议重点练习',
+          style: TextStyle(fontSize: 12, color: AppColors.text4Of(context)),
+        ),
+        const SizedBox(height: 12),
+        ..._departments!.map((dept) => _moduleAccuracyTile(
+              dept as String,
+              deptMap[dept] ?? const <String, dynamic>{},
+            )),
+      ],
+    );
+  }
+
+  Widget _moduleAccuracyTile(String dept, Map<String, dynamic> stat) {
+    final total = (stat['total'] as num?)?.toInt() ?? 0;
+    final answered = (stat['answered'] as num?)?.toInt() ?? 0;
+    final correct = (stat['correct'] as num?)?.toInt() ?? 0;
+    final accuracy = (stat['accuracy'] as num?)?.toDouble() ?? 0.0;
+    final isWeak = answered > 0 && accuracy < 0.6;
+    final hasRecord = answered > 0;
+
+    return GestureDetector(
+      onTap: () => _openPractice(dept),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          border: Border.all(
+            color: isWeak ? AppColors.vermilion.withValues(alpha: 0.5) : AppColors.surfaceEdgeOf(context),
+            width: isWeak ? 1.2 : 1,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: isWeak ? AppColors.vermilionSoftOf(context) : AppColors.mossTintOf(context),
+                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                  ),
+                  child: Icon(
+                    isWeak ? Icons.warning_amber_rounded : Icons.local_hospital,
+                    size: 15,
+                    color: isWeak ? AppColors.vermilion : AppColors.primaryOf(context),
                   ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: SerifText(dept, fontSize: 14, color: AppColors.textOf(context)),
+                ),
+                if (isWeak)
+                  AppChip(label: '需加强', type: ChipType.vermilion)
+                else if (hasRecord)
+                  AppChip(label: '${(accuracy * 100).round()}%', type: ChipType.moss)
+                else
+                  MonoText('未练习', fontSize: 10, color: AppColors.text4Of(context)),
+                const SizedBox(width: 4),
+                Icon(Icons.chevron_right, size: 16, color: AppColors.text4Of(context)),
+              ],
             ),
-          );
-        },
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: AppProgressBar(
+                    value: hasRecord ? accuracy : 0,
+                    height: 6,
+                    backgroundColor: AppColors.paper2Of(context),
+                    foregroundColor: isWeak ? AppColors.vermilion : AppColors.primaryOf(context),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                MonoText('$answered/$total', fontSize: 10, color: AppColors.text3Of(context)),
+                const SizedBox(width: 6),
+                MonoText('答对$correct', fontSize: 10, color: AppColors.text4Of(context)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
-}
 
-/// 单题卡片（本地状态：选中项 + 判题结果）
-class _QuestionCard extends StatefulWidget {
-  final Map<String, dynamic> q;
-  const _QuestionCard({required this.q});
-
-  @override
-  State<_QuestionCard> createState() => _QuestionCardState();
-}
-
-class _QuestionCardState extends State<_QuestionCard> {
-  int? _selected;
-  bool _submitting = false;
-  Map<String, dynamic>? _result;
-
-  List<String> get _options =>
-      (widget.q['options'] as List<dynamic>?)?.cast<String>() ?? const [];
-
-  String get _difficultyLabel {
-    switch (widget.q['difficulty']) {
-      case 1: return '简单';
-      case 3: return '困难';
-      default: return '标准';
-    }
-  }
-
-  Future<void> _submit() async {
-    if (_selected == null) {
-      AppFeedback.info(context, '请先选择一个答案');
-      return;
-    }
-    setState(() => _submitting = true);
-    final result = await StudentService().submitQuestion(
-      questionId: (widget.q['id'] as num).toInt(),
-      selectedAnswer: '$_selected',
-    );
-    if (!mounted) return;
-    setState(() {
-      _result = result;
-      _submitting = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final resolved = _result != null;
-    final isCorrect = _result?['isCorrect'] == true;
-    final q = widget.q;
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              AppChip(label: q['knowledgeTag'] as String? ?? '综合', type: ChipType.moss),
-              const SizedBox(width: 6),
-              AppChip(label: _difficultyLabel, type: ChipType.default_),
-              const Spacer(),
-              MonoText('${q['questionType'] == 'judgment' ? '判断' : '单选'}',
-                  fontSize: 10, color: AppColors.text4Of(context)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            q['title'] as String? ?? '',
-            style: TextStyle(
-              fontSize: 14,
-              height: 1.5,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textOf(context),
-            ),
-          ),
-          const SizedBox(height: 12),
-          ..._options.asMap().entries.map((e) => _optionTile(e.key, e.value, resolved, isCorrect)),
-          const SizedBox(height: 8),
-          if (resolved) ...[
+  // ---------- 题库浏览入口 ----------
+  Widget _buildBankEntry() {
+    return GestureDetector(
+      onTap: () => context.pushNamed(RouteNames.questionBank),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.indigoSoftOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
-                color: isCorrect
-                    ? AppColors.mossTintOf(context)
-                    : AppColors.vermilionSoftOf(context),
+                color: AppColors.indigo,
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
+              child: const Icon(Icons.grid_view_rounded, size: 20, color: AppColors.onPrimary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isCorrect ? Icons.check_circle : Icons.cancel,
-                        size: 16,
-                        color: isCorrect ? AppColors.primary : AppColors.vermilion,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        isCorrect ? '回答正确' : '回答错误',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: isCorrect ? AppColors.primary : AppColors.vermilion,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
+                  SerifText('浏览题库', fontSize: 15, color: AppColors.textOf(context)),
+                  const SizedBox(height: 3),
                   Text(
-                    _result?['explanation'] as String? ?? '',
-                    style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.text2Of(context)),
+                    '按科室 / 知识点 / 难度 / 题型筛选，逐题练习',
+                    style: TextStyle(fontSize: 12, color: AppColors.text3Of(context)),
                   ),
                 ],
               ),
             ),
-          ] else
-            AppPrimaryButton(
-              label: _submitting ? '判题中…' : '提交答案',
-              fullWidth: true,
-              onPressed: _submitting ? null : _submit,
-            ),
-        ],
+            const Icon(Icons.arrow_forward, size: 18, color: AppColors.indigo),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _optionTile(int idx, String text, bool resolved, bool isCorrect) {
-    final correctAnswer = _result?['correctAnswer'] as String?;
-    final isSelected = _selected == idx;
-    final isCorrectOption = resolved && correctAnswer == '$idx';
-    Color bg = AppColors.surfaceOf(context);
-    Color border = AppColors.surfaceEdgeOf(context);
-    Color fg = AppColors.textOf(context);
-
-    if (resolved) {
-      if (isCorrectOption) {
-        bg = AppColors.mossTintOf(context);
-        border = AppColors.primary;
-        fg = AppColors.primary;
-      } else if (isSelected) {
-        bg = AppColors.vermilionSoftOf(context);
-        border = AppColors.vermilion;
-        fg = AppColors.vermilion;
-      }
-    } else if (isSelected) {
-      bg = AppColors.mossTintOf(context);
-      border = AppColors.primaryOf(context);
-      fg = AppColors.primaryOf(context);
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: GestureDetector(
-        onTap: resolved ? null : () => setState(() => _selected = idx),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: bg,
-            border: Border.all(color: border, width: isSelected || resolved ? 1.5 : 1),
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  border: Border.all(color: isSelected || isCorrectOption ? border : AppColors.ruleOf(context), width: 1.5),
-                  shape: BoxShape.circle,
-                ),
-                child: (isSelected || isCorrectOption)
-                    ? Center(
-                        child: Container(
-                          width: 10,
-                          height: 10,
-                          decoration: BoxDecoration(
-                            color: isCorrectOption ? AppColors.primary : border,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  text,
-                  style: TextStyle(fontSize: 13.5, color: fg),
-                ),
-              ),
-              if (resolved && isCorrectOption)
-                const Icon(Icons.check_circle, size: 16, color: AppColors.primary),
-            ],
-          ),
-        ),
+  void _openPractice(String department) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => QuestionPracticeScreen(title: department, department: department),
       ),
     );
   }

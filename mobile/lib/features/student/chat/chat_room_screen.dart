@@ -10,7 +10,15 @@ import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/student_service.dart';
 
-/// AI 问诊室
+/// AI 问诊室（Agent 化 · ChatGPT 风格）
+///
+/// 交互定位：
+/// - 顶部极简栏只保留返回 / 患者信息 / 结束问诊；
+/// - 进程信息（阶段 · 思维树 · 费用 · 主诉）收进可自动折叠的「Agent 状态」卡片，
+///   默认折叠成一行，点击展开，避免抢占聊天区；
+/// - 所有 AI 回复统一为「智愈 Agent」身份气泡，推理过程与引用来源默认折叠，
+///   需要时再展开，凸显 Agent 的思考与溯源能力；
+/// - 每条 Agent 回复下方提供建议追问 chips，用户可自由点击填入输入框指挥 Agent。
 class ChatRoomScreen extends ConsumerStatefulWidget {
   const ChatRoomScreen({super.key});
 
@@ -21,8 +29,8 @@ class ChatRoomScreen extends ConsumerStatefulWidget {
 class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     with TickerProviderStateMixin {
   final _inputController = TextEditingController();
+  bool _statusExpanded = false;
   bool _treePanelOpen = false;
-  bool _headerCollapsed = false;
   final ScrollController _scrollController = ScrollController();
   final List<_ExtraMsg> _extra = [];
   bool _spTyping = false;
@@ -30,18 +38,24 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   bool _sendPressed = false;
 
   // ---- API 状态 ----
-  bool _isLoading = true;
   int? _sessionId;
   int? _caseId;
   Map<String, dynamic>? _sessionData;
   final List<_ChatMessage> _messages = [];
   // 思维树 / 阶段 / 苏格拉底提示（来自 chat_workflow SSE 聚合）
   List<Map<String, dynamic>> _treeNodes = [];
-  List<Map<String, dynamic>> _treeEdges = [];
   String _stage = '主诉采集';
   String? _socratesHint;
   double _totalExamCost = 0.0;
   bool _isFinishing = false;
+
+  /// Agent 建议追问（用于增强用户自由度与交互感）
+  static const List<String> _agentSuggestions = [
+    '继续追问（疼痛性质）',
+    '既往史',
+    '开立检查',
+    '查看思维树',
+  ];
 
   late final AnimationController _typingController;
   late final AnimationController _panelController;
@@ -189,7 +203,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       setState(() {
         _sessionId = result['sessionId'] as int?;
         _sessionData = result;
-        _isLoading = false;
         // 接口可能返回初始 stage / 思维树
         final stage = result['stage'] as String?;
         if (stage != null && stage.isNotEmpty) _stage = stage;
@@ -199,12 +212,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
               .map((n) => Map<String, dynamic>.from(n as Map))
               .toList();
           _totalExamCost = _computeExamCost();
-        }
-        final edges = result['treeEdges'] as List<dynamic>?;
-        if (edges != null) {
-          _treeEdges = edges
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
         }
         final socrates = result['socratesHint'] as String?;
         if (socrates != null && socrates.isNotEmpty) _socratesHint = socrates;
@@ -246,8 +253,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
           }
         }
       });
-    } else {
-      setState(() => _isLoading = false);
     }
     // 如果 result == null，保留硬编码 fallback 数据
   }
@@ -337,7 +342,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       return;
     }
     setState(() {
-      _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient));
+      // 解析 RAG 教材引用（体现 AI 溯源能力）
+      final citations = (data?['citations'] as List<dynamic>?)
+          ?.map((e) => Map<String, dynamic>.from(e as Map))
+          .toList() ?? [];
+      _extra.add(_ExtraMsg(reply, _now(), _MsgSender.patient, citations: citations));
       // 解析思维树 / 阶段 / 苏格拉底提示
       final nodes = data?['treeNodes'] as List<dynamic>?;
       if (nodes != null) {
@@ -346,18 +355,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
             .toList();
         _totalExamCost = _computeExamCost();
       }
-      final edges = data?['treeEdges'] as List<dynamic>?;
-      if (edges != null) {
-        _treeEdges = edges
-            .map((e) => Map<String, dynamic>.from(e as Map))
-            .toList();
-      }
       final stage = data?['stage'] as String?;
       if (stage != null && stage.isNotEmpty) _stage = stage;
       final socrates = data?['socratesHint'] as String?;
       if (socrates != null && socrates.isNotEmpty) {
         _socratesHint = socrates;
-        // 苏格拉底提示作为导师消息插入聊天流
+        // 苏格拉底提示作为 Agent 推理插入聊天流
         _extra.add(_ExtraMsg(socrates, _now(), _MsgSender.mentor));
       }
     });
@@ -373,13 +376,30 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       }
       return;
     }
-    _inputController.text = action;
+    _fillInput(action);
+  }
+
+  /// 建议追问 / 快捷指令：填充输入框（用户可自由编辑后发送）
+  void _onSuggestion(String action) {
+    if (action == '查看思维树') {
+      _openTreePanel();
+      return;
+    }
+    _fillInput(action);
+  }
+
+  void _fillInput(String text) {
+    _inputController.text = text;
     _inputController.selection = TextSelection.fromPosition(
       TextPosition(offset: _inputController.text.length),
     );
   }
 
   Future<void> _pickImage() async {
+    if (_sessionId == null) {
+      AppFeedback.error(context, '问诊会话尚未就绪，请稍候');
+      return;
+    }
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -392,12 +412,39 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         _extra.add(
           _ExtraMsg('已上传影像：${picked.name}', _now(), _MsgSender.student),
         );
+        _spTyping = true;
       });
       _scrollToBottom();
+
+      // 1. 上传影像到后端（本地目录存储），返回 url
+      final upload = await StudentService().uploadImage(
+        sessionId: _sessionId!,
+        filePath: picked.path,
+      );
       if (!mounted) return;
-      AppFeedback.success(context, '影像已上传，AI 将结合影像反馈（演示版）');
+      if (upload == null) {
+        setState(() => _spTyping = false);
+        AppFeedback.error(context, '影像上传失败，请重试');
+        return;
+      }
+      final imageUrl = (upload['url'] as String?) ?? '';
+
+      // 2. 调 AI 读图分析（未配置多模态模型时返回降级提示）
+      final analysis = await StudentService().analyzeImage(
+        sessionId: _sessionId!,
+        imageUrl: imageUrl,
+      );
+      if (!mounted) return;
+      final finding = (analysis?['finding'] as String?) ??
+          '影像已上传，但 AI 暂未能给出读图反馈。';
+      setState(() {
+        _spTyping = false;
+        _extra.add(_ExtraMsg(finding, _now(), _MsgSender.patient));
+      });
+      _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _spTyping = false);
       AppFeedback.error(context, '影像上传失败：$e');
     }
   }
@@ -433,7 +480,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     );
   }
 
-  // ─── 可收起头部 ─────────────────────────────────────
+  // ─── 极简顶部栏 + 可折叠 Agent 状态面板 ─────────────────
 
   Widget _buildChatHeader() {
     return Container(
@@ -445,9 +492,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       ),
       child: Column(
         children: [
-          // 顶栏：返回 + 头像 + 姓名 + 收起按钮
+          // 顶栏：返回 + 患者信息 + 结束问诊
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
             child: Row(
               children: [
                 AppIconButton(
@@ -458,18 +505,18 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                 ),
                 const SizedBox(width: 4),
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 36,
+                  height: 36,
                   decoration: BoxDecoration(
                     color: AppColors.mossTintOf(context),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
                   child: Text(
-_patientAvatarChar,
+                    _patientAvatarChar,
                     style: TextStyle(
                       fontFamily: 'NotoSerifSC',
-                      fontFamilyFallback: [
+                      fontFamilyFallback: const [
                         'Songti SC',
                         'STSong',
                         'Noto Serif CJK SC',
@@ -483,13 +530,45 @@ _patientAvatarChar,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Text(
-                    _patientDisplayName,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textOf(context),
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              _patientDisplayName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textOf(context),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          const AppChip(
+                            label: 'AI 问诊',
+                            type: ChipType.moss,
+                            fontSize: 9,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          _statusDot(),
+                          const SizedBox(width: 5),
+                          MonoText(
+                            _spTyping ? 'Agent 正在回复…' : '智愈 Agent 在线',
+                            fontSize: 10,
+                            color: _spTyping
+                                ? AppColors.primaryOf(context)
+                                : AppColors.text3Of(context),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 // 结束问诊按钮
@@ -521,56 +600,215 @@ _patientAvatarChar,
                           ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: () => setState(
-                    () => _headerCollapsed = !_headerCollapsed,
+              ],
+            ),
+          ),
+          // 可自动折叠的 Agent 状态面板
+          _buildAgentStatusPanel(),
+        ],
+      ),
+    );
+  }
+
+  /// Agent 状态指示灯：回复中显示动画点，否则为静态状态点
+  Widget _statusDot() {
+    if (_spTyping) {
+      return SizedBox(
+        width: 10,
+        height: 10,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryOf(context)),
+        ),
+      );
+    }
+    return Container(
+      width: 8,
+      height: 8,
+      decoration: BoxDecoration(
+        color: AppColors.primaryOf(context),
+        shape: BoxShape.circle,
+      ),
+    );
+  }
+
+  /// Agent 状态面板：默认折叠为一行摘要，点击展开详细进程信息
+  Widget _buildAgentStatusPanel() {
+    final nodeCount = _treeNodes.length;
+    final missCount =
+        _treeNodes.where((n) => _isMissStatus(n['status'] as String?)).length;
+    final stageSummary = '阶段 · $_stage';
+    final treeSummary = nodeCount > 0
+        ? (missCount > 0 ? '思维 $nodeCount 节点 · $missCount 遗漏' : '思维 $nodeCount 节点')
+        : '思维待生成';
+
+    return GestureDetector(
+      onTap: () => setState(() => _statusExpanded = !_statusExpanded),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(12, 2, 12, 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.mossTintOf(context),
+          border: Border.all(color: AppColors.mossSoftOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+        ),
+        child: Column(
+          children: [
+            // 折叠态摘要行
+            Row(
+              children: [
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceOf(context),
+                    shape: BoxShape.circle,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: AnimatedRotation(
-                      turns: _headerCollapsed ? 0 : 0.5,
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        Icons.expand_more,
-                        size: 20,
-                        color: AppColors.text3Of(context),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.auto_awesome,
+                    size: 12,
+                    color: AppColors.primaryOf(context),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                MonoText(
+                  'Agent 状态',
+                  fontSize: 10,
+                  color: AppColors.text3Of(context),
+                  letterSpacing: 0.1,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Flexible(
+                        child: MonoText(
+                          stageSummary,
+                          fontSize: 11,
+                          color: AppColors.primaryOf(context),
+                          weight: FontWeight.w600,
+                          letterSpacing: 0.02,
+                        ),
                       ),
-                    ),
+                    ],
+                  ),
+                ),
+                if (nodeCount > 0) ...[
+                  const SizedBox(width: 8),
+                  MonoText(
+                    treeSummary,
+                    fontSize: 10,
+                    color: AppColors.moss3,
+                  ),
+                ],
+                if (_totalExamCost > 0) ...[
+                  const SizedBox(width: 8),
+                  MonoText(
+                    '¥${_totalExamCost.toStringAsFixed(0)}',
+                    fontSize: 11,
+                    color: AppColors.amber,
+                    weight: FontWeight.w600,
+                  ),
+                ],
+                const SizedBox(width: 4),
+                AnimatedRotation(
+                  turns: _statusExpanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: Icon(
+                    Icons.expand_more,
+                    size: 18,
+                    color: AppColors.primaryOf(context).withValues(alpha: 0.6),
                   ),
                 ),
               ],
             ),
-          ),
-          // 展开内容：主诉 + 阶段进度 + 思维树
-          AnimatedSize(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeInOut,
-            child: _headerCollapsed
-                ? const SizedBox.shrink()
-                : Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          left: 56,
-                          right: 16,
-                          bottom: 8,
+            // 展开态详细进程信息（自动折叠）
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              child: _statusExpanded
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Divider(height: 1, thickness: 1),
                         ),
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: MonoText(
-                            _chiefComplaintText,
-                            fontSize: 11,
-                            color: AppColors.text3Of(context),
+                        const SizedBox(height: 6),
+                        _buildStageProgress(),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline,
+                              size: 12,
+                              color: AppColors.text3Of(context),
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: MonoText(
+                                _chiefComplaintText,
+                                fontSize: 10,
+                                color: AppColors.text3Of(context),
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (_totalExamCost > 0) ...[
+                          const SizedBox(height: 10),
+                          _buildCostSummary(),
+                        ],
+                        const SizedBox(height: 8),
+                        // 思维树入口
+                        GestureDetector(
+                          onTap: _openTreePanel,
+                          behavior: HitTestBehavior.opaque,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceOf(context),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                              border: Border.all(
+                                color: AppColors.mossSoftOf(context),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.account_tree_outlined,
+                                  size: 14,
+                                  color: AppColors.primaryOf(context),
+                                ),
+                                const SizedBox(width: 6),
+                                MonoText(
+                                  '查看临床思维树',
+                                  fontSize: 11,
+                                  color: AppColors.primaryOf(context),
+                                  letterSpacing: 0.04,
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 16,
+                                  color: AppColors.primaryOf(context)
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      _buildStageProgress(),
-                      _buildTreeToggle(),
-                    ],
-                  ),
-          ),
-        ],
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -589,135 +827,110 @@ _patientAvatarChar,
     ];
     final currentIdx = stages.indexOf(_stage);
     final activeIdx = currentIdx < 0 ? 0 : currentIdx;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border(
-          top: BorderSide(color: AppColors.ruleSoftOf(context)),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              MonoText('问诊阶段',
-                  fontSize: 10,
-                  color: AppColors.text3Of(context),
-                  letterSpacing: 0.08),
-              MonoText(_stage,
-                  fontSize: 11,
-                  color: AppColors.primaryOf(context),
-                  weight: FontWeight.w600),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: List.generate(stages.length * 2 - 1, (i) {
-              if (i.isOdd) {
-                final filled = i ~/ 2 < activeIdx;
-                return Expanded(
-                  child: Container(
-                    height: 2,
-                    color: filled
-                        ? AppColors.primaryOf(context)
-                        : AppColors.ruleSoftOf(context),
-                  ),
-                );
-              }
-              final idx = i ~/ 2;
-              final done = idx < activeIdx;
-              final current = idx == activeIdx;
-              final color = done || current
-                  ? AppColors.primaryOf(context)
-                  : AppColors.text4Of(context);
-              return Container(
-                width: 18,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: current
-                      ? AppColors.primaryOf(context)
-                      : (done
-                          ? AppColors.primaryOf(context).withValues(alpha: 0.15)
-                          : AppColors.ruleSoftOf(context)),
-                  shape: BoxShape.circle,
-                  border: current
-                      ? null
-                      : Border.all(color: color, width: 1),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  '${idx + 1}',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontFamily: 'JetBrainsMono',
-                    color: current
-                        ? AppColors.onPrimaryOf(context)
-                        : color,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTreeToggle() {
-    final nodeCount = _treeNodes.length;
-    final missCount =
-        _treeNodes.where((n) => _isMissStatus(n['status'] as String?)).length;
-    return GestureDetector(
-      onTap: _openTreePanel,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.mossTintOf(context),
-          border: Border(
-            top: BorderSide(color: AppColors.mossSoftOf(context)),
-          ),
-        ),
-        child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(
-              Icons.account_tree_outlined,
-              size: 14,
-              color: AppColors.primaryOf(context),
-            ),
-            const SizedBox(width: 6),
             MonoText(
-              '临床思维树',
+              '问诊阶段',
+              fontSize: 10,
+              color: AppColors.text3Of(context),
+              letterSpacing: 0.08,
+            ),
+            MonoText(
+              _stage,
               fontSize: 11,
               color: AppColors.primaryOf(context),
-              letterSpacing: 0.04,
-            ),
-            const SizedBox(width: 8),
-            MonoText(
-              '$nodeCount 节点 · $missCount 遗漏',
-              fontSize: 10,
-              color: AppColors.moss3,
-            ),
-            const Spacer(),
-            if (_totalExamCost > 0)
-              MonoText(
-                '¥ ${_totalExamCost.toStringAsFixed(0)}',
-                fontSize: 11,
-                color: AppColors.amber,
-                weight: FontWeight.w600,
-              ),
-            const SizedBox(width: 4),
-            Icon(
-              Icons.chevron_right,
-              size: 16,
-              color: AppColors.primaryOf(context).withValues(alpha: 0.5),
+              weight: FontWeight.w600,
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 6),
+        Row(
+          children: List.generate(stages.length * 2 - 1, (i) {
+            if (i.isOdd) {
+              final filled = i ~/ 2 < activeIdx;
+              return Expanded(
+                child: Container(
+                  height: 2,
+                  color: filled
+                      ? AppColors.primaryOf(context)
+                      : AppColors.ruleSoftOf(context),
+                ),
+              );
+            }
+            final idx = i ~/ 2;
+            final done = idx < activeIdx;
+            final current = idx == activeIdx;
+            final color = done || current
+                ? AppColors.primaryOf(context)
+                : AppColors.text4Of(context);
+            return Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: current
+                    ? AppColors.primaryOf(context)
+                    : (done
+                        ? AppColors.primaryOf(context).withValues(alpha: 0.15)
+                        : AppColors.ruleSoftOf(context)),
+                shape: BoxShape.circle,
+                border: current
+                    ? null
+                    : Border.all(color: color, width: 1),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                '${idx + 1}',
+                style: TextStyle(
+                  fontSize: 9,
+                  fontFamily: 'JetBrainsMono',
+                  color: current
+                      ? AppColors.onPrimaryOf(context)
+                      : color,
+                ),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  /// 展开态费用摘要（复用费用计算，紧凑展示）
+  Widget _buildCostSummary() {
+    const threshold = 1000.0;
+    final ratio = (_totalExamCost / threshold).clamp(0.0, 1.0);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const MonoText(
+              '检查累计费用',
+              fontSize: 10,
+              color: AppColors.amber,
+              letterSpacing: 0.06,
+            ),
+            MonoText(
+              '¥${_totalExamCost.toStringAsFixed(0)} / 阈值 ¥${threshold.toStringAsFixed(0)}',
+              fontSize: 10,
+              color: AppColors.text3Of(context),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        AppProgressBar(
+          value: ratio,
+          height: 4,
+          backgroundColor: AppColors.amber.withValues(alpha: 0.2),
+          foregroundColor: AppColors.amber,
+          radius: 2,
+        ),
+      ],
     );
   }
 
@@ -734,7 +947,7 @@ _patientAvatarChar,
     );
   }
 
-  // ─── 聊天流 ──────────────────────────────────────────
+  // ─── 聊天流（ChatGPT 风格） ─────────────────────────
 
   Widget _buildChatStream() {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -752,11 +965,11 @@ _patientAvatarChar,
                 return _studentMessage(m.text, m.time);
               }
               if (m.sender == _MsgSender.mentor) {
-                return _mentorMessage('AI 导师提示', m.text);
+                return _agentReasoningCard('AI 导师提示', m.text);
               }
-              return _patientMessage(m.text, m.time);
+              return _agentReply(m.text, m.time, citations: m.citations);
             }),
-            if (_spTyping) _patientTypingMessage(),
+            if (_spTyping) _agentTypingMessage(),
           ],
         ),
         // 滚动到底按钮
@@ -776,13 +989,13 @@ _patientAvatarChar,
   Widget _buildMessageWidget(_ChatMessage msg) {
     switch (msg.type) {
       case _MsgType.mentor:
-        return _mentorMessage(msg.label ?? '', msg.text ?? '');
+        return _agentReasoningCard(msg.label ?? 'AI 导师提示', msg.text ?? '');
       case _MsgType.patient:
-        return _patientMessage(msg.text ?? '', msg.time ?? '');
+        return _agentReply(msg.text ?? '', msg.time ?? '');
       case _MsgType.student:
         return _studentMessage(msg.text ?? '', msg.time ?? '');
       case _MsgType.examResult:
-        return _examResultMessage();
+        return _agentResultCard();
     }
   }
 
@@ -806,22 +1019,55 @@ _patientAvatarChar,
     );
   }
 
-  // ─── 患者打字指示器 ──────────────────────────────────
+  // ─── Agent 头像 ──────────────────────────────────────
 
-  Widget _patientTypingMessage() {
+  Widget _buildAgentAvatar() {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.primaryOf(context),
+            AppColors.primaryOf(context).withValues(alpha: 0.7),
+          ],
+        ),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryOf(context).withValues(alpha: 0.25),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.auto_awesome,
+        size: 14,
+        color: AppColors.paper,
+      ),
+    );
+  }
+
+  // ─── Agent 正在回复指示器 ────────────────────────────
+
+  Widget _agentTypingMessage() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _patientAvatarSmall(),
+          _buildAgentAvatar(),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '患者',
+                  '智愈 Agent',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -866,51 +1112,377 @@ _patientAvatarChar,
     );
   }
 
-  // ─── 导师消息 ────────────────────────────────────────
+  // ─── Agent 推理过程（默认折叠） ──────────────────────
 
-  Widget _mentorMessage(String label, String content) {
+  Widget _agentReasoningCard(String label, String content) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.88,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.amberSoftOf(context),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: _CollapsibleSection(
+        icon: Icons.lightbulb_outline,
+        accent: AppColors.amber,
+        title: 'Agent 推理过程',
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (label.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: MonoText(
+                    label.toUpperCase(),
+                    fontSize: 9,
+                    color: AppColors.amber,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              Text.rich(
+                TextSpan(
+                  children: _parseRichText(content),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    color: AppColors.textOf(context),
+                    height: 1.55,
+                  ),
+                ),
+              ),
+            ],
           ),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppColors.amberSoftOf(context),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
+        ),
+      ),
+    );
+  }
+
+  // ─── Agent 回复气泡（ChatGPT 风格） ──────────────────
+
+  Widget _agentReply(
+    String text,
+    String time, {
+    List<Map<String, dynamic>> citations = const [],
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAgentAvatar(),
+          const SizedBox(width: 8),
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.star, size: 9, color: AppColors.amber),
-                    const SizedBox(width: 4),
+                    const Text(
+                      '智愈 Agent',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.moss3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
                     MonoText(
-                      label.toUpperCase(),
-                      fontSize: 9,
-                      color: AppColors.amber,
-                      letterSpacing: 0.1,
+                      time,
+                      fontSize: 10,
+                      color: AppColors.text4Of(context),
                     ),
                   ],
                 ),
                 const SizedBox(height: 4),
-                Text.rich(
-                  TextSpan(
-                    children: _parseRichText(content),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceOf(context),
+                    border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  child: Text(
+                    text,
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 14,
                       color: AppColors.textOf(context),
-                      height: 1.55,
+                      height: 1.6,
+                    ),
+                  ),
+                ),
+                if (citations.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  _buildCitationCollapsible(citations),
+                ],
+                const SizedBox(height: 8),
+                _buildSuggestionChips(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Agent 回复下的建议追问 chips（增强交互自由度）
+  Widget _buildSuggestionChips() {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: _agentSuggestions.map((s) {
+        final isTree = s == '查看思维树';
+        return GestureDetector(
+          onTap: () => _onSuggestion(s),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: AppColors.bgOf(context),
+              border: Border.all(
+                color: isTree
+                    ? AppColors.mossSoftOf(context)
+                    : AppColors.ruleOf(context),
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isTree ? Icons.account_tree_outlined : Icons.add_rounded,
+                  size: 12,
+                  color: isTree
+                      ? AppColors.primaryOf(context)
+                      : AppColors.text3Of(context),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  s,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isTree
+                        ? AppColors.primaryOf(context)
+                        : AppColors.text2Of(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ─── 教材溯源引用（默认折叠） ────────────────────────
+
+  Widget _buildCitationCollapsible(List<Map<String, dynamic>> citations) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.indigoSoftOf(context),
+        border: Border.all(color: AppColors.indigo.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: _CollapsibleSection(
+        icon: Icons.source_outlined,
+        accent: AppColors.indigo,
+        title: '引用来源 · ${citations.length} 处',
+        trailing: const AppChip(label: 'AI', type: ChipType.indigo, fontSize: 9),
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
+          child: Column(
+            children: citations.map(_buildCitationItem).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCitationItem(Map<String, dynamic> c) {
+    final book = c['book_name'] as String? ?? '';
+    final chapter = c['chapter'] as String? ?? '';
+    final page = c['page_number'];
+    final snippet = c['chunk_text'] as String? ?? '';
+    final loc = [
+      if (chapter.isNotEmpty) chapter,
+      if (page != null) 'P$page',
+    ].join(' · ');
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context).withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.menu_book_rounded,
+                size: 11,
+                color: AppColors.indigo,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  book,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textOf(context),
+                  ),
+                ),
+              ),
+              if (loc.isNotEmpty)
+                MonoText(loc, fontSize: 9, color: AppColors.text3Of(context)),
+            ],
+          ),
+          if (snippet.isNotEmpty) ...[
+            const SizedBox(height: 3),
+            Text(
+              snippet,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                height: 1.45,
+                color: AppColors.text2Of(context),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ─── 检查结果（Agent 气泡内的结果卡） ─────────────────
+
+  Widget _agentResultCard() {
+    const resultText = '''
+**心电图（18 导联）** · ¥120
+II、III、aVF 导联 ST 段抬高 0.2-0.4 mV
+V3R-V5R ST 段抬高 0.15 mV
+
+**肌钙蛋白 I** · ¥280
+cTnI 3.8 ng/mL ↑（参考 < 0.04）
+
+**引用：**《内科学》第9版 · P247
+''';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildAgentAvatar(),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '智愈 Agent',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.moss3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    MonoText(_now(), fontSize: 10, color: AppColors.text4Of(context)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceOf(context),
+                    border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                  ),
+                  child: _CollapsibleSection(
+                    icon: Icons.assignment_outlined,
+                    accent: AppColors.primaryOf(context),
+                    title: '检查结果已返回',
+                    initiallyExpanded: true,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text.rich(
+                        TextSpan(
+                          children: _parseRichText(resultText),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.textOf(context),
+                            height: 1.6,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── 学生消息 ────────────────────────────────────────
+
+  Widget _studentMessage(String text, String time) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 20),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: screenWidth * 0.78,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MonoText(
+                    '我',
+                    fontSize: 10,
+                    color: AppColors.text4Of(context),
+                  ),
+                  const SizedBox(width: 4),
+                  MonoText(
+                    time,
+                    fontSize: 10,
+                    color: AppColors.text4Of(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.mossTintOf(context),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                ),
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textOf(context),
+                    height: 1.6,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -939,138 +1511,6 @@ _patientAvatarChar,
     return spans;
   }
 
-  // ─── 患者消息 ────────────────────────────────────────
-
-  Widget _patientAvatarSmall() {
-    return Container(
-      width: 26,
-      height: 26,
-      decoration: BoxDecoration(
-        color: AppColors.mossTintOf(context),
-        shape: BoxShape.circle,
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        '患',
-        style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w600,
-          color: AppColors.primaryOf(context),
-        ),
-      ),
-    );
-  }
-
-  Widget _patientMessage(String text, String time) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _patientAvatarSmall(),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text(
-                      '患者',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.moss3,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    MonoText(
-                      time,
-                      fontSize: 10,
-                      color: AppColors.text4Of(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textOf(context),
-                    height: 1.6,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── 学生消息 ────────────────────────────────────────
-
-  Widget _studentMessage(String text, String time) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: screenWidth * 0.75,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              MonoText(
-                time,
-                fontSize: 10,
-                color: AppColors.text4Of(context),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.mossTintOf(context),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                ),
-                child: Text(
-                  text,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: AppColors.textOf(context),
-                    height: 1.6,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _examResultMessage() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      child: _mentorMessage(
-        '检查结果返回',
-        '''
-**心电图（18 导联）** · ¥120
-II、III、aVF 导联 ST 段抬高 0.2-0.4 mV
-V3R-V5R ST 段抬高 0.15 mV
-
-**肌钙蛋白 I** · ¥280
-cTnI 3.8 ng/mL ↑（参考 < 0.04）
-
-**引用：**《内科学》第9版 · P247
-''',
-      ),
-    );
-  }
-
   // ─── 输入区 ──────────────────────────────────────────
 
   Widget _buildInputArea() {
@@ -1084,6 +1524,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
     ];
     return Container(
       padding: const EdgeInsets.only(left: 12, right: 12, bottom: 12, top: 8),
+      color: AppColors.surfaceOf(context),
       child: SafeArea(
         top: false,
         child: Column(
@@ -1104,8 +1545,8 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
             // 一体化输入容器
             Container(
               decoration: BoxDecoration(
-                color: AppColors.surfaceOf(context),
-                border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                color: AppColors.bgOf(context),
+                border: Border.all(color: AppColors.ruleOf(context)),
                 borderRadius: BorderRadius.circular(AppRadius.xl),
               ),
               child: Row(
@@ -1138,7 +1579,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                           color: AppColors.textOf(context),
                         ),
                         decoration: InputDecoration(
-                          hintText: '输入问诊内容…',
+                          hintText: '输入指令，指挥 Agent 问诊…',
                           hintStyle: TextStyle(
                             fontSize: 14,
                             color: AppColors.text4Of(context),
@@ -1323,11 +1764,16 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.account_tree_outlined,
-              size: 40, color: AppColors.text4Of(context)),
+          Icon(
+            Icons.account_tree_outlined,
+            size: 40,
+            color: AppColors.text4Of(context),
+          ),
           const SizedBox(height: 12),
-          Text('思维树将在问诊后生成',
-              style: TextStyle(fontSize: 13, color: AppColors.text3Of(context))),
+          Text(
+            '思维树将在问诊后生成',
+            style: TextStyle(fontSize: 13, color: AppColors.text3Of(context)),
+          ),
           if (_socratesHint != null) ...[
             const SizedBox(height: 16),
             Container(
@@ -1340,16 +1786,21 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const MonoText('苏格拉底提示',
-                      fontSize: 10,
-                      color: AppColors.amber,
-                      letterSpacing: 0.1),
+                  const MonoText(
+                    '苏格拉底提示',
+                    fontSize: 10,
+                    color: AppColors.amber,
+                    letterSpacing: 0.1,
+                  ),
                   const SizedBox(height: 6),
-                  Text(_socratesHint!,
-                      style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textOf(context),
-                          height: 1.5)),
+                  Text(
+                    _socratesHint!,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textOf(context),
+                      height: 1.5,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1381,17 +1832,20 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
       'cost': ('费用 / Cost', AppColors.amber),
     };
     for (final entry in groups.entries) {
-      final meta = typeMeta[entry.key] ?? ('${entry.key}', AppColors.text3Of(context));
+      final meta =
+          typeMeta[entry.key] ?? (entry.key, AppColors.text3Of(context));
       final nodes = entry.value.map(_mapNodeToTreeNode).toList();
       final missCnt =
           nodes.where((n) => n.miss).length;
       final countStr = missCnt > 0 ? '$missCnt 遗漏' : '${nodes.length} 已采集';
-      widgets.add(_buildTreeSection(
-        meta.$1,
-        countStr,
-        meta.$2,
-        nodes,
-      ));
+      widgets.add(
+        _buildTreeSection(
+          meta.$1,
+          countStr,
+          meta.$2,
+          nodes,
+        ),
+      );
     }
     return widgets;
   }
@@ -1408,22 +1862,31 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.lightbulb_outline, size: 12, color: AppColors.amber),
-              const SizedBox(width: 4),
-              const MonoText('苏格拉底提示',
-                  fontSize: 10,
-                  color: AppColors.amber,
-                  letterSpacing: 0.1),
+              Icon(
+                Icons.lightbulb_outline,
+                size: 12,
+                color: AppColors.amber,
+              ),
+              SizedBox(width: 4),
+              MonoText(
+                '苏格拉底提示',
+                fontSize: 10,
+                color: AppColors.amber,
+                letterSpacing: 0.1,
+              ),
             ],
           ),
           const SizedBox(height: 6),
-          Text(_socratesHint!,
-              style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textOf(context),
-                  height: 1.5)),
+          Text(
+            _socratesHint!,
+            style: TextStyle(
+              fontSize: 13,
+              color: AppColors.textOf(context),
+              height: 1.5,
+            ),
+          ),
         ],
       ),
     );
@@ -1652,6 +2115,79 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
   }
 }
 
+/// 可折叠区块：标题 + 可展开/收起的内容（默认折叠，实现「信息自动折叠」）
+class _CollapsibleSection extends StatefulWidget {
+  final IconData icon;
+  final Color accent;
+  final String title;
+  final Widget? trailing;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  const _CollapsibleSection({
+    required this.icon,
+    required this.accent,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.initiallyExpanded = false,
+  });
+
+  @override
+  State<_CollapsibleSection> createState() => _CollapsibleSectionState();
+}
+
+class _CollapsibleSectionState extends State<_CollapsibleSection> {
+  late bool _open = widget.initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        InkWell(
+          onTap: () => setState(() => _open = !_open),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Icon(widget.icon, size: 12, color: widget.accent),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: MonoText(
+                    widget.title,
+                    fontSize: 9,
+                    color: widget.accent,
+                    letterSpacing: 0.08,
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  widget.trailing!,
+                  const SizedBox(width: 4),
+                ],
+                AnimatedRotation(
+                  turns: _open ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Icon(
+                    Icons.expand_more,
+                    size: 16,
+                    color: AppColors.text3Of(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          child: _open ? widget.child : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+}
+
 class _TreeNode {
   final String type;
   final String status;
@@ -1681,8 +2217,9 @@ class _ExtraMsg {
   final String text;
   final String time;
   final _MsgSender sender;
+  final List<Map<String, dynamic>> citations;
 
-  const _ExtraMsg(this.text, this.time, this.sender);
+  const _ExtraMsg(this.text, this.time, this.sender, {this.citations = const []});
 }
 
 /// 统一的消息模型（支持初始消息和 API 消息）

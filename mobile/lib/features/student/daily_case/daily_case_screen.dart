@@ -256,7 +256,7 @@ padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       Expanded(
             child: Center(
               child: Text(
-                '每日一例 · No.$caseNo',
+                'AI 每日一例 · No.$caseNo',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,

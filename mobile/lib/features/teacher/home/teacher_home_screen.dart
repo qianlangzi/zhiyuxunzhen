@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/bottom_tab_bar.dart';
-import '../../../routes/app_router.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
@@ -64,20 +62,13 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
                           _buildGreeting(context),
                           const SizedBox(height: 20),
                           _buildStats(context),
-                          _buildReviewSection(context),
-                          _buildClassOverview(context),
-                          _buildMarketDynamic(context),
+                          const SizedBox(height: 12),
+                          _buildTextbookEntry(context),
+                          const SizedBox(height: 20),
+                          _buildFeatureGrid(context),
                         ],
                       ),
                     ),
-            ),
-            TeacherTabBar(
-              currentIndex: 0,
-              onTap: (i) {
-                if (i == 1) context.goNamed(RouteNames.spConfig);
-                if (i == 2) context.goNamed(RouteNames.caseMarket);
-                if (i == 3) context.goNamed(RouteNames.teacherProfile);
-              },
             ),
           ],
         ),
@@ -169,209 +160,155 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
     );
   }
 
-  Widget _buildReviewSection(BuildContext context) {
-    final data = _dashboardData;
-    final reviews = (data?['reviews'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    final pendingCount = data?['pendingReview']?.toString() ?? '12';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionHeader(
-          number: '01',
-          title: '待批阅 · $pendingCount',
-          trailing: AppMoreLink(label: '全部 →', onTap: () => context.goNamed(RouteNames.review)),
-        ),
-        if (reviews.isEmpty)
-          ..._defaultReviewItems(context)
-        else
-          ...reviews.map((r) => _reviewItem(
-            context,
-            r['student'] as String? ?? '',
-            r['studentId'] as String? ?? '',
-            r['status'] as String? ?? '',
-            _parseStatusBadgeType(r['statusType'] as String?),
-            meta: (r['meta'] as List<dynamic>?)?.cast<String>() ?? [],
-            urgent: r['urgent'] as bool? ?? false,
-          )),
-      ],
-    );
-  }
-
-  List<Widget> _defaultReviewItems(BuildContext context) {
-    return [
-      _reviewItem(
-        context, '陈思远 · 急性心梗大病历', '学号 2021302014 · 心血管 03 班',
-        'AI 批阅中', StatusBadgeType.info,
-        meta: ['提交于 13:42', 'AI 预评 82 分'],
-        urgent: true,
-      ),
-      _reviewItem(
-        context, '林雨欣 · 急性心梗大病历', '学号 2021302022 · 心血管 03 班',
-        '格式打回', StatusBadgeType.warn,
-        meta: ['提交于 12:18', '主诉超 20 字 / 过敏史空'],
-        urgent: true,
-      ),
-      _reviewItem(
-        context, '赵子轩 · 慢阻肺大病历', '学号 2021302008 · 呼吸 02 班',
-        'AI 预评 91 分', StatusBadgeType.info,
-        meta: ['提交于 11:30', '建议复核'],
-      ),
-      _reviewItem(
-        context, '周明 · 慢阻肺大病历', '学号 2021302015 · 呼吸 02 班',
-        '已完成 88', StatusBadgeType.done,
-        meta: ['复核于 10:15', '已覆盖 AI 评分'],
-      ),
-    ];
-  }
-
-  StatusBadgeType _parseStatusBadgeType(String? type) {
-    switch (type) {
-      case 'info':
-        return StatusBadgeType.info;
-      case 'warn':
-        return StatusBadgeType.warn;
-      case 'done':
-        return StatusBadgeType.done;
-      default:
-        return StatusBadgeType.info;
-    }
-  }
-
-  Widget _reviewItem(
-    BuildContext context, String student, String studentId,
-    String status, StatusBadgeType statusType,
-    {required List<String> meta, bool urgent = false}
-  ) {
+  Widget _buildTextbookEntry(BuildContext context) {
     return GestureDetector(
-      onTap: () => context.goNamed(RouteNames.review),
+      onTap: () => context.goNamed(RouteNames.teacherTextbook),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        clipBehavior: Clip.hardEdge,
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppColors.surfaceOf(context),
-          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          gradient: LinearGradient(
+            colors: [AppColors.indigoSoftOf(context), AppColors.surfaceOf(context)],
+          ),
+          border: Border.all(color: AppColors.indigoSoftOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-        child: Stack(
+        child: Row(
           children: [
-            if (urgent)
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                child: Container(width: 3, color: AppColors.vermilion),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: AppColors.indigo.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: const Icon(Icons.menu_book_rounded, size: 20, color: AppColors.indigo),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(student, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
-                        const SizedBox(height: 1),
-                        MonoText(studentId, fontSize: 11, color: AppColors.text3Of(context)),
-                      ],
-                    ),
-                  ),
-                  AppStatusBadge(label: status, type: statusType),
+                  SerifText('教材制作', fontSize: 14, color: AppColors.textOf(context)),
+                  const SizedBox(height: 2),
+                  MonoText('AI 向量化教材 · 供学生智能查阅', fontSize: 10, color: AppColors.text3Of(context)),
                 ],
               ),
             ),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.indigo),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildClassOverview(BuildContext context) {
-    final data = _dashboardData;
-    final classes = (data?['classes'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-
+  // 功能小模块（bento 网格，同期学生端首页风格）
+  Widget _buildFeatureGrid(BuildContext context) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        AppSectionHeader(number: '02', title: '班级概览'),
-        AppPaper(
-          child: Column(
-            children: [
-if (classes.isEmpty)
-                Column(
-                  children: [
-                    _classRow(context, '心血管 03 班 · 32 人', '急性心梗作业 · 截止 07.22', '68%', AppColors.moss),
-                    const DottedDivider(),
-                    _classRow(context, '呼吸 02 班 · 28 人', '慢阻肺作业 · 截止 07.25', '32%', AppColors.amber),
-                  ],
-                )
-              else
-                ...List.generate(classes.length, (i) {
-                  final c = classes[i];
-                  final color = _parseColor(c['color'] as String?);
-                  return Column(
-                    children: [
-                      if (i > 0) const DottedDivider(),
-                      _classRow(
-                        context,
-                        c['name'] as String? ?? '',
-                        c['assignment'] as String? ?? '',
-                        c['rate'] as String? ?? '',
-                        color,
-                      ),
-                    ],
-                  );
-                }),
-            ],
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 4, child: _reviewCard(context)),
+            const SizedBox(width: 12),
+            Expanded(flex: 3, child: _classCard(context)),
+          ],
         ),
+        const SizedBox(height: 12),
+        _marketCard(context),
       ],
     );
   }
 
-  Color _parseColor(String? color) {
-    switch (color) {
-      case 'moss':
-        return AppColors.moss;
-      case 'amber':
-        return AppColors.amber;
-      case 'vermilion':
-        return AppColors.vermilion;
-      case 'indigo':
-        return AppColors.indigo;
-      default:
-        return AppColors.moss;
-    }
-  }
-
-  Widget _classRow(BuildContext context, String name, String assignment, String rate, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  /// 待批阅（红色，突出）
+  Widget _reviewCard(BuildContext context) {
+    final pendingCount = _dashboardData?['pendingReview']?.toString() ?? '12';
+    return _blockShell(
+      context,
+      bg: AppColors.vermilionSoftOf(context),
+      height: 120,
+      onTap: () => context.goNamed(RouteNames.review),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
-              Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
-              const SizedBox(height: 2),
-              MonoText(assignment, fontSize: 11, color: AppColors.text3Of(context)),
-            ],
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
+              _blockIcon(context, AppColors.vermilion, Icons.fact_check_rounded),
+              const Spacer(),
               Text(
-                rate,
+                pendingCount,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontFamily: 'JetBrainsMono',
+                  fontSize: 22,
                   fontWeight: FontWeight.w600,
-                  color: color,
+                  color: AppColors.vermilion,
                 ),
               ),
-              MonoText('完成率', fontSize: 11, color: AppColors.text3Of(context)),
+            ],
+          ),
+          const Spacer(),
+          SerifText('待批阅', fontSize: 14, color: AppColors.textOf(context)),
+          const SizedBox(height: 3),
+          MonoText('AI 批阅 · $pendingCount 项待复核', fontSize: 10, color: AppColors.text3Of(context)),
+        ],
+      ),
+    );
+  }
+
+  /// 班级概览（靛蓝）
+  Widget _classCard(BuildContext context) {
+    final classes = (_dashboardData?['classes'] as List<dynamic>?)?.length ?? 2;
+    return _blockShell(
+      context,
+      bg: AppColors.indigoSoftOf(context),
+      height: 120,
+      onTap: () => context.goNamed(RouteNames.assignment),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _blockIcon(context, AppColors.indigo, Icons.groups_rounded),
+              const Spacer(),
+              Icon(Icons.chevron_right, size: 16, color: AppColors.indigo),
+            ],
+          ),
+          const Spacer(),
+          SerifText('班级概览', fontSize: 14, color: AppColors.textOf(context)),
+          const SizedBox(height: 3),
+          MonoText('带教 · $classes 个班级', fontSize: 10, color: AppColors.text3Of(context)),
+        ],
+      ),
+    );
+  }
+
+  /// 病历广场动态（苔藓绿）
+  Widget _marketCard(BuildContext context) {
+    final dynamicData = _dashboardData?['marketDynamic'] as Map<String, dynamic>?;
+    final totalRefs = dynamicData?['totalRefs'] as String? ?? '23';
+    final rating = dynamicData?['rating'] as String? ?? '4.8';
+    return _blockShell(
+      context,
+      bg: AppColors.mossTintOf(context),
+      height: 96,
+      onTap: () => context.goNamed(RouteNames.caseMarket),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _blockIcon(context, AppColors.moss, Icons.public_rounded),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SerifText('病历广场动态', fontSize: 14, color: AppColors.textOf(context)),
+                    const SizedBox(height: 2),
+                    MonoText('累计引用 $totalRefs 次 · 评分 $rating', fontSize: 10, color: AppColors.text3Of(context)),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 16, color: AppColors.moss),
             ],
           ),
         ],
@@ -379,41 +316,37 @@ if (classes.isEmpty)
     );
   }
 
-  Widget _buildMarketDynamic(BuildContext context) {
-    final data = _dashboardData;
-    final dynamicData = data?['marketDynamic'] as Map<String, dynamic>?;
-
-    final caseName = dynamicData?['caseName'] as String? ?? '《急性下壁心梗的不典型表现》';
-    final refs = dynamicData?['refs'] as String? ?? '+5';
-    final totalRefs = dynamicData?['totalRefs'] as String? ?? '23';
-    final rating = dynamicData?['rating'] as String? ?? '4.8';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppSectionHeader(number: '03', title: '病例广场动态'),
-        AppPaper(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              RichText(
-                text: TextSpan(
-                  style: TextStyle(fontSize: 12.5, color: AppColors.text2Of(context), height: 1.6),
-                  children: [
-                    const TextSpan(text: '你的病例 '),
-                    TextSpan(text: caseName, style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textOf(context))),
-                    const TextSpan(text: ' 被引用 '),
-TextSpan(text: refs, style: TextStyle(color: AppColors.moss, fontWeight: FontWeight.w500)),
-                    const TextSpan(text: ' 次'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 4),
-              MonoText('本周新增引用 · 累计 $totalRefs 次 · 评分 $rating', fontSize: 11, color: AppColors.text3Of(context)),
-            ],
-          ),
+  Widget _blockShell(
+    BuildContext context, {
+    required Color bg,
+    required VoidCallback onTap,
+    required Widget child,
+    double? height,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: height,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
-      ],
+        child: child,
+      ),
+    );
+  }
+
+  Widget _blockIcon(BuildContext context, Color color, IconData icon) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Icon(icon, size: 18, color: color),
     );
   }
 }

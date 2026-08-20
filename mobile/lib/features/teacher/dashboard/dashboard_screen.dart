@@ -195,20 +195,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             AppBackAppBar(
               title: '学情看板 · 心血管 03',
               onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
-              action: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AppGhostButton(
-                    label: _aiInsightLoading ? '洞察中…' : 'AI 教学洞察',
-                    small: true,
-                    onPressed: _aiInsightLoading ? null : _loadInsight,
-                  ),
-                  const SizedBox(width: 8),
-                  AppIconButton(
-                    icon: const Icon(Icons.download_outlined, size: 20),
-                    onPressed: () => AppFeedback.info(context, '学情报表导出功能即将开放（演示版）'),
-                  ),
-                ],
+              action: AppGhostButton(
+                label: _aiInsightLoading ? '洞察中…' : 'AI 教学洞察',
+                small: true,
+                onPressed: _aiInsightLoading ? null : _loadInsight,
               ),
             ),
             Expanded(
@@ -236,13 +226,18 @@ child: _isLoading
 
   Widget _buildStatGrid() {
     final data = _dashboardData;
-    final statsRaw = (data?['stats'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
-    final defaultStats = [
-      ('作业完成率', '68%', '↑ 12% · 较上周', AppColors.moss),
-      ('平均 OSCE', '82.4', '↑ 4.2 · 较上周', AppColors.moss),
-      ('批阅效率', '2.8min/份', '↓ 71% · 较纯人工', AppColors.moss),
-      ('过度检查率', '23%', '↑ 5% · 需关注', AppColors.vermilion),
+    // 从后端真实字段解析（TeacherDashboardVO）
+    final completionRate = (data?['completionRate'] as num?)?.toDouble() ?? 0.0;
+    final avgOsceScore = (data?['avgOsceScore'] as num?)?.toDouble() ?? 0.0;
+    final reviewEfficiency = (data?['reviewEfficiency'] as num?)?.toDouble() ?? 0.0;
+    final overExamRate = (data?['overExamRate'] as num?)?.toDouble() ?? 0.0;
+
+    final stats = <(String, String, String, Color)>[
+      ('作业完成率', '${(completionRate * 100).toStringAsFixed(0)}%', '基于已提交作业', AppColors.moss),
+      ('平均 OSCE', avgOsceScore.toStringAsFixed(1), '基于批阅记录', AppColors.moss),
+      ('批阅效率', '${reviewEfficiency.toStringAsFixed(1)}', '批阅数/作业总数', AppColors.moss),
+      ('过度检查率', '${(overExamRate * 100).toStringAsFixed(0)}%', '超均费用占比', AppColors.vermilion),
     ];
 
     return GridView.builder(
@@ -256,13 +251,8 @@ child: _isLoading
       ),
       itemCount: 4,
       itemBuilder: (context, i) {
-final (label, value, trend, color) =
-            statsRaw.length > i
-                ? _parseStat(statsRaw[i])
-                : defaultStats[i];
-
-        final isTrendDown = trend.startsWith('↑') && label == '过度检查率';
-        final isNegativeTrend = isTrendDown || trend.startsWith('↓');
+        final (label, value, trend, color) = stats[i];
+        final isNegativeTrend = label == '过度检查率' && overExamRate > 0.3;
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -293,78 +283,72 @@ final (label, value, trend, color) =
     );
   }
 
-  (String, String, String, Color) _parseStat(Map<String, dynamic> stat) {
-    final label = stat['label'] as String? ?? '';
-    final value = stat['value'] as String? ?? '';
-    final trend = stat['trend'] as String? ?? '';
-    final color = _parseColor(stat['color'] as String?);
-    return (label, value, trend, color);
-  }
-
-  Color _parseColor(String? color) {
-    switch (color) {
-      case 'moss':
-        return AppColors.moss;
-      case 'amber':
-        return AppColors.amber;
-      case 'vermilion':
-        return AppColors.vermilion;
-      case 'indigo':
-        return AppColors.indigo;
-      default:
-        return AppColors.moss;
-    }
-  }
-
   Widget _buildOsceSection(BuildContext context) {
     final data = _dashboardData;
-    final osceScores = (data?['osceScores'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-    final osceAverage = data?['osceAverage'] as String? ?? '82.4';
+    // 后端返回 osceDimensionScores: Map<String, Integer>
+    final osceDimScores = (data?['osceDimensionScores'] as Map<String, dynamic>?) ?? {};
+    final avgOsceScore = (data?['avgOsceScore'] as num?)?.toDouble() ?? 0.0;
 
-    final defaultOsceRows = [
-      ('病史采集', '85.2', AppColors.moss),
-      ('诊断逻辑', '82.6', AppColors.moss),
-      ('沟通技巧', '78.4', AppColors.amber),
-      ('人文关怀', '86.8', AppColors.moss),
-      ('检查决策', '80.8', AppColors.moss3),
-      ('文书规范', '81.6', AppColors.amber),
-    ];
+    // 维度中文名映射（后端 key 可能是英文或中文）
+    final dimLabels = <String, String>{
+      'history': '病史采集',
+      'diagnosis': '诊断逻辑',
+      'communication': '沟通技巧',
+      'humanism': '人文关怀',
+      'examination': '检查决策',
+      'documentation': '文书规范',
+    };
 
-    final osceRows = osceScores.isEmpty
-        ? defaultOsceRows
-        : osceScores.map((s) {
-            final label = s['label'] as String? ?? '';
-            final score = s['score'] as String? ?? '0.0';
-            final color = _parseColor(s['color'] as String?);
-            return (label, score, color);
-          }).toList();
+    final osceRows = osceDimScores.entries.map((e) {
+      final label = dimLabels[e.key] ?? e.key;
+      final score = (e.value as num?)?.toDouble() ?? 0.0;
+      final color = score >= 85 ? AppColors.moss : (score >= 75 ? AppColors.amber : AppColors.vermilion);
+      return (label, score.toStringAsFixed(1), color);
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(number: '01', title: 'OSCE 六维均分'),
         AppPaper(
-          child: Row(
-            children: [
-              SizedBox(
-                width: 140,
-                height: 140,
-                child: CustomPaint(painter: _MiniRadarPainter(ruleColor: AppColors.ruleOf(context), mossColor: AppColors.primaryOf(context))),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
+          child: osceRows.isEmpty
+              ? _buildEmptyHint(context, '暂无 OSCE 评分数据')
+              : Row(
                   children: [
-...osceRows.map((r) => _osceRow(context, r.$1, r.$2, r.$3)),
-                    const DottedDivider(),
-                    _osceRow(context, '综合均分', osceAverage, AppColors.moss, bold: true),
+                    SizedBox(
+                      width: 140,
+                      height: 140,
+                      child: CustomPaint(
+                        painter: _MiniRadarPainter(
+                          ruleColor: AppColors.ruleOf(context),
+                          mossColor: AppColors.primaryOf(context),
+                          scores: osceDimScores.values.map((v) => ((v as num?)?.toDouble() ?? 0.0) / 100.0).toList(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          ...osceRows.map((r) => _osceRow(context, r.$1, r.$2, r.$3)),
+                          const DottedDivider(),
+                          _osceRow(context, '综合均分', avgOsceScore.toStringAsFixed(1), AppColors.moss, bold: true),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyHint(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: MonoText(text, fontSize: 12, color: AppColors.text4Of(context)),
+      ),
     );
   }
 
@@ -402,38 +386,34 @@ final (label, value, trend, color) =
 
   Widget _buildCommonMissSection(BuildContext context) {
     final data = _dashboardData;
-    final missItems = (data?['commonMissItems'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    // 后端返回 commonMistakes: List<CommonMistake{type, description, count}>
+    final missItems = (data?['commonMistakes'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
-    final defaultMissItems = [
-      ('胸痛诱因（体力活动/情绪）', 21, 0.84),
-      ('过敏史', 15, 0.60),
-      ('家族史', 12, 0.48),
-      ('用药依从性', 9, 0.36),
-      ('个人史（吸烟/饮酒）', 7, 0.28),
-    ];
+    // 找最大 count 用于计算 barPercent
+    final maxCount = missItems.isEmpty ? 1 : missItems.map((m) => (m['count'] as num?)?.toInt() ?? 0).fold(0, (a, b) => a > b ? a : b);
 
-    final items = missItems.isEmpty
-        ? defaultMissItems
-        : missItems.map((m) {
-            final name = m['name'] as String? ?? '';
-            final count = m['count'] as int? ?? 0;
-            final barPercent = (m['barPercent'] as num?)?.toDouble() ?? 0.0;
-            return (name, count, barPercent);
-          }).toList();
+    final items = missItems.map((m) {
+      final name = m['description'] as String? ?? m['type'] as String? ?? '';
+      final count = (m['count'] as num?)?.toInt() ?? 0;
+      final barPercent = maxCount == 0 ? 0.0 : count / maxCount;
+      return (name, count, barPercent);
+    }).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(
           number: '02',
-          title: '共性漏问项',
-          trailing: Builder(builder: (ctx) => AppMoreLink(label: 'Top 5', onTap: () => AppFeedback.info(ctx, '已展示 Top 5 漏问项'))),
+          title: '共性错题',
+          trailing: Builder(builder: (ctx) => AppMoreLink(label: 'Top 5', onTap: () => AppFeedback.info(ctx, '已展示 Top 5 错题'))),
         ),
         AppPaper(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Column(
-            children: items.map((e) => _missRow(context, e.$1, e.$2, e.$3)).toList(),
-          ),
+          child: items.isEmpty
+              ? _buildEmptyHint(context, '暂无错题数据')
+              : Column(
+                  children: items.map((e) => _missRow(context, e.$1, e.$2, e.$3)).toList(),
+                ),
         ),
       ],
     );
@@ -471,68 +451,24 @@ final (label, value, trend, color) =
   }
 
   Widget _buildMisdiagnosisSection(BuildContext context) {
-    final data = _dashboardData;
-    final misdiagnosisItems = (data?['misdiagnosisItems'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
-
-    final defaultMisdiagnosis = [
-      ('误诊为胃食管反流', '急性下壁心梗不典型表现', '8 人'),
-      ('漏诊主动脉夹层', '鉴别诊断未列出', '6 人'),
-    ];
-
-    final items = misdiagnosisItems.isEmpty
-        ? defaultMisdiagnosis
-        : misdiagnosisItems.map((m) {
-            final title = m['title'] as String? ?? '';
-            final subtitle = m['subtitle'] as String? ?? '';
-            final count = m['count'] as String? ?? '0';
-            return (title, subtitle, count);
-          }).toList();
-
+    // 后端 TeacherDashboardVO 未提供误诊统计字段
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         AppSectionHeader(number: '03', title: '共性误诊'),
         AppPaper(
-          child: Column(
-            children: List.generate(items.length, (i) {
-              final item = items[i];
-              return Column(
-                children: [
-                  if (i > 0) const DottedDivider(),
-                  _misdiagRow(context, item.$1, item.$2, item.$3),
-                ],
-              );
-            }),
-          ),
+          child: _buildEmptyHint(context, '暂无误诊统计数据'),
         ),
       ],
     );
   }
 
-  Widget _misdiagRow(BuildContext context, String title, String subtitle, String count) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppColors.textOf(context))),
-              const SizedBox(height: 2),
-              MonoText(subtitle, fontSize: 11, color: AppColors.text3Of(context)),
-            ],
-          ),
-          AppChip(label: count, type: ChipType.vermilion),
-        ],
-      ),
-    );
-  }
-
 Widget _buildRemediation(BuildContext context) {
     final data = _dashboardData;
-    final remediation = data?['remediationSuggestion'] as String? ??
-        '建议下次课堂重点讲解：胸痛的诱因询问框架、ACS 不典型表现的识别，并安排主动脉夹层鉴别诊断的随堂练习。';
+    final remediation = data?['remediationSuggestion'] as String?;
+    if (remediation == null || remediation.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
@@ -545,7 +481,7 @@ Widget _buildRemediation(BuildContext context) {
         children: [
           EyebrowText('REMEDIATION · 课堂补救建议', color: AppColors.onPrimarySoftOf(context)),
           const SizedBox(height: 8),
-Text(
+          Text(
             remediation,
             style: TextStyle(fontSize: 13, color: AppColors.onPrimaryOf(context), height: 1.6),
           ),
@@ -558,17 +494,38 @@ Text(
 class _MiniRadarPainter extends CustomPainter {
   final Color ruleColor;
   final Color mossColor;
+  final List<double> scores;
 
-  _MiniRadarPainter({required this.ruleColor, required this.mossColor});
+  _MiniRadarPainter({required this.ruleColor, required this.mossColor, List<double>? scores})
+      : scores = scores ?? const [];
   @override
   void paint(Canvas canvas, Size size) {
     final cx = size.width / 2;
     final cy = size.height / 2;
     final radius = size.width * 0.38;
 
-    final scores = [0.85, 0.83, 0.78, 0.87, 0.80, 0.82];
-    final n = scores.length;
+    final n = scores.isEmpty ? 6 : scores.length;
     final angleStep = 2 * pi / n;
+
+    // 无数据时只画网格
+    if (scores.isEmpty) {
+      final gridPaint = Paint()
+        ..color = ruleColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1;
+      for (var level = 1; level <= 2; level++) {
+        final r = radius * level / 2;
+        final path = Path();
+        for (var i = 0; i <= n; i++) {
+          final angle = -pi / 2 + i * angleStep;
+          final x = cx + r * cos(angle);
+          final y = cy + r * sin(angle);
+          if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+        }
+        canvas.drawPath(path, gridPaint);
+      }
+      return;
+    }
 
     // 网格
     final gridPaint = Paint()

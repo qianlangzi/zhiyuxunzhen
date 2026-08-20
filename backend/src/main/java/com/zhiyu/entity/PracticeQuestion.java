@@ -15,6 +15,9 @@ public class PracticeQuestion extends BaseEntity {
     /** single_choice / judgment */
     private String questionType;
 
+    /** 所属科室/模块（如：心血管内科、呼吸内科） */
+    private String department;
+
     private String knowledgeTag;
 
     private String title;

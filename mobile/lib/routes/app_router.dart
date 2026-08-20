@@ -13,11 +13,16 @@ import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
 import '../features/student/recommend/recommendation_screen.dart';
 import '../features/student/training/question_training_screen.dart';
+import '../features/student/training/question_bank_screen.dart';
+import '../features/student/training/question_practice_screen.dart';
 import '../features/student/textbook/textbook_center_screen.dart';
 import '../features/student/search/search_result_screen.dart';
 import '../features/student/report/review_report_screen.dart';
 import '../features/student/daily_case/daily_case_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
+import '../features/student/assignments/todo_assignments_screen.dart';
+import '../features/student/assignments/todo_assignment_detail_screen.dart';
+import '../features/student/result/osce_history_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
 import '../features/teacher/home/teacher_home_screen.dart';
 import '../features/teacher/case_config/sp_config_screen.dart';
@@ -26,10 +31,12 @@ import '../features/teacher/assignments/assignment_screen.dart';
 import '../features/teacher/review/review_screen.dart';
 import '../features/teacher/dashboard/dashboard_screen.dart';
 import '../features/teacher/profile/teacher_profile_screen.dart';
+import '../features/teacher/textbook/teacher_textbook_screen.dart';
 import '../features/common/about/about_app_screen.dart';
 import '../features/common/settings/settings_screen.dart';
 import '../features/common/legal/legal_document_screen.dart';
 import 'route_names.dart';
+import 'app_shell.dart';
 
 /// Bridge Riverpod 认证状态到 GoRouter 的 refreshListenable（ChangeNotifier）
 ///
@@ -46,6 +53,9 @@ class _AuthRefreshNotifier extends ChangeNotifier {
 
 /// 全局路由 Provider
 ///
+/// 学生端 / 教师端均使用 [StatefulShellRoute.indexedStack]：
+/// 底部 tab 栏由 Shell 常驻持有，切换分支时滑块平滑滑动；
+/// 各 tab 首页为分支，其余详情页为顶层路由（push 时覆盖 Shell）。
 /// 使用 refreshListenable 监听认证状态变化，使自动登出 / 2015 强制改密
 /// 能立即触发路由重定向，而非停留在当前页直到下次导航。
 final routerProvider = Provider<GoRouter>((ref) {
@@ -62,9 +72,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // （配合 main() 预热，正常情况下此分支不会命中，仅作安全网）
       if (auth.isLoading) return null;
 
-      // 未登录只能进登录页
+      // 未登录只能进登录页 / 注册页（注册页无需登录即可访问）
       if (!auth.isAuthenticated) {
-        return goingToLogin ? null : '/login';
+        return (goingToLogin || loc == '/register') ? null : '/login';
       }
       // 强制改密：后端标记 mustChangePassword=true 时，只允许进入改密页，
       // 阻止用户绕过改密流程访问其他功能（与后端拦截器形成双层防护）。
@@ -106,17 +116,51 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ChangePasswordScreen(),
       ),
 
-      // ========== 学生端 ==========
-      GoRoute(
-        name: RouteNames.studentHome,
-        path: '/student',
-        builder: (context, state) => StudentHomeScreen(),
+      // ========== 学生端 Shell（4 个 tab） ==========
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            StudentShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.studentHome,
+                path: '/student',
+                builder: (context, state) => StudentHomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.studentCaseMarket,
+                path: '/student/market',
+                builder: (context, state) => StudentCaseMarketScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.mistakes,
+                path: '/student/mistakes',
+                builder: (context, state) => MistakesScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.studentProfile,
+                path: '/student/profile',
+                builder: (context, state) => StudentProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
-      GoRoute(
-        name: RouteNames.studentCaseMarket,
-        path: '/student/market',
-        builder: (context, state) => StudentCaseMarketScreen(),
-      ),
+
+      // ---- 学生端详情页（顶层路由，push 时覆盖 Shell） ----
       GoRoute(
         name: RouteNames.chat,
         path: '/student/chat',
@@ -133,11 +177,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => OsceResultScreen(),
       ),
       GoRoute(
-        name: RouteNames.mistakes,
-        path: '/student/mistakes',
-        builder: (context, state) => MistakesScreen(),
-      ),
-      GoRoute(
         name: RouteNames.recommendation,
         path: '/student/recommend',
         builder: (context, state) => RecommendationScreen(),
@@ -146,6 +185,21 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.questionTraining,
         path: '/student/training',
         builder: (context, state) => QuestionTrainingScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.questionBank,
+        path: '/student/questions/bank',
+        builder: (context, state) => QuestionBankScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.questionPractice,
+        path: '/student/questions/practice',
+        builder: (context, state) => QuestionPracticeScreen(
+          department: state.uri.queryParameters['department'],
+          knowledgeTag: state.uri.queryParameters['knowledgeTag'],
+          difficulty: int.tryParse(state.uri.queryParameters['difficulty'] ?? ''),
+          questionType: state.uri.queryParameters['questionType'],
+        ),
       ),
       GoRoute(
         name: RouteNames.textbookCenter,
@@ -160,6 +214,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        name: RouteNames.todoAssignments,
+        path: '/student/assignments/todo',
+        builder: (context, state) => TodoAssignmentsScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.todoAssignmentDetail,
+        path: '/student/assignments/:id',
+        builder: (context, state) => TodoAssignmentDetailScreen(
+          instanceId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        name: RouteNames.osceHistory,
+        path: '/student/osce-history',
+        builder: (context, state) => OsceHistoryScreen(),
+      ),
+      GoRoute(
         name: RouteNames.reviewReport,
         path: '/student/report',
         builder: (context, state) => ReviewReportScreen(),
@@ -170,32 +241,56 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => DailyCaseScreen(),
       ),
       GoRoute(
-        name: RouteNames.studentProfile,
-        path: '/student/profile',
-        builder: (context, state) => StudentProfileScreen(),
-      ),
-      GoRoute(
         name: RouteNames.profileEdit,
         path: '/student/profile/edit',
         builder: (context, state) => ProfileEditScreen(),
       ),
 
-      // ========== 教师端 ==========
-      GoRoute(
-        name: RouteNames.teacherHome,
-        path: '/teacher',
-        builder: (context, state) => TeacherHomeScreen(),
+      // ========== 教师端 Shell（4 个 tab） ==========
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            TeacherShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.teacherHome,
+                path: '/teacher',
+                builder: (context, state) => TeacherHomeScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.spConfig,
+                path: '/teacher/sp-config',
+                builder: (context, state) => SpConfigScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.caseMarket,
+                path: '/teacher/market',
+                builder: (context, state) => CaseMarketScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                name: RouteNames.teacherProfile,
+                path: '/teacher/profile',
+                builder: (context, state) => TeacherProfileScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
-      GoRoute(
-        name: RouteNames.spConfig,
-        path: '/teacher/sp-config',
-        builder: (context, state) => SpConfigScreen(),
-      ),
-      GoRoute(
-        name: RouteNames.caseMarket,
-        path: '/teacher/market',
-        builder: (context, state) => CaseMarketScreen(),
-      ),
+
+      // ---- 教师端详情页（顶层路由） ----
       GoRoute(
         name: RouteNames.assignment,
         path: '/teacher/assignment',
@@ -212,14 +307,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => DashboardScreen(),
       ),
       GoRoute(
-        name: RouteNames.teacherProfile,
-        path: '/teacher/profile',
-        builder: (context, state) => TeacherProfileScreen(),
-      ),
-      GoRoute(
         name: RouteNames.profileEditTeacher,
         path: '/teacher/profile/edit',
         builder: (context, state) => ProfileEditScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.teacherTextbook,
+        path: '/teacher/textbooks',
+        builder: (context, state) => TeacherTextbookScreen(),
       ),
 
       // ========== 通用 ==========

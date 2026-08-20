@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/bottom_tab_bar.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
@@ -154,15 +153,6 @@ class _StudentCaseMarketScreenState
                               .map((c) => _caseCard(c))
                               .toList(),
                         ),
-            ),
-            StudentTabBar(
-              currentIndex: 1,
-              onTap: (i) {
-                if (i == 0) context.goNamed(RouteNames.studentHome);
-                if (i == 1) return; // 已在广场
-                if (i == 2) context.goNamed(RouteNames.mistakes);
-                if (i == 3) context.goNamed(RouteNames.studentProfile);
-              },
             ),
           ],
         ),

@@ -243,6 +243,60 @@ class TeacherApi {
     }
   }
 
+  // ========= 教材管理（教师上传电子书） =========
+
+  /// 上传电子书文件，返回 {url, filename}
+  Future<ApiResponse<Map<String, dynamic>>> uploadTextbookFile(String filePath) async {
+    try {
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/teacher/textbooks/upload',
+        data: formData,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 创建/上架教材
+  Future<ApiResponse<Map<String, dynamic>>> createTextbook(Map<String, dynamic> data) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>('/api/v1/teacher/textbooks', data: data);
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 我的教材列表
+  Future<ApiResponse<Map<String, dynamic>>> getMyTextbooks({
+    int pageNum = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/textbooks',
+        queryParameters: {'pageNum': pageNum, 'pageSize': pageSize},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 下架教材
+  Future<ApiResponse<void>> deleteTextbook(int id) async {
+    try {
+      await _dio.delete('/api/v1/teacher/textbooks/$id');
+      return const ApiResponse(code: 0, message: 'ok');
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   String _mapError(DioException e) {
     log('TeacherApi error: ${e.message}', name: 'teacher_api');
     return switch (e.type) {

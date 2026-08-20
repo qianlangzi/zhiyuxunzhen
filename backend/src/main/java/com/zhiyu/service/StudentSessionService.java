@@ -4,6 +4,7 @@ import com.zhiyu.service.dto.SessionStartDTO;
 import com.zhiyu.vo.SessionStartVO;
 import com.zhiyu.vo.StudentSessionDetailVO;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,4 +26,11 @@ public interface StudentSessionService {
      * 问诊聊天：校验会话归属与状态 → 转发至 AI 中台同步接口 → 返回 SP 回复等聚合数据
      */
     Map<String, Object> chat(Long sessionId, String message);
+
+    /**
+     * 影像 AI 读图分析（多模态，PRD 9.2）：校验会话归属 → 转发 AI Vision。
+     * AI 未配置或调用失败时返回降级反馈，不抛异常。
+     */
+    Map<String, Object> analyzeImage(Long sessionId, String imageUrl,
+                                     List<Double> imageBbox, String studentNote, String mobileToken);
 }

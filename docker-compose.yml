@@ -74,12 +74,16 @@ services:
       MINIO_ADDRESS: minio:9000
       <<: *no-proxy-env
     # Windows Docker Desktop 容器内 DNS 解析服务名可能失败，用 extra_hosts 静态映射绕过
+    # 注意：IP 可能因 Docker 网络重建而漂移，重建容器后请用
+    # `docker inspect zhiyu-etcd zhiyu-minio --format '{{.Name}} => {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'` 重新确认
     extra_hosts:
-      - "etcd:172.18.0.4"
-      - "minio:172.18.0.5"
+      - "etcd:172.21.0.4"
+      - "minio:172.21.0.5"
     depends_on:
       - etcd
       - minio
+    ports:
+      - "19530:19530"
     volumes:
       - milvus_data:/var/lib/milvus
       - ./deploy/milvus/milvus.yaml:/milvus/configs/milvus.yaml:ro
@@ -143,6 +147,13 @@ services:
       EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
       EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-embedding-v1}
+      # DashScope 多模态 Embedding（Qwen3-VL-Embedding，实验验证最优）
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-https://ws-z7vi5mam4d8415c8.cn-beijing.maas.aliyuncs.com/api/v1}
+      DASHSCOPE_EMBEDDING_MODEL: ${DASHSCOPE_EMBEDDING_MODEL:-qwen3-vl-embedding}
+      DASHSCOPE_EMBEDDING_DIM: ${DASHSCOPE_EMBEDDING_DIM:-1024}
+      # MMORE PDF 处理服务
+      MMORE_URL: ${MMORE_URL:-http://mmore:8002}
       # Milvus
       MILVUS_HOST: milvus
       MILVUS_PORT: 19530
@@ -180,6 +191,23 @@ services:
     volumes:
       - ./data/objects:/app/data/objects:ro
     command: ["python", "-m", "app.workers.runner"]
+
+  # ==================== MMORE PDF 处理服务 ====================
+  # 多模态 PDF 解析：图文分离、表格提取、OCR
+  # AI Worker 通过 HTTP 调用此服务处理上传的教材 PDF
+  mmore:
+    build:
+      context: ./mmore
+      dockerfile: Dockerfile
+    container_name: zhiyu-mmore
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./experiments/mmore/repo:/app/mmore_repo:ro
+    environment:
+      <<: *no-proxy-env
+      OMP_NUM_THREADS: 2
 
   front:
     build:

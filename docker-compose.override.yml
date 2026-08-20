@@ -20,22 +20,24 @@ services:
   # ---- Redis:暴露端口方便调试 ----
   redis:
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-16379}:6379"
 
-  # ---- Milvus:暴露端口方便调试 ----
+  # ---- Milvus:暴露端口方便 Attu 连接 ----
+  # 注意：本机另一个项目 kg-milvus 占用了 19530/9091，所以 zhiyu 让出使用 19531/9092
   milvus:
     ports:
-      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_PORT:-19531}:19530"
+      - "${MILVUS_METRICS_PORT:-9092}:9091"
 
   # ---- Minio:暴露控制台 ----
   minio:
     ports:
-      - "9001:9001"
+      - "9002:9001"
 
   # ---- 后端:暴露端口 + 日志挂载 ----
   backend:
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_PORT:-18080}:8080"
     volumes:
       - ./logs/backend:/app/logs
     environment:
@@ -44,7 +46,7 @@ services:
   # ---- AI:暴露端口 + 日志挂载 ----
   ai:
     ports:
-      - "${AI_PORT:-8000}:8000"
+      - "${AI_PORT:-18000}:8000"
     volumes:
       # 开发热重载:挂载源码,uvicorn --reload 自动重启
       - ./ai/app:/app/app

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/bottom_tab_bar.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
@@ -23,6 +22,8 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
   String _query = '';
   List<_CaseData> _cases = [];
   bool _isLoading = true;
+  int? _qcLoadingId; // AI 质检进行中的 caseId
+  int? _pqLoadingId; // AI 生成练习题进行中的 caseId
 
   // 默认硬编码数据作为 fallback
   static final _defaultCases = <_CaseData>[
@@ -62,14 +63,280 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
     final data = await TeacherService().getCaseList();
     if (mounted) {
       setState(() {
-        if (data != null && data['cases'] is List) {
-          _cases = (data['cases'] as List).map((c) => _CaseData.fromJson(c as Map<String, dynamic>)).toList();
+        List<dynamic>? raw;
+        if (data != null) {
+          // 后端分页结构 records；兼容旧字段 cases
+          raw = (data['records'] as List<dynamic>?) ?? (data['cases'] as List<dynamic>?);
+        }
+        if (raw != null) {
+          _cases = raw.map((c) => _CaseData.fromJson(c as Map<String, dynamic>)).toList();
         } else {
           _cases = List.from(_defaultCases);
         }
         _isLoading = false;
       });
     }
+  }
+
+  /// AI 病例质检（RAG 教材锚点）
+  Future<void> _qualityCheck(_CaseData c) async {
+    if (c.caseId == null || _qcLoadingId != null) return;
+    setState(() => _qcLoadingId = c.caseId);
+    final result = await TeacherService().getQualityCheck(c.caseId!);
+    if (!mounted) return;
+    setState(() => _qcLoadingId = null);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，无法质检病例');
+      return;
+    }
+    _showQualitySheet(result);
+  }
+
+  /// AI 自动生成练习题（RAG 教材锚点）
+  Future<void> _practiceQuestions(_CaseData c) async {
+    if (c.caseId == null || _pqLoadingId != null) return;
+    setState(() => _pqLoadingId = c.caseId);
+    final result = await TeacherService().getPracticeQuestions(c.caseId!);
+    if (!mounted) return;
+    setState(() => _pqLoadingId = null);
+    if (result == null) {
+      AppFeedback.error(context, 'AI 暂不可用，无法生成练习题');
+      return;
+    }
+    final questions =
+        (result['questions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    _showQuestionsSheet(questions);
+  }
+
+  void _showQualitySheet(Map<String, dynamic> result) {
+    final overallPass = result['overallPass'] as bool? ?? false;
+    final checklist = (result['checklist'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.9,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(child: SerifText('AI 病例质检', fontSize: 17)),
+                  AppChip(
+                    label: overallPass ? '通过' : '需整改',
+                    type: overallPass ? ChipType.moss : ChipType.vermilion,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('依据教材逐项校验病例，附出处', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: checklist.isEmpty
+                    ? const Center(child: MonoText('无可质检项', fontSize: 12, color: Colors.grey))
+                    : ListView(
+                        controller: scrollController,
+                        children: checklist.asMap().entries.map((e) {
+                          final item = e.value;
+                          final passed = item['passed'] == true;
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceOf(context),
+                              border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(passed
+                                            ? Icons.check_circle
+                                            : Icons.error_outline,
+                                        size: 16,
+                                        color: passed
+                                            ? AppColors.primaryOf(context)
+                                            : AppColors.vermilion),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: MonoText('${item['item'] ?? '质检项'}',
+                                          fontSize: 11, color: AppColors.textOf(context)),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text('${item['reason'] ?? ''}',
+                                    style: TextStyle(
+                                        fontSize: 12.5, color: AppColors.textOf(context), height: 1.6)),
+                                if ((item['textbookRef'] as String?)?.isNotEmpty ?? false)
+                                  MonoText('教材：${item['textbookRef']}',
+                                      fontSize: 11, color: AppColors.text3Of(context)),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showQuestionsSheet(List<Map<String, dynamic>> questions) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.8,
+        maxChildSize: 0.92,
+        builder: (ctx, scrollController) => Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Expanded(child: SerifText('AI 配套练习题', fontSize: 17)),
+                  const AppChip(label: 'AI', type: ChipType.moss),
+                ],
+              ),
+              const SizedBox(height: 4),
+              MonoText('依据本病例知识点生成，均附教材出处', fontSize: 11, color: AppColors.text3Of(context)),
+              Divider(height: 20, color: AppColors.ruleOf(context)),
+              Expanded(
+                child: questions.isEmpty
+                    ? const Center(child: MonoText('暂未生成题目', fontSize: 12, color: Colors.grey))
+                    : ListView(
+                        controller: scrollController,
+                        children: questions.asMap().entries.map((e) {
+                          final q = e.value;
+                          final options = (q['options'] as List<dynamic>?)?.cast<String>() ?? [];
+                          final typeLabel = switch (q['type']) {
+                            'single' => '单选',
+                            'multi' => '多选',
+                            'short' => '简答',
+                            _ => '${q['type'] ?? '题'}',
+                          };
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: AppColors.surfaceOf(context),
+                              border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 22,
+                                      height: 22,
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryOf(context),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: MonoText('${e.key + 1}', fontSize: 10,
+                                          color: AppColors.onPrimaryOf(context)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    AppChip(label: typeLabel, fontSize: 10),
+                                    if ((q['knowledgeTag'] as String?)?.isNotEmpty ?? false)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 6),
+                                        child: MonoText('${q['knowledgeTag']}',
+                                            fontSize: 10, color: AppColors.text3Of(context)),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Text('${q['stem'] ?? ''}',
+                                    style: TextStyle(
+                                        fontSize: 13, fontWeight: FontWeight.w500,
+                                        color: AppColors.textOf(context), height: 1.6)),
+                                if (options.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  ...options.map((o) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 2),
+                                    child: Text(o,
+                                        style: TextStyle(
+                                            fontSize: 12, color: AppColors.text2Of(context), height: 1.5)),
+                                  )),
+                                ],
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.mossTintOf(context),
+                                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      MonoText('答案：${q['answer'] ?? ''}',
+                                          fontSize: 11, color: AppColors.primaryOf(context)),
+                                      const SizedBox(height: 4),
+                                      Text('解析：${q['explanation'] ?? ''}',
+                                          style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: AppColors.text2Of(context),
+                                              height: 1.5)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   List<_CaseData> get _filtered {
@@ -156,6 +423,7 @@ child: _isLoading
                       : ListView(
                           padding: const EdgeInsets.only(top: 6, bottom: 100),
                           children: list.map((c) => _caseCard(
+                            data: c,
                             dept: '${c.dept} · ${c.difficulty}',
                             title: c.title,
                             coverColor: c.coverColor,
@@ -171,14 +439,6 @@ child: _isLoading
                             version: c.versionStr,
                           )).toList(),
                         ),
-            ),
-            TeacherTabBar(
-              currentIndex: 2,
-              onTap: (i) {
-                if (i == 0) context.goNamed(RouteNames.teacherHome);
-                if (i == 1) context.goNamed(RouteNames.spConfig);
-                if (i == 3) context.goNamed(RouteNames.teacherProfile);
-              },
             ),
           ],
         ),
@@ -228,6 +488,7 @@ child: _isLoading
   }
 
   Widget _caseCard({
+    required _CaseData data,
     required String dept,
     required String title,
     required Color coverColor,
@@ -329,6 +590,35 @@ border: Border(bottom: BorderSide(color: coverBorderColor)),
                 const SizedBox(height: 10),
 const DottedDivider(),
                 const SizedBox(height: 8),
+                // —— AI 辅助入口（质检 / 生成练习题）——
+                Row(
+                  children: [
+                    Expanded(
+                      child: AppGhostButton(
+                        label: _qcLoadingId == data.caseId ? '质检中…' : 'AI 质检',
+                        icon: const Icon(Icons.fact_check_outlined, size: 14),
+                        small: true,
+                        fullWidth: true,
+                        onPressed: data.caseId == null
+                            ? null
+                            : (() => _qualityCheck(data)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: AppGhostButton(
+                        label: _pqLoadingId == data.caseId ? '生成中…' : 'AI 练习题',
+                        icon: const Icon(Icons.quiz_outlined, size: 14),
+                        small: true,
+                        fullWidth: true,
+                        onPressed: data.caseId == null
+                            ? null
+                            : (() => _practiceQuestions(data)),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -372,6 +662,7 @@ const DottedDivider(),
 
 /// 病例广场数据
 class _CaseData {
+  final int? caseId;
   final String dept;
   final String difficulty;
   final String title;
@@ -388,6 +679,7 @@ class _CaseData {
   final String versionStr;
 
   _CaseData({
+    this.caseId,
     required this.dept,
     required this.difficulty,
     required this.title,
@@ -406,7 +698,8 @@ class _CaseData {
 
   factory _CaseData.fromJson(Map<String, dynamic> json) {
     return _CaseData(
-      dept: json['dept'] as String? ?? '',
+      caseId: (json['id'] as num?)?.toInt(),
+      dept: json['dept'] as String? ?? json['department'] as String? ?? '',
       difficulty: json['difficulty'] as String? ?? '标准',
       title: json['title'] as String? ?? '',
       coverColor: Color(json['coverColor'] as int? ?? 0xFFF0F0F0),

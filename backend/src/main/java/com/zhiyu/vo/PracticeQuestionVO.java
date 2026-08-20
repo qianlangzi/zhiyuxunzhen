@@ -14,6 +14,8 @@ public class PracticeQuestionVO {
     private Long id;
     /** single_choice / judgment */
     private String questionType;
+    /** 所属科室/模块 */
+    private String department;
     private String knowledgeTag;
     private String title;
     /** 选项列表 */

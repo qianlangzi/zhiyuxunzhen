@@ -103,6 +103,31 @@ class StudentService {
     return resp.data;
   }
 
+  /// 待办作业列表
+  Future<Map<String, dynamic>?> getTodoAssignments({
+    int pageNum = 1,
+    int pageSize = 10,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getTodoAssignments(pageNum: pageNum, pageSize: pageSize);
+    if (!resp.isSuccess) {
+      log('getTodoAssignments failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 作业实例详情
+  Future<Map<String, dynamic>?> getAssignmentDetail(int instanceId) async {
+    if (_isMock) return null;
+    final resp = await _api.getAssignmentDetail(instanceId);
+    if (!resp.isSuccess) {
+      log('getAssignmentDetail failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
   /// 获取报告概览
   Future<Map<String, dynamic>?> getReportOverview() async {
     if (_isMock) return null;
@@ -163,6 +188,17 @@ class StudentService {
     return resp.data;
   }
 
+  /// OSCE 考核历史记录列表
+  Future<List<dynamic>?> getOsceHistory() async {
+    if (_isMock) return null;
+    final resp = await _api.getOsceHistory();
+    if (!resp.isSuccess) {
+      log('getOsceHistory failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
   /// 获取会话思维树数据
   Future<Map<String, dynamic>?> getThinkingTree(int sessionId) async {
     if (_isMock) return null;
@@ -210,6 +246,41 @@ class StudentService {
     return resp.data;
   }
 
+  /// 上传问诊影像（本地目录存储），返回 {url, filename}
+  Future<Map<String, dynamic>?> uploadImage({
+    required int sessionId,
+    required String filePath,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.uploadImage(sessionId: sessionId, filePath: filePath);
+    if (!resp.isSuccess) {
+      log('uploadImage failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 影像 AI 读图分析，返回 {finding, safetyBlocked, ...}
+  Future<Map<String, dynamic>?> analyzeImage({
+    required int sessionId,
+    required String imageUrl,
+    List<double>? imageBbox,
+    String? studentNote,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.analyzeImage(
+      sessionId: sessionId,
+      imageUrl: imageUrl,
+      imageBbox: imageBbox,
+      studentNote: studentNote,
+    );
+    if (!resp.isSuccess) {
+      log('analyzeImage failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
   /// 教材分页列表
   Future<Map<String, dynamic>?> getTextbooks({
     int pageNum = 1,
@@ -242,10 +313,22 @@ class StudentService {
     return resp.data;
   }
 
+  /// 教材科室分类列表
+  Future<List<dynamic>?> getTextbookDepartments() async {
+    if (_isMock) return null;
+    final resp = await _api.getTextbookDepartments();
+    if (!resp.isSuccess) {
+      log('getTextbookDepartments failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
   /// 基础题分页列表
   Future<Map<String, dynamic>?> getQuestions({
     int pageNum = 1,
     int pageSize = 20,
+    String? department,
     String? knowledgeTag,
     int? difficulty,
     String? questionType,
@@ -254,6 +337,7 @@ class StudentService {
     final resp = await _api.getQuestions(
       pageNum: pageNum,
       pageSize: pageSize,
+      department: department,
       knowledgeTag: knowledgeTag,
       difficulty: difficulty,
       questionType: questionType,
@@ -288,6 +372,49 @@ class StudentService {
     final resp = await _api.getQuestionStats();
     if (!resp.isSuccess) {
       log('getQuestionStats failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 科室（模块）列表，用于刷题入口
+  Future<List<dynamic>?> getQuestionDepartments() async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestionDepartments();
+    if (!resp.isSuccess) {
+      log('getQuestionDepartments failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 知识点列表，用于题库筛选
+  Future<List<dynamic>?> getQuestionKnowledgeTags() async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestionKnowledgeTags();
+    if (!resp.isSuccess) {
+      log('getQuestionKnowledgeTags failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 按科室刷题（单页返回，逐题/翻页）
+  Future<Map<String, dynamic>?> getQuestionsByDepartment({
+    int pageNum = 1,
+    int pageSize = 1,
+    required String department,
+    int? difficulty,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getQuestionsByDepartment(
+      pageNum: pageNum,
+      pageSize: pageSize,
+      department: department,
+      difficulty: difficulty,
+    );
+    if (!resp.isSuccess) {
+      log('getQuestionsByDepartment failed: ${resp.message}', name: 'student_service');
       return null;
     }
     return resp.data;

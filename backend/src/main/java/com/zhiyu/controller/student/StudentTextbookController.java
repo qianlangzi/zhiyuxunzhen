@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 学生端-教材中心接口
  */
@@ -23,6 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class StudentTextbookController {
 
     private final TextbookService textbookService;
+
+    @Operation(summary = "教材科室分类列表（筛选入口）")
+    @GetMapping("/departments")
+    public R<List<String>> departments() {
+        return R.ok(textbookService.departments());
+    }
 
     @Operation(summary = "教材分页列表（支持科室筛选 + 关键词搜索）")
     @GetMapping

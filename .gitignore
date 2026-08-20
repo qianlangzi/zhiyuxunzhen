@@ -44,8 +44,7 @@ data/minio/
 /data/
 
 # ===== 日志(勿提交) =====
-logs/backend/
-logs/ai/
+logs/
 
 # ===== 上传文件 =====
 uploads/
@@ -78,3 +77,6 @@ mobile/windows/
 .codegraph/
 .impeccable/
 docs/短信API服务-发送短信.pdf
+
+# ===== 本地实验目录（模型/依赖/PDF 大体积二进制，勿提交） =====
+experiments/

@@ -19,7 +19,7 @@ public class WeaknessSyncDTO {
         private Long studentId;
         private String knowledgeTag;
 
-        /** 掌握度 0.00 ~ 1.00 */
+        /** 掌握度 0.00 ~ 1.00，越高越扎实、越低越薄弱 */
         private BigDecimal weaknessScore;
 
         private Integer evidenceCount;
