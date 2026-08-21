@@ -709,7 +709,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                     '¥${_totalExamCost.toStringAsFixed(0)}',
                     fontSize: 11,
                     color: AppColors.amber,
-                    weight: FontWeight.w600,
+                    weight: FontWeight.w700,
                   ),
                 ],
                 const SizedBox(width: 4),
@@ -1009,6 +1009,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
           color: AppColors.surfaceOf(context),
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          boxShadow: AppShadow.card(context),
         ),
         child: Icon(
           Icons.keyboard_double_arrow_down,
@@ -1205,6 +1206,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                     color: AppColors.surfaceOf(context),
                     border: Border.all(color: AppColors.surfaceEdgeOf(context)),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: AppShadow.card(context),
                   ),
                   child: Text(
                     text,
@@ -1406,6 +1408,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                     color: AppColors.surfaceOf(context),
                     border: Border.all(color: AppColors.surfaceEdgeOf(context)),
                     borderRadius: BorderRadius.circular(AppRadius.lg),
+                    boxShadow: AppShadow.card(context),
                   ),
                   child: _CollapsibleSection(
                     icon: Icons.assignment_outlined,
@@ -1968,7 +1971,7 @@ cTnI 3.8 ng/mL ↑（参考 < 0.04）
                     '¥ ${total.toStringAsFixed(0)}',
                     style: TextStyle(
                       fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textOf(context),
                     ),
                   ),

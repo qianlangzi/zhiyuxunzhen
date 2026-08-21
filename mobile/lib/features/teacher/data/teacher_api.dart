@@ -31,6 +31,16 @@ class TeacherApi {
     }
   }
 
+  /// 创建病例，返回新病例 ID（后端 R<Long>）
+  Future<ApiResponse<int?>> createCaseId(Map<String, dynamic> data) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>('/api/v1/teacher/cases', data: data);
+      return ApiResponse.fromJson(resp.data!, (d) => (d as num).toInt());
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 更新病例
   Future<ApiResponse<Map<String, dynamic>>> updateCase(int id, Map<String, dynamic> data) async {
     try {
@@ -63,6 +73,22 @@ class TeacherApi {
 
   // ========= 作业管理 =========
 
+  /// 病历广场公开列表（分页）
+  Future<ApiResponse<Map<String, dynamic>>> getMarketList({
+    int pageNum = 1,
+    int pageSize = 50,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/case-market/list',
+        queryParameters: {'pageNum': pageNum, 'pageSize': pageSize},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 获取作业列表
   Future<ApiResponse<Map<String, dynamic>>> getAssignmentList() async {
     try {
@@ -73,11 +99,21 @@ class TeacherApi {
     }
   }
 
-  /// 获取班级列表
-  Future<ApiResponse<Map<String, dynamic>>> getClasses() async {
+  /// 获取班级列表（后端 R<List<TeachingClassVO>>，data 为数组）
+  Future<ApiResponse<List<dynamic>>> getClasses() async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>('/api/v1/teacher/assignments/classes');
-      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 引用病例到我的病例库（后端复制为独立副本，返回新病例 ID）
+  Future<ApiResponse<int?>> quoteCase(int id) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>('/api/v1/case-market/$id/quote');
+      return ApiResponse.fromJson(resp.data!, (d) => (d as num).toInt());
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
     }

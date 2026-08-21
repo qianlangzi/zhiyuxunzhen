@@ -32,12 +32,56 @@ class TeacherService {
     return resp.data;
   }
 
+  /// 创建病例并返回新病例 ID（用于保存草稿后建立作业）
+  Future<int?> createCaseId(Map<String, dynamic> data) async {
+    if (_isMock) return null;
+    final resp = await _api.createCaseId(data);
+    if (!resp.isSuccess) {
+      log('createCaseId failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 更新病例
+  Future<bool> updateCase(int id, Map<String, dynamic> data) async {
+    if (_isMock) return true;
+    final resp = await _api.updateCase(id, data);
+    if (!resp.isSuccess) {
+      log('updateCase failed: ${resp.message}', name: 'teacher_service');
+      return false;
+    }
+    return true;
+  }
+
   /// 获取作业列表
   Future<Map<String, dynamic>?> getAssignmentList() async {
     if (_isMock) return null;
     final resp = await _api.getAssignmentList();
     if (!resp.isSuccess) {
       log('getAssignmentList failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 病历广场公开列表
+  Future<Map<String, dynamic>?> getMarketList() async {
+    if (_isMock) return null;
+    final resp = await _api.getMarketList();
+    if (!resp.isSuccess) {
+      log('getMarketList failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 引用公开病例到我的病例库，返回新病例 ID
+  Future<int?> quoteCase(int id) async {
+    if (_isMock) return null;
+    final resp = await _api.quoteCase(id);
+    if (!resp.isSuccess) {
+      log('quoteCase failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
     return resp.data;
@@ -65,15 +109,17 @@ class TeacherService {
     return resp.data;
   }
 
-  /// 获取班级列表
-  Future<Map<String, dynamic>?> getClasses() async {
-    if (_isMock) return null;
+  /// 获取当前教师已获授权的班级（后盾 R<List<TeachingClassVO>>）
+  Future<List<Map<String, dynamic>>> getClasses() async {
+    if (_isMock) return [];
     final resp = await _api.getClasses();
     if (!resp.isSuccess) {
       log('getClasses failed: ${resp.message}', name: 'teacher_service');
-      return null;
+      return [];
     }
-    return resp.data;
+    return (resp.data ?? [])
+        .map((e) => (e as Map).cast<String, dynamic>())
+        .toList();
   }
 
   /// 提交资质认证材料

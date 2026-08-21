@@ -46,17 +46,21 @@ async def live():
 @router.get("/ready")
 async def ready(response: Response):
     """Dependency-aware readiness; an unconfigured LLM is reported but optional."""
+    # 先触发 Milvus 懒连接（count 失败会抛异常），再取 status 快照
+    try:
+        await milvus_service.count()
+        milvus_ok = True
+    except Exception:  # noqa: BLE001
+        milvus_ok = False
+    milvus_status = milvus_service.status()
     checks = {
         "llm": {"configured": settings.llm_configured, "available": llm_client.available},
         "embedding": {"configured": settings.embedding_configured, "available": rag_service.available},
-        "milvus": {"configured": True, "available": None},
+        "milvus": {"configured": True, "available": None, **milvus_status},
         "backend": {"configured": bool(settings.backend_callback_url), "available": None},
     }
-    try:
-        await milvus_service.count()
-        checks["milvus"]["available"] = True
-    except Exception:  # noqa: BLE001
-        checks["milvus"]["available"] = False
+    # 降级到内存索引时 count() 不抛异常但结果是"假可用"，必须结合 degraded 状态判断
+    checks["milvus"]["available"] = milvus_ok and not milvus_status["degraded"]
     required_ok = checks["backend"]["configured"] and checks["milvus"]["available"] is not False
     response.status_code = http_status.HTTP_200_OK if required_ok else http_status.HTTP_503_SERVICE_UNAVAILABLE
     return {"status": "READY" if required_ok else "NOT_READY", "checks": checks}
@@ -85,8 +89,15 @@ async def status(_operator: bool = Depends(require_operator)):
         "milvus_host": f"{settings.milvus_host}:{settings.milvus_port}",
         "milvus_vector_count": milvus_count,
         "milvus_error": milvus_error,
+        "milvus_status": milvus_service.status(),
         "fallback_enabled": {
             "llm": settings.enable_llm_fallback,
             "milvus": settings.enable_milvus_fallback,
+        },
+        "rag_enhancements": {
+            "query_rewrite": settings.query_rewrite_enabled,
+            "iterative_search": settings.iterative_search_enabled,
+            "image_caption": settings.image_caption_enabled,
+            "citation_max_chars": settings.citation_max_chars,
         },
     }

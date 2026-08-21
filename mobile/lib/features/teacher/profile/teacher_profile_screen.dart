@@ -30,13 +30,17 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
 
   Future<void> _loadStats() async {
     final service = TeacherService();
-    final result = await service.getCaseList();
-    if (!mounted) return;
-
-    final list = result?['list'] as List<dynamic>? ?? [];
-    setState(() {
-      _caseCount = list.length.toString();
-    });
+    try {
+      final result = await service.getCaseList();
+      if (!mounted) return;
+      final list = result?['list'] as List<dynamic>? ?? [];
+      setState(() {
+        _caseCount = list.length.toString();
+      });
+    } catch (e) {
+      // 兜底：加载异常不影响页面渲染，避免未处理异常
+      debugPrint('loadProfileStats error: $e');
+    }
   }
 
   @override
@@ -104,7 +108,7 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                   icon: Icons.folder_outlined,
                   color: AppColors.primaryOf(context),
                   title: '我的病例',
-                  onTap: () => context.pushNamed(RouteNames.spConfig),
+                  onTap: () => context.goNamed(RouteNames.spConfig),
                 ),
                 ProfileMenuTile(
                   icon: Icons.dashboard_outlined,
@@ -123,7 +127,7 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                   color: AppColors.amber,
                   title: '病例广场',
                   divider: false,
-                  onTap: () => context.pushNamed(RouteNames.caseMarket),
+                  onTap: () => context.goNamed(RouteNames.caseMarket),
                 ),
               ],
             ),

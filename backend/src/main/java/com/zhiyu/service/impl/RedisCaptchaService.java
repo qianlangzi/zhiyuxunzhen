@@ -9,17 +9,24 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.UUID;
 
 /**
- * 数学验证码服务实现（防盗刷）。
+ * 图形验证码服务实现（字母+数字图片，防盗刷）。
  *
+ * 相比纯算术题，图片字符码可显著提高机器自动破解成本。
  * 防护策略：
  * 1. 每道题有效期 5 分钟，单次使用后即失效
  * 2. 单题最多尝试 3 次，超限自动作废
  * 3. IP 维度限流：每小时最多生成 30 道题，防止恶意刷取
+ * 4. 答案只以图片形式返回，绝不出现在接口响应文本
  */
 @Slf4j
 @Service
@@ -30,6 +37,10 @@ public class RedisCaptchaService implements CaptchaService {
     private static final Duration IP_WINDOW = Duration.ofHours(1);
     private static final int IP_HOURLY_LIMIT = 30;
     private static final int ATTEMPT_LIMIT = 3;
+
+    /** 不易混淆的字符集：去掉 0/O、1/I/L、q 等易误判字符 */
+    private static final String CHARS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    private static final int CODE_LENGTH = 4;
 
     private final StringRedisTemplate redisTemplate;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -49,38 +60,82 @@ public class RedisCaptchaService implements CaptchaService {
             }
         }
 
-        int a = 1 + secureRandom.nextInt(20);
-        int b = 1 + secureRandom.nextInt(20);
-        int op = secureRandom.nextInt(3); // 0:+ 1:- 2:×
-        int answer;
-        String question;
-        switch (op) {
-            case 1:
-                if (a < b) { int t = a; a = b; b = t; }
-                answer = a - b;
-                question = a + " - " + b + " = ?";
-                break;
-            case 2:
-                answer = a * b;
-                question = a + " × " + b + " = ?";
-                break;
-            default:
-                answer = a + b;
-                question = a + " + " + b + " = ?";
-                break;
+        StringBuilder sb = new StringBuilder(CODE_LENGTH);
+        for (int i = 0; i < CODE_LENGTH; i++) {
+            sb.append(CHARS.charAt(secureRandom.nextInt(CHARS.length())));
         }
+        String code = sb.toString();
 
         String captchaId = UUID.randomUUID().toString().replace("-", "");
         redisTemplate.opsForValue().set(
                 "auth:captcha:answer:" + captchaId,
-                String.valueOf(answer),
+                code,
                 CAPTCHA_TTL);
         redisTemplate.opsForValue().set(
                 "auth:captcha:attempts:" + captchaId,
                 "0",
                 CAPTCHA_TTL);
 
-        return new CaptchaResponse(captchaId, question, (int) CAPTCHA_TTL.toSeconds());
+        // 绝不在响应文本里返回 code，答案只经 generateImage 以图片形式下发
+        return new CaptchaResponse(captchaId, (int) CAPTCHA_TTL.toSeconds());
+    }
+
+    @Override
+    public byte[] generateImage(String captchaId) {
+        String code = redisTemplate.opsForValue().get("auth:captcha:answer:" + captchaId);
+        BufferedImage image = renderImage(code == null ? "????" : code);
+        try {
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", out);
+            return out.toByteArray();
+        } catch (IOException e) {
+            throw new BizException(ResultCode.INTERNAL_ERROR, "验证码图片生成失败");
+        }
+    }
+
+    private BufferedImage renderImage(String code) {
+        int width = 140;
+        int height = 46;
+        BufferedImage img = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setColor(Color.WHITE);
+        g.fillRect(0, 0, width, height);
+
+        // 干扰线
+        g.setColor(new Color(205, 211, 222));
+        for (int i = 0; i < 7; i++) {
+            g.drawLine(secureRandom.nextInt(width), secureRandom.nextInt(height),
+                    secureRandom.nextInt(width), secureRandom.nextInt(height));
+        }
+
+        // 逐字符绘制，带随机旋转与偏移
+        int charX = 16;
+        for (int i = 0; i < code.length(); i++) {
+            g.setFont(new Font("SansSerif", Font.BOLD, 30));
+            int r = 30 + secureRandom.nextInt(110);
+            int gg = 60 + secureRandom.nextInt(70);
+            int b = 20 + secureRandom.nextInt(60);
+            g.setColor(new Color(r, gg, b));
+            double angle = (secureRandom.nextDouble() - 0.5) * 0.55;
+            Graphics2D gc = (Graphics2D) g.create();
+            gc.rotate(angle, charX, height / 2.0);
+            gc.drawString(String.valueOf(code.charAt(i)), charX, (int) (height * 0.78));
+            gc.dispose();
+            charX += 29;
+        }
+
+        // 干扰噪点
+        for (int i = 0; i < 90; i++) {
+            int x = secureRandom.nextInt(width);
+            int y = secureRandom.nextInt(height);
+            img.setRGB(x, y,
+                    new Color(120 + secureRandom.nextInt(135),
+                            120 + secureRandom.nextInt(135),
+                            120 + secureRandom.nextInt(135)).getRGB());
+        }
+        g.dispose();
+        return img;
     }
 
     @Override
@@ -103,15 +158,10 @@ public class RedisCaptchaService implements CaptchaService {
             return false;
         }
 
-        try {
-            int userAns = Integer.parseInt(answer.trim());
-            int realAns = Integer.parseInt(stored.trim());
-            if (userAns == realAns) {
-                redisTemplate.delete(answerKey);
-                redisTemplate.delete(attemptsKey);
-                return true;
-            }
-        } catch (NumberFormatException ignored) {
+        if (stored.equalsIgnoreCase(answer.trim())) {
+            redisTemplate.delete(answerKey);
+            redisTemplate.delete(attemptsKey);
+            return true;
         }
         return false;
     }

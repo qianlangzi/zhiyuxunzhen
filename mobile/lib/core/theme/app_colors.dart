@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'theme_preset.dart';
+
 /// 智愈寻真 - 设计系统色彩定义
 /// 从 HTML 原型 design-system.css 推导的色彩体系
 class AppColors {
@@ -91,6 +93,14 @@ class AppColors {
   static const Color heatL3 = Color(0xFF5A7A6B);
   static const Color heatL4 = Color(0xFF2D4A3E);
 
+  // ========== 深色模式：热力图色阶（炭灰偏青、提亮去黄，空白格仍清晰可辨）==========
+  /// 深色无记录格（比背景略亮，冷调青灰，保证空态可见且不发黄）
+  static const Color darkHeatL0 = Color(0xFF181E23);
+  static const Color darkHeatL1 = Color(0xFF1F3A33);
+  static const Color darkHeatL2 = Color(0xFF2C5247);
+  static const Color darkHeatL3 = Color(0xFF3C6E5F);
+  static const Color darkHeatL4 = Color(0xFF8FC6B6);
+
   // ========== 便捷别名 ==========
   static const Color primary = moss;
   static const Color error = vermilion;
@@ -102,127 +112,125 @@ class AppColors {
   static const Color onBackground = ink;
   static const Color onSurface = ink;
 
-  // ========== 深色模式（护眼夜色）字段 ==========
-  /// 深色主背景（深墨绿黑）
-  static const Color darkBg = Color(0xFF121513);
+  // ========== 深色模式（炭灰偏青、护眼夜色）字段 ==========
+  /// 深色主背景（炭灰偏青，去暖/去黄）
+  static const Color darkBg = Color(0xFF12161A);
 
   /// 深色卡片/表面
-  static const Color darkSurface = Color(0xFF1A201C);
+  static const Color darkSurface = Color(0xFF1B2126);
 
   /// 深色表面边框
-  static const Color darkSurfaceEdge = Color(0xFF2A322C);
+  static const Color darkSurfaceEdge = Color(0xFF2C343A);
 
-  /// 深色主文字（米白）
-  static const Color darkText = Color(0xFFF5F1E8);
+  /// 深色主文字（微冷米）
+  static const Color darkText = Color(0xFFEDF1EF);
 
   /// 深色次级文字
-  static const Color darkText2 = Color(0xFFD8D2C4);
+  static const Color darkText2 = Color(0xFFC6CFCC);
 
   /// 深色辅助文字
-  static const Color darkText3 = Color(0xFFA8A99E);
+  static const Color darkText3 = Color(0xFF9BA6A5);
 
   /// 深色禁用/占位文字
-  static const Color darkText4 = Color(0xFF7A7E78);
+  static const Color darkText4 = Color(0xFF737E7D);
 
   /// 深色 mossSoft（浅主色边框暗色变体）
-  static const Color darkMossSoft = Color(0xFF3A4A3E);
+  static const Color darkMossSoft = Color(0xFF33423A);
 
   // ========== 深色模式：软色变体 ==========
   /// 深色 mossTint（深绿底色）
-  static const Color darkMossTint = Color(0xFF1E2820);
+  static const Color darkMossTint = Color(0xFF1C2A24);
 
   /// 深色 vermilionSoft
-  static const Color darkVermilionSoft = Color(0xFF2E1A16);
+  static const Color darkVermilionSoft = Color(0xFF2C1B18);
 
   /// 深色 amberSoft
-  static const Color darkAmberSoft = Color(0xFF2A2418);
+  static const Color darkAmberSoft = Color(0xFF2B251A);
 
   /// 深色 indigoSoft
-  static const Color darkIndigoSoft = Color(0xFF1A1C26);
+  static const Color darkIndigoSoft = Color(0xFF1A1E2A);
 
   /// 深色 ruleSoft（与 darkSurfaceEdge 一致）
-  static const Color darkRuleSoft = Color(0xFF2A322C);
+  static const Color darkRuleSoft = Color(0xFF2C343A);
 
   /// 深色 paper2
-  static const Color darkPaper2 = Color(0xFF1A201C);
+  static const Color darkPaper2 = Color(0xFF1B2126);
 
   /// 深色 paper3
-  static const Color darkPaper3 = Color(0xFF242822);
+  static const Color darkPaper3 = Color(0xFF242B30);
 
-  // ========== 语义色：按主题亮度自适应 ==========
-  /// 直接替换硬编码颜色即可让组件/页面跟随深色模式。
-  /// light 模式返回原设计值，dark 模式返回护眼夜色，行为完全可控。
-  static Color bgOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkBg : paper;
+  // ========== 语义色：按「预设 × 亮度」自适应 ==========
+  /// 直接替换硬编码颜色即可让组件/页面跟随主题预设与深色模式。
+  /// 取色源是 [ThemePaletteExtension]，缺省兜底为「本草(默认)」预设当前亮度。
+  /// 由此实现个性化预设切换时全 App 统一切换、不串色、对比度不崩。
+  static ThemePalette _pal(BuildContext context) {
+    final ext =
+        Theme.of(context).extension<ThemePaletteExtension>()?.palette;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return ext ??
+        (dark ? ThemePreset.herb.darkPalette : ThemePreset.herb.lightPalette);
+  }
 
-  static Color surfaceOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkSurface : card;
+  static Color bgOf(BuildContext context) => _pal(context).bg;
 
-  static Color surfaceEdgeOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkSurfaceEdge : cardEdge;
+  static Color surfaceOf(BuildContext context) => _pal(context).surface;
 
-  static Color ruleOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkSurfaceEdge : rule;
+  static Color surfaceEdgeOf(BuildContext context) => _pal(context).surfaceEdge;
 
-  static Color textOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkText : ink;
+  static Color ruleOf(BuildContext context) => _pal(context).rule;
 
-  static Color text2Of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkText2 : ink2;
+  static Color textOf(BuildContext context) => _pal(context).text;
 
-  static Color text3Of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkText3 : ink3;
+  static Color text2Of(BuildContext context) => _pal(context).text2;
 
-  static Color text4Of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkText4 : ink4;
+  static Color text3Of(BuildContext context) => _pal(context).text3;
 
-  /// 主色（强调）。深色模式下提亮为 moss3 保证对比度
-  static Color primaryOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? moss3 : moss;
+  static Color text4Of(BuildContext context) => _pal(context).text4;
+
+  /// 主色（强调）。深色模式下按各预设提亮保证对比度
+  static Color primaryOf(BuildContext context) => _pal(context).primary;
 
   /// 主色之上的文字/图标色
-  static Color onPrimaryOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkText : paper;
+  static Color onPrimaryOf(BuildContext context) => _pal(context).onPrimary;
 
-  // ========== 软色：按主题亮度自适应 ==========
+  // ========== 软色：按「预设 × 亮度」自适应 ==========
   /// 极浅主色背景（mossTint）
-  static Color mossTintOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkMossTint : mossTint;
+  static Color mossTintOf(BuildContext context) => _pal(context).mossTint;
 
   /// 浅错误背景（vermilionSoft）
   static Color vermilionSoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkVermilionSoft : vermilionSoft;
+      _pal(context).vermilionSoft;
 
   /// 浅警告背景（amberSoft）
-  static Color amberSoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkAmberSoft : amberSoft;
+  static Color amberSoftOf(BuildContext context) => _pal(context).amberSoft;
 
   /// 浅信息背景（indigoSoft）
-  static Color indigoSoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkIndigoSoft : indigoSoft;
+  static Color indigoSoftOf(BuildContext context) => _pal(context).indigoSoft;
 
   /// 浅分割线（ruleSoft）
-  static Color ruleSoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkRuleSoft : ruleSoft;
+  static Color ruleSoftOf(BuildContext context) => _pal(context).ruleSoft;
 
   /// 次级背景（paper2）
-  static Color paper2Of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkPaper2 : paper2;
+  static Color paper2Of(BuildContext context) => _pal(context).paper2;
 
   /// 三级背景（paper3）
-  static Color paper3Of(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkPaper3 : paper3;
+  static Color paper3Of(BuildContext context) => _pal(context).paper3;
 
   /// 浅主色边框（mossSoft）
-  static Color mossSoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? darkMossSoft : mossSoft;
+  static Color mossSoftOf(BuildContext context) => _pal(context).mossSoft;
+
+  /// 热力图等级色（随预设与亮度自适应，修复深色模式下空白格不可见/泛黄）
+  static Color heatOf(BuildContext context, int level) {
+    final heat = _pal(context).heat;
+    return heat[level.clamp(0, 4)];
+  }
 
   // ========== 主色背景上的柔和文字 ==========
   /// 主色背景上的柔和文字（用于 hero 次要文字）
   static Color onPrimarySoftOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E2A24) : const Color(0xFFB8C9B8);
+      _pal(context).onPrimarySoft;
 
   /// 主色背景上的更浅文字（用于 hero 评级描述）
   static Color onPrimaryLightOf(BuildContext context) =>
-      Theme.of(context).brightness == Brightness.dark ? const Color(0xFF12180F) : const Color(0xFFD8E0D3);
+      _pal(context).onPrimaryLight;
 }

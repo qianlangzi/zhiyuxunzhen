@@ -47,6 +47,31 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     }
   }
 
+  /// 消息通知：展示真实待办（待办作业 + 今日每日一例），点击跳转对应页
+  Future<void> _openNotifications() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: _NotificationSheet(
+          todoCount: _assignmentsData?['total'] as int? ?? 0,
+          dailyCaseTitle: _dailyCaseData?['caseTitle'] as String? ?? '每日一例',
+          onOpenTodo: () {
+            Navigator.of(ctx).pop();
+            context.pushNamed(RouteNames.todoAssignments);
+          },
+          onOpenDaily: () {
+            Navigator.of(ctx).pop();
+            context.pushNamed(RouteNames.dailyCase);
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _openGlobalSearch() async {
     final keyword = await showDialog<String>(
       context: context,
@@ -73,8 +98,16 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
             const AppTitleAppBar(
               tag: '内科教研 · 学生端',
               title: '学习中心',
-              action: AppIconButton(
-                icon: Icon(Icons.notifications_outlined, size: 20),
+            ),
+            // 顶部操作区（设置在 AppBar 之外的行内，左对齐，保持内嵌风格）
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: AppIconButton(
+                  icon: const Icon(Icons.notifications_outlined, size: 20),
+                  onPressed: _openNotifications,
+                ),
               ),
             ),
             // Content
@@ -109,6 +142,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     final major = user?.major ?? '临床医学';
     final grade = user?.grade ?? '大四';
     final subtitle = '$major · $grade · 内科学';
+    final streak = _computeStreak();
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -120,7 +154,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               displayName,
               style: TextStyle(
                 fontSize: 28,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textOf(context),
                 height: 1.1,
                 letterSpacing: -0.02,
@@ -138,10 +172,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Text(
-              '23',
+              '$streak',
               style: TextStyle(
                 fontSize: 32,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
                 color: AppColors.primaryOf(context),
                 height: 1,
               ),
@@ -162,6 +196,45 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     );
   }
 
+  /// 依据真实 activityDays 计算「连续训练天数」与「近一年完成次数」
+  int _computeStreak() {
+    final days = _overviewData?['activityDays'] as List<dynamic>?;
+    if (days == null || days.isEmpty) return 0;
+    final active = <DateTime>[];
+    for (final d in days) {
+      final m = d as Map<String, dynamic>;
+      final dateStr = m['date'] as String? ?? '';
+      final count = (m['completedCount'] as num?)?.toInt() ?? 0;
+      if (dateStr.isNotEmpty && count > 0) {
+        active.add(DateTime.parse(dateStr));
+      }
+    }
+    if (active.isEmpty) return 0;
+    final today = DateTime.now();
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final set = active.map((d) => DateTime(d.year, d.month, d.day)).toSet();
+    // 已今天没训练也从今天往前数（保持力扣式“今天没有也算断”语义：今天没做则从昨天开始算）
+    var anchor = set.contains(todayDate) ? todayDate : todayDate.subtract(const Duration(days: 1));
+    if (!set.contains(anchor)) return 0;
+    int streak = 0;
+    while (set.contains(anchor)) {
+      streak++;
+      anchor = anchor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  int _totalTrainings() {
+    final days = _overviewData?['activityDays'] as List<dynamic>?;
+    if (days == null) return 0;
+    int total = 0;
+    for (final d in days) {
+      final m = d as Map<String, dynamic>;
+      total += (m['completedCount'] as num?)?.toInt() ?? 0;
+    }
+    return total;
+  }
+
   // 学习热力图
   Widget _buildHeatmap() {
     return Container(
@@ -170,6 +243,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         color: AppColors.surfaceOf(context),
         border: Border.all(color: AppColors.surfaceEdgeOf(context)),
         borderRadius: BorderRadius.circular(AppRadius.md),
+        boxShadow: AppShadow.card(context),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,10 +265,10 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 children: [
                   const MonoText('近一年 · 完成 ', fontSize: 11),
                   Text(
-                    '142',
+                    '${_totalTrainings()}',
                     style: TextStyle(
                       color: AppColors.primaryOf(context),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                       fontSize: 11,
                       fontFamily: 'JetBrainsMono',
                     ),
@@ -216,15 +290,15 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               const SizedBox(width: 6),
               Row(
                 children: [
-                  _heatCell(AppColors.paper2Of(context)),
+                  _heatCell(AppColors.heatOf(context, 0)),
                   const SizedBox(width: 3),
-                  _heatCell(AppColors.heatL1),
+                  _heatCell(AppColors.heatOf(context, 1)),
                   const SizedBox(width: 3),
-                  _heatCell(AppColors.heatL2),
+                  _heatCell(AppColors.heatOf(context, 2)),
                   const SizedBox(width: 3),
-                  _heatCell(AppColors.heatL3),
+                  _heatCell(AppColors.heatOf(context, 3)),
                   const SizedBox(width: 3),
-                  _heatCell(AppColors.heatL4),
+                  _heatCell(AppColors.heatOf(context, 4)),
                 ],
               ),
               const SizedBox(width: 6),
@@ -257,7 +331,8 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
           border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-          borderRadius: BorderRadius.circular(AppRadius.sm),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Row(
           children: [
@@ -317,6 +392,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: child,
       ),
@@ -454,7 +530,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 20,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.amber,
                 ),
               ),
@@ -488,7 +564,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
                 style: TextStyle(
                   fontFamily: 'JetBrainsMono',
                   fontSize: 20,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w700,
                   color: AppColors.primaryOf(context),
                 ),
               ),
@@ -508,7 +584,7 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       height: 34,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
+        shape: BoxShape.circle,
       ),
       child: Icon(icon, size: 18, color: color),
     );
@@ -754,11 +830,11 @@ class _HeatmapGridState extends State<_HeatmapGrid> {
   @override
   Widget build(BuildContext context) {
     final colors = [
-      AppColors.paper2Of(context),
-      AppColors.heatL1,
-      AppColors.heatL2,
-      AppColors.heatL3,
-      AppColors.heatL4,
+      AppColors.heatOf(context, 0),
+      AppColors.heatOf(context, 1),
+      AppColors.heatOf(context, 2),
+      AppColors.heatOf(context, 3),
+      AppColors.heatOf(context, 4),
     ];
     const weekdayLabels = ['一', '二', '三', '四', '五', '六', '日'];
     const shownWeekday = {0, 1, 2, 3, 4, 5, 6}; // 周一~周日全部显示
@@ -956,4 +1032,154 @@ class _MonthView {
     required this.rows,
     required this.levels,
   });
+}
+
+/// 消息通知面板：基于真实待办数据渲染，避免纯展示假消息
+class _NotificationSheet extends StatelessWidget {
+  const _NotificationSheet({
+    required this.todoCount,
+    required this.dailyCaseTitle,
+    required this.onOpenTodo,
+    required this.onOpenDaily,
+  });
+
+  final int todoCount;
+  final String dailyCaseTitle;
+  final VoidCallback onOpenTodo;
+  final VoidCallback onOpenDaily;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                '通知',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textOf(context),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // 有未完成待办时展示红点
+              if (todoCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.vermilion,
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                  child: Text(
+                    '$todoCount',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildItem(
+            context,
+            icon: Icons.task_alt_rounded,
+            color: AppColors.amber,
+            title: '待办作业',
+            subtitle: todoCount > 0 ? '共 $todoCount 项等待完成' : '暂无未完成作业',
+            onTap: onOpenTodo,
+          ),
+          const SizedBox(height: 10),
+          _buildItem(
+            context,
+            icon: Icons.local_library_rounded,
+            color: AppColors.primaryOf(context),
+            title: '今日每日一例',
+            subtitle: dailyCaseTitle,
+            onTap: onOpenDaily,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItem(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: [
+            _NotificationIcon(color: color, icon: icon),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textOf(context),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.text3Of(context),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(Icons.chevron_right, size: 18, color: AppColors.text4Of(context)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationIcon extends StatelessWidget {
+  final Color color;
+  final IconData icon;
+  const _NotificationIcon({required this.color, required this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 38,
+      height: 38,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: Icon(icon, size: 20, color: color),
+    );
+  }
 }

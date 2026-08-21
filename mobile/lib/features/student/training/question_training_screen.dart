@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -193,7 +193,8 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
 
     return GestureDetector(
       onTap: () => _openPractice(dept),
-      child: Container(
+      child: PressableScale(
+        child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -203,6 +204,7 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
             width: isWeak ? 1.2 : 1,
           ),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,11 +212,11 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
             Row(
               children: [
                 Container(
-                  width: 26,
-                  height: 26,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
-                    color: isWeak ? AppColors.vermilionSoftOf(context) : AppColors.mossTintOf(context),
-                    borderRadius: BorderRadius.circular(AppRadius.xs),
+                    color: (isWeak ? AppColors.vermilion : AppColors.primaryOf(context)).withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(
                     isWeak ? Icons.warning_amber_rounded : Icons.local_hospital,
@@ -256,6 +258,7 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
           ],
         ),
       ),
+      ),
     );
   }
 
@@ -263,11 +266,13 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
   Widget _buildBankEntry() {
     return GestureDetector(
       onTap: () => context.pushNamed(RouteNames.questionBank),
-      child: Container(
+      child: PressableScale(
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.indigoSoftOf(context),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Row(
           children: [
@@ -275,10 +280,10 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: AppColors.indigo,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
+                color: AppColors.indigo.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.grid_view_rounded, size: 20, color: AppColors.onPrimary),
+              child: Icon(Icons.grid_view_rounded, size: 20, color: AppColors.indigo),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -297,6 +302,7 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
             const Icon(Icons.arrow_forward, size: 18, color: AppColors.indigo),
           ],
         ),
+      ),
       ),
     );
   }

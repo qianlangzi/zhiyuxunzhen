@@ -13,7 +13,6 @@ class RouteNames {
   static const studentHome = 'studentHome';
   static const studentCaseMarket = 'studentCaseMarket';
   static const chat = 'chat';
-  static const thinkingTree = 'thinkingTree';
   static const osceResult = 'osceResult';
   static const mistakes = 'mistakes';
   static const reviewReport = 'reviewReport';
@@ -23,12 +22,10 @@ class RouteNames {
   static const recommendation = 'recommendation';
   static const questionTraining = 'questionTraining';
   static const questionBank = 'questionBank';
-  static const questionPractice = 'questionPractice';
   static const textbookCenter = 'textbookCenter';
   static const searchResult = 'searchResult';
   static const todoAssignments = 'todoAssignments';
   static const todoAssignmentDetail = 'todoAssignmentDetail';
-  static const osceHistory = 'osceHistory';
 
   // Teacher
   static const teacherHome = 'teacherHome';

@@ -56,7 +56,7 @@ async function submit() {
 
   loading.value = true
   try {
-    const r: any = await http.post('/v1/user/login', form.value)
+    const r: any = await http.post('/v1/auth/login', form.value)
     user.setLogin(r.data.token, r.data.username, r.data.role)
     ElMessage.success('登录成功')
     router.push('/')

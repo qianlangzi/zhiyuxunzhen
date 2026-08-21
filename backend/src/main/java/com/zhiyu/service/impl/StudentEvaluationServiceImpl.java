@@ -170,8 +170,8 @@ public class StudentEvaluationServiceImpl implements StudentEvaluationService {
         // B-P0-1 修复：归属校验——只有会话的创建学生才能查看自己的 OSCE 评估、思维树、最终报告。
         // 旧实现只按 sessionId 查库，任何学生枚举 sessionId 即可读取他人问诊的病历数据。
         Long currentUserId = UserContext.requireUserId();
-        if (!currentUserId.equals(session.getStudentId())) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权访问该会话");
+        if (session.getStudentId() == null || !currentUserId.equals(session.getStudentId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "问诊会话不属于当前学生");
         }
         return session;
     }

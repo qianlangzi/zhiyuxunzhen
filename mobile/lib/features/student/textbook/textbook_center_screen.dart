@@ -220,8 +220,9 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
               _isLoading = true;
               _load();
             },
+            child: PressableScale(
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: active
                     ? AppColors.primaryOf(context)
@@ -231,7 +232,7 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
                       ? AppColors.primaryOf(context)
                       : AppColors.ruleOf(context),
                 ),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
+                borderRadius: BorderRadius.circular(AppRadius.full),
               ),
               child: Center(
                 child: Text(
@@ -245,8 +246,9 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
                 ),
               ),
             ),
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }
@@ -256,6 +258,7 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => _showDetail(tb),
+      child: PressableScale(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
         padding: const EdgeInsets.all(16),
@@ -263,6 +266,7 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
           color: AppColors.surfaceOf(context),
           border: Border.all(color: AppColors.surfaceEdgeOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -311,6 +315,7 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
                 size: 16, color: AppColors.text4Of(context)),
           ],
         ),
+      ),
       ),
     );
   }

@@ -1,32 +1,34 @@
 package com.zhiyu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.MedicalRecordReview;
-import com.zhiyu.entity.StudentMistakes;
+import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.TeacherClassAuthorization;
+import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.MedicalRecordReviewMapper;
+import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.StudentMistakesMapper;
+import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
+import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.service.TeacherDashboardService;
+import com.zhiyu.service.support.OsceStatsHelper;
 import com.zhiyu.vo.TeacherDashboardVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -45,6 +47,9 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     private final MedicalRecordReviewMapper reviewMapper;
     private final ChatSessionMapper chatSessionMapper;
     private final StudentMistakesMapper mistakesMapper;
+    private final SpCaseConfigMapper caseMapper;
+    private final TeachingClassMapper classMapper;
+    private final TeacherClassAuthorizationMapper classAuthMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -77,13 +82,26 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         // 4. OSCE 维度均分（chat_session.osceScoreJson）
         List<Long> studentIds = instances.stream().map(AssignmentInstance::getStudentId)
                 .filter(Objects::nonNull).distinct().toList();
-        Map<String, Integer> dimensionScores = aggregateOsceScores(studentIds);
+        Map<String, Integer> dimensionScores = OsceStatsHelper.aggregateOsceScores(chatSessionMapper, objectMapper, studentIds);
 
         // 5. 共性错题（student_mistakes，按知识点计数）
         List<TeacherDashboardVO.CommonMistake> commonMistakes = aggregateCommonMistakes(studentIds);
 
         // 6. 过度检查率（chat_session.totalExamCost 聚合，简单估算：超过均值的会话占比）
         double overExamRate = computeOverExamRate(studentIds);
+
+        // ===== 首页工作台实时计数（代替前端硬编码假数据） =====
+        // 待复核：status=4（AI已批阅，待教师人工复核）
+        int pendingReview = (int) instances.stream()
+                .filter(i -> i.getStatus() != null && i.getStatus() == 4).count();
+        // 进行中的作业：当前名下全部作业数
+        int activeAssignments = assignments == null ? 0 : assignments.size();
+        // 本人病例数
+        int myCases = myCases(teacherId);
+        // 被授权班级数
+        int classCount = teachingClassCount(teacherId);
+        // 病例广场累计引用与均分（本人发布的公开病例）
+        Map<String, Object> market = marketSummary(teacherId);
 
         return TeacherDashboardVO.builder()
                 .completionRate(total == 0 ? 0.0 : (double) completed / total)
@@ -92,51 +110,22 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 .overExamRate(overExamRate)
                 .osceDimensionScores(dimensionScores)
                 .commonMistakes(commonMistakes)
+                .pendingReview(pendingReview)
+                .activeAssignments(activeAssignments)
+                .myCases(myCases)
+                .classCount(classCount)
+                .marketRefs(market.get("refs") == null ? 0 : (Integer) market.get("refs"))
+                .marketRating(market.get("rating") == null ? null : (Double) market.get("rating"))
                 .build();
     }
 
-    /** 从 chat_session.osceScoreJson 聚合各维度均分 */
-    private Map<String, Integer> aggregateOsceScores(List<Long> studentIds) {
-        List<ChatSession> sessions = studentIds.isEmpty() ? List.of() : chatSessionMapper.selectList(
-                new LambdaQueryWrapper<ChatSession>().in(ChatSession::getStudentId, studentIds));
-        Map<String, List<Double>> dims = new LinkedHashMap<>();
-        for (ChatSession s : sessions) {
-            if (!StringUtils.hasText(s.getOsceScoreJson())) continue;
-            try {
-                JsonNode root = objectMapper.readTree(s.getOsceScoreJson());
-                JsonNode scores = root.has("scores") ? root.get("scores") : root;
-                if (scores.isObject()) {
-                    scores.fields().forEachRemaining(e -> {
-                        double v = e.getValue().isNumber() ? e.getValue().asDouble() : 0.0;
-                        dims.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(v);
-                    });
-                }
-            } catch (Exception ignored) {
-                // 单条解析失败不影响整体
-            }
-        }
-        Map<String, Integer> result = new LinkedHashMap<>();
-        dims.forEach((k, v) -> result.put(k, (int) Math.round(v.stream().mapToDouble(Double::doubleValue).average().orElse(0))));
-        return result;
-    }
-
-    /** 从 student_mistakes 聚合共性错题（按知识点计数，取前 5） */
+    /** 从 student_mistakes 聚合共性错题（通过公共组件聚合，映射为看板 VO，取前 5） */
     private List<TeacherDashboardVO.CommonMistake> aggregateCommonMistakes(List<Long> studentIds) {
-        if (studentIds.isEmpty()) return List.of();
-        List<StudentMistakes> mistakes = mistakesMapper.selectList(
-                new LambdaQueryWrapper<StudentMistakes>().in(StudentMistakes::getStudentId, studentIds));
-        Map<String, Long> countByTag = mistakes.stream()
-                .map(m -> m.getKnowledgeTag() != null && !m.getKnowledgeTag().isBlank()
-                        ? m.getKnowledgeTag() : m.getMistakeType())
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        return countByTag.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(5)
-                .map(e -> TeacherDashboardVO.CommonMistake.builder()
-                        .type("错题")
-                        .description(e.getKey())
-                        .count(e.getValue().intValue())
+        return OsceStatsHelper.aggregateCommonMistakes(mistakesMapper, studentIds, 5).stream()
+                .map(m -> TeacherDashboardVO.CommonMistake.builder()
+                        .type((String) m.get("type"))
+                        .description((String) m.get("description"))
+                        .count((Integer) m.get("count"))
                         .build())
                 .collect(Collectors.toList());
     }
@@ -155,5 +144,45 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         double avg = costs.stream().mapToDouble(BigDecimal::doubleValue).average().orElse(0.0);
         long over = costs.stream().filter(c -> c.doubleValue() > avg).count();
         return (double) over / costs.size();
+    }
+
+    /** 本人病例数 */
+    private int myCases(Long teacherId) {
+        Long count = caseMapper.selectCount(
+                new LambdaQueryWrapper<SpCaseConfig>().eq(SpCaseConfig::getCreatorId, teacherId));
+        return count == null ? 0 : count.intValue();
+    }
+
+    /** 被授权班级数（仅统计处于有效状态的教学班） */
+    private int teachingClassCount(Long teacherId) {
+        List<Long> ids = classAuthMapper.selectList(
+                new LambdaQueryWrapper<TeacherClassAuthorization>()
+                        .eq(TeacherClassAuthorization::getTeacherId, teacherId))
+                .stream().map(TeacherClassAuthorization::getClassId).toList();
+        if (ids.isEmpty()) return 0;
+        Long count = classMapper.selectCount(
+                new LambdaQueryWrapper<TeachingClass>().in(TeachingClass::getId, ids));
+        return count == null ? 0 : count.intValue();
+    }
+
+    /** 本人发布到广场的病例累计引用量与平均评分 */
+    private Map<String, Object> marketSummary(Long teacherId) {
+        List<SpCaseConfig> published = caseMapper.selectList(
+                new LambdaQueryWrapper<SpCaseConfig>()
+                        .eq(SpCaseConfig::getCreatorId, teacherId)
+                        .eq(SpCaseConfig::getIsPublic, true));
+        int refs = published.stream()
+                .map(SpCaseConfig::getReferenceCount)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue).sum();
+        double avg = published.stream()
+                .map(SpCaseConfig::getRatingAvg)
+                .filter(Objects::nonNull)
+                .mapToDouble(BigDecimal::doubleValue)
+                .average().orElse(0.0);
+        Map<String, Object> result = new HashMap<>();
+        result.put("refs", refs);
+        result.put("rating", published.isEmpty() ? null : avg);
+        return result;
     }
 }

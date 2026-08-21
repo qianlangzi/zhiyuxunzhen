@@ -68,6 +68,8 @@ void main() async {
 
   // 创建 ProviderContainer 并预热 authProvider + settingsProvider，
   // 确保用户态和主题在 runApp 前加载完毕，消除 redirect 竞态和主题闪烁
+  // 说明：token 恢复与 1001/401/2015 回调注册均在 AuthNotifier._loadUser() 内完成
+  // （ApiClient.init + onSessionExpired/onPasswordChangeRequired），此处无需额外挂接。
   final container = ProviderContainer();
   await container.read(authProvider.notifier).ensureInitialized();
   await container.read(settingsProvider.notifier).ensureLoaded();

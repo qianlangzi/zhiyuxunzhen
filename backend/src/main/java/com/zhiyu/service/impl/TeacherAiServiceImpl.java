@@ -9,14 +9,12 @@ import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
-import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.MedicalRecordReview;
 import com.zhiyu.entity.SpCaseConfig;
-import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.entity.StudentWeakness;
 import com.zhiyu.entity.SysUser;
-import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.entity.TeacherClassAuthorization;
+import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
@@ -29,6 +27,7 @@ import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.service.TeacherAiService;
 import com.zhiyu.service.dto.CaseDraftDTO;
+import com.zhiyu.service.support.OsceStatsHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,11 +36,9 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -111,10 +108,10 @@ public class TeacherAiServiceImpl implements TeacherAiService {
         long completed = instances.stream().filter(i -> i.getStatus() != null && i.getStatus() >= 4).count();
 
         // 3. OSCE 维度均分（从 chat_session.osceScoreJson 聚合）
-        Map<String, Integer> osceScores = aggregateOsceScores(studentIds);
+        Map<String, Integer> osceScores = OsceStatsHelper.aggregateOsceScores(chatSessionMapper, objectMapper, studentIds);
 
-        // 4. 共性错题（从 student_mistakes 聚合）
-        List<Map<String, Object>> commonMistakes = aggregateCommonMistakes(studentIds);
+        // 4. 共性错题（从 student_mistakes 聚合，取前 8）
+        List<Map<String, Object>> commonMistakes = OsceStatsHelper.aggregateCommonMistakes(mistakesMapper, studentIds, 8);
 
         // 5. 组装统计
         List<Map<String, Object>> stats = new ArrayList<>();
@@ -131,14 +128,20 @@ public class TeacherAiServiceImpl implements TeacherAiService {
 
     @Override
     public Map<String, Object> reviewAssist(Long instanceId) {
+        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
         AssignmentInstance inst = instanceMapper.selectById(instanceId);
         if (inst == null) {
             throw new BizException(ResultCode.NOT_FOUND, "作业实例不存在");
         }
-        // B-P0-2 修复：校验当前教师对该作业实例对应学生的授权。
+        // B-P0-2 修复（采用 main 的更严格实现）：归属校验——只能辅助复核本人布置作业的实例。
         // 旧实现无校验，教师可读任意 instanceId 的学生病历全文。
-        if (inst.getStudentId() != null) {
-            requireStudentAuthorization(UserContext.requireUserId(), inst.getStudentId());
+        Assignment assignment = inst.getAssignmentId() == null ? null
+                : assignmentMapper.selectById(inst.getAssignmentId());
+        if (assignment == null) {
+            throw new BizException(ResultCode.ASSIGNMENT_NOT_FOUND);
+        }
+        if (!teacherId.equals(assignment.getTeacherId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能辅助复核本人布置作业的实例");
         }
         // 最新 AI 批阅
         List<MedicalRecordReview> reviews = reviewMapper.selectList(
@@ -166,14 +169,19 @@ public class TeacherAiServiceImpl implements TeacherAiService {
 
     @Override
     public Map<String, Object> recommendCases(Long classId) {
+        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
         TeachingClass clazz = classMapper.selectById(classId);
         if (clazz == null) {
             throw new BizException(ResultCode.NOT_FOUND, "班级不存在");
         }
-        // B-P0-2 修复：校验当前教师对该班级的授权。
-        // 旧实现无校验，教师可聚合任意 classId 的学生薄弱点。
-        Long teacherId = UserContext.requireUserId();
-        requireClassAuthorization(teacherId, classId);
+        // B-P0-2 修复：归属校验——仅限已授权给当前教师的班级（防教师聚合任意班级学生薄弱点）
+        boolean authorized = classAuthMapper.selectCount(
+                new LambdaQueryWrapper<TeacherClassAuthorization>()
+                        .eq(TeacherClassAuthorization::getTeacherId, teacherId)
+                        .eq(TeacherClassAuthorization::getClassId, classId)) > 0;
+        if (!authorized) {
+            throw new BizException(ResultCode.FORBIDDEN, "当前班级未授权给该教师");
+        }
         // 班级学生
         List<Long> studentIds = userMapper.selectList(
                         new LambdaQueryWrapper<SysUser>()
@@ -205,15 +213,9 @@ public class TeacherAiServiceImpl implements TeacherAiService {
 
     @Override
     public Map<String, Object> qualityCheck(Long caseId) {
-        SpCaseConfig c = caseMapper.selectById(caseId);
-        if (c == null) {
-            throw new BizException(ResultCode.CASE_NOT_FOUND);
-        }
         // B-P0-2 修复：只有病例创建者才能查看 hiddenDisease/standardPathJson（答案核心）。
-        // 旧实现无校验，教师可读任意 caseId 的标准答案。
-        if (!UserContext.requireUserId().equals(c.getCreatorId())) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权操作该病例");
-        }
+        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
+        SpCaseConfig c = requireOwnCase(caseId, teacherId);
         return aiPlatformClient.qualityCheck(
                 caseId,
                 c.getTitle(),
@@ -227,14 +229,9 @@ public class TeacherAiServiceImpl implements TeacherAiService {
 
     @Override
     public Map<String, Object> practiceQuestions(Long caseId) {
-        SpCaseConfig c = caseMapper.selectById(caseId);
-        if (c == null) {
-            throw new BizException(ResultCode.CASE_NOT_FOUND);
-        }
         // B-P0-2 修复：只有病例创建者才能基于 hiddenDisease/standardPathJson 生成练习题。
-        if (!UserContext.requireUserId().equals(c.getCreatorId())) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权操作该病例");
-        }
+        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
+        SpCaseConfig c = requireOwnCase(caseId, teacherId);
         return aiPlatformClient.practiceQuestions(
                 caseId,
                 c.getHiddenDisease(),
@@ -244,78 +241,16 @@ public class TeacherAiServiceImpl implements TeacherAiService {
 
     // ==================== 私有辅助 ====================
 
-    /**
-     * B-P0-2 修复：校验当前教师是否被授权访问指定班级。
-     * 通过 teacher_class_authorization 表验证 (teacherId, classId) 存在。
-     */
-    private void requireClassAuthorization(Long teacherId, Long classId) {
-        Long count = classAuthMapper.selectCount(
-                new LambdaQueryWrapper<TeacherClassAuthorization>()
-                        .eq(TeacherClassAuthorization::getTeacherId, teacherId)
-                        .eq(TeacherClassAuthorization::getClassId, classId));
-        if (count == null || count == 0) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权访问该班级数据");
+    /** 校验病例存在且属于当前教师创建，返回病例实体 */
+    private SpCaseConfig requireOwnCase(Long caseId, Long teacherId) {
+        SpCaseConfig c = caseMapper.selectById(caseId);
+        if (c == null) {
+            throw new BizException(ResultCode.CASE_NOT_FOUND);
         }
-    }
-
-    /**
-     * B-P0-2 修复：通过学生 ID 查找其所在班级，并校验当前教师对该班级的授权。
-     * 链路：studentId → SysUser.classId → TeacherClassAuthorization(teacherId, classId)
-     */
-    private void requireStudentAuthorization(Long teacherId, Long studentId) {
-        SysUser student = userMapper.selectById(studentId);
-        if (student == null || student.getClassId() == null) {
-            throw new BizException(ResultCode.FORBIDDEN, "无权访问该学生数据");
+        if (c.getCreatorId() == null || !teacherId.equals(c.getCreatorId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能操作本人创建的病例");
         }
-        requireClassAuthorization(teacherId, student.getClassId());
-    }
-
-    /** 从 chat_session.osceScoreJson 聚合各维度均分 */
-    private Map<String, Integer> aggregateOsceScores(List<Long> studentIds) {
-        List<ChatSession> sessions = studentIds.isEmpty() ? List.of() : chatSessionMapper.selectList(
-                new LambdaQueryWrapper<ChatSession>().in(ChatSession::getStudentId, studentIds));
-        Map<String, List<Double>> dims = new LinkedHashMap<>();
-        for (ChatSession s : sessions) {
-            if (!StringUtils.hasText(s.getOsceScoreJson())) continue;
-            try {
-                JsonNode root = objectMapper.readTree(s.getOsceScoreJson());
-                JsonNode scores = root.has("scores") ? root.get("scores") : root;
-                if (scores.isObject()) {
-                    scores.fields().forEachRemaining(e -> {
-                        double v = e.getValue().isNumber() ? e.getValue().asDouble() : 0.0;
-                        dims.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(v);
-                    });
-                }
-            } catch (Exception ignored) {
-                // 单条解析失败不影响整体
-            }
-        }
-        Map<String, Integer> result = new LinkedHashMap<>();
-        dims.forEach((k, v) -> result.put(k, (int) Math.round(v.stream().mapToDouble(Double::doubleValue).average().orElse(0))));
-        return result;
-    }
-
-    /** 从 student_mistakes 聚合共性错题（按知识点标签计数，取前 8） */
-    private List<Map<String, Object>> aggregateCommonMistakes(List<Long> studentIds) {
-        if (studentIds.isEmpty()) return List.of();
-        List<StudentMistakes> mistakes = mistakesMapper.selectList(
-                new LambdaQueryWrapper<StudentMistakes>().in(StudentMistakes::getStudentId, studentIds));
-        Map<String, Long> countByTag = mistakes.stream()
-                .map(m -> m.getKnowledgeTag() != null && !m.getKnowledgeTag().isBlank()
-                        ? m.getKnowledgeTag() : m.getMistakeType())
-                .filter(Objects::nonNull)
-                .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
-        return countByTag.entrySet().stream()
-                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
-                .limit(8)
-                .map(e -> {
-                    Map<String, Object> m = new HashMap<>();
-                    m.put("type", "错题");
-                    m.put("description", e.getKey());
-                    m.put("count", e.getValue().intValue());
-                    return m;
-                })
-                .collect(Collectors.toList());
+        return c;
     }
 
     /** 从 student_weakness 聚合班级薄弱知识点（取薄弱度最高的前 8 个） */

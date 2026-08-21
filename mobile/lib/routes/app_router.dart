@@ -8,13 +8,11 @@ import '../features/auth/providers/auth_provider.dart';
 import '../features/student/home/student_home_screen.dart';
 import '../features/student/market/student_case_market_screen.dart';
 import '../features/student/chat/chat_room_screen.dart';
-import '../features/student/tree/thinking_tree_screen.dart';
 import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
 import '../features/student/recommend/recommendation_screen.dart';
 import '../features/student/training/question_training_screen.dart';
 import '../features/student/training/question_bank_screen.dart';
-import '../features/student/training/question_practice_screen.dart';
 import '../features/student/textbook/textbook_center_screen.dart';
 import '../features/student/search/search_result_screen.dart';
 import '../features/student/report/review_report_screen.dart';
@@ -22,7 +20,6 @@ import '../features/student/daily_case/daily_case_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
 import '../features/student/assignments/todo_assignments_screen.dart';
 import '../features/student/assignments/todo_assignment_detail_screen.dart';
-import '../features/student/result/osce_history_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
 import '../features/teacher/home/teacher_home_screen.dart';
 import '../features/teacher/case_config/sp_config_screen.dart';
@@ -54,7 +51,7 @@ class _AuthRefreshNotifier extends ChangeNotifier {
 /// 全局路由 Provider
 ///
 /// 学生端 / 教师端均使用 [StatefulShellRoute.indexedStack]：
-/// 底部 tab 栏由 Shell 常驻持有，切换分支时滑块平滑滑动；
+/// 底部 tab 栏由剪辑的 Shell 常驻持有，切换分支时滑块平滑滑动；
 /// 各 tab 首页为分支，其余详情页为顶层路由（push 时覆盖 Shell）。
 /// 使用 refreshListenable 监听认证状态变化，使自动登出 / 2015 强制改密
 /// 能立即触发路由重定向，而非停留在当前页直到下次导航。
@@ -161,15 +158,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ---- 学生端详情页（顶层路由，push 时覆盖 Shell） ----
+      // 注：questionPractice 由题库/训练页内部直接跳转（不再走路由）；
+      // thinkingTree / osceHistory 页面已在 main 重构中移除。
       GoRoute(
         name: RouteNames.chat,
         path: '/student/chat',
         builder: (context, state) => ChatRoomScreen(),
-      ),
-      GoRoute(
-        name: RouteNames.thinkingTree,
-        path: '/student/tree',
-        builder: (context, state) => ThinkingTreeScreen(),
       ),
       GoRoute(
         name: RouteNames.osceResult,
@@ -190,16 +184,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.questionBank,
         path: '/student/questions/bank',
         builder: (context, state) => QuestionBankScreen(),
-      ),
-      GoRoute(
-        name: RouteNames.questionPractice,
-        path: '/student/questions/practice',
-        builder: (context, state) => QuestionPracticeScreen(
-          department: state.uri.queryParameters['department'],
-          knowledgeTag: state.uri.queryParameters['knowledgeTag'],
-          difficulty: int.tryParse(state.uri.queryParameters['difficulty'] ?? ''),
-          questionType: state.uri.queryParameters['questionType'],
-        ),
       ),
       GoRoute(
         name: RouteNames.textbookCenter,
@@ -224,11 +208,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => TodoAssignmentDetailScreen(
           instanceId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
         ),
-      ),
-      GoRoute(
-        name: RouteNames.osceHistory,
-        path: '/student/osce-history',
-        builder: (context, state) => OsceHistoryScreen(),
       ),
       GoRoute(
         name: RouteNames.reviewReport,

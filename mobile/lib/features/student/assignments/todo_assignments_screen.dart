@@ -34,15 +34,6 @@ class _TodoAssignmentsScreenState extends ConsumerState<TodoAssignmentsScreen> {
     });
   }
 
-  String _statusLabel(int? status) {
-    switch (status) {
-      case 0: return '未开始';
-      case 1: return '问诊中';
-      case 2: return '格式打回';
-      default: return '进行中';
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(

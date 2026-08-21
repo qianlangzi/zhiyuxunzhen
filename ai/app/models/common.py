@@ -22,6 +22,7 @@ class Citation(BaseModel):
     chunk_text: str | None = Field(default=None, description="命中的原文片段")
     subject: str | None = Field(default=None, description="学科标签（内科/心电等）")
     score: float | None = Field(default=None, description="相似度得分")
+    image_key: str | None = Field(default=None, description="关联图片的对象存储 key（生成侧多模态用）")
 
 
 class ReasoningTreeNode(BaseModel):

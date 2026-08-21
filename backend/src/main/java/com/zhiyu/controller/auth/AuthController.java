@@ -29,8 +29,11 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseCookie;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -100,9 +103,10 @@ public class AuthController {
     public R<LoginResponse> passwordLogin(@Valid @RequestBody LoginRequest req,
                                            HttpServletResponse response) {
         LoginResponse loginResponse = authService.login(req);
+        // Mobile 专用端点：Dio 无 cookie 管理，refresh token 必须通过 body 返回，
+        // 移动端存入 flutter_secure_storage（Keychain/Keystore），无 XSS 攻击面。
+        // A1（refresh 只走 httpOnly cookie 防 XSS）仅适用于 Web 端点 /auth/login。
         setRefreshCookie(response, loginResponse.getRefreshToken());
-        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
-        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -110,6 +114,15 @@ public class AuthController {
     @GetMapping("/captcha")
     public R<CaptchaResponse> captcha(HttpServletRequest request) {
         return R.ok(captchaService.generate(clientIp(request)));
+    }
+
+    @Operation(summary = "获取图形验证码图片（PNG）")
+    @GetMapping(value = "/captcha/{captchaId}/image", produces = "image/png")
+    public ResponseEntity<byte[]> captchaImage(@PathVariable String captchaId) {
+        byte[] image = captchaService.generateImage(captchaId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.IMAGE_PNG)
+                .body(image);
     }
 
     @Operation(summary = "获取手机登录验证码")
@@ -128,9 +141,8 @@ public class AuthController {
     public R<LoginResponse> smsLogin(@Valid @RequestBody SmsLoginRequest req,
                                       HttpServletResponse response) {
         LoginResponse loginResponse = authService.smsLogin(req);
+        // Mobile 专用端点：refresh token 通过 body 返回（同 /login/password 的说明）
         setRefreshCookie(response, loginResponse.getRefreshToken());
-        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
-        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 
@@ -140,19 +152,24 @@ public class AuthController {
             @RequestBody(required = false) RefreshTokenRequest req,
             HttpServletRequest request,
             HttpServletResponse response) {
-        // A1 修复：优先从 httpOnly cookie 读 refresh token，fallback 到 body（兼容期）
+        // A1 修复：优先从 httpOnly cookie 读 refresh token（Web），fallback 到 body（Mobile）
         String refreshToken = extractRefreshTokenFromCookie(request);
-        if (refreshToken == null && req != null) {
+        boolean fromBody = false;
+        if (refreshToken == null && req != null && req.getRefreshToken() != null) {
             refreshToken = req.getRefreshToken();
+            fromBody = true;
         }
         if (refreshToken == null) {
             throw new BizException(ResultCode.UNAUTHORIZED, "refresh token 缺失");
         }
         LoginResponse loginResponse = authService.refresh(refreshToken);
-        // 轮换 refresh token：设置新 cookie
+        // 轮换 refresh token：始终设置新 cookie（Web 使用）
         setRefreshCookie(response, loginResponse.getRefreshToken());
-        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
-        loginResponse.setRefreshToken(null);
+        // Mobile（body 输入）无 cookie 能力，轮换后的新 refresh 必须通过 body 返回；
+        // Web（cookie 输入）遵循 A1：refresh 只通过 httpOnly cookie 传递，body 置空
+        if (!fromBody) {
+            loginResponse.setRefreshToken(null);
+        }
         return R.ok(loginResponse);
     }
 
@@ -175,9 +192,9 @@ public class AuthController {
         // 改密成功后返回新 access/refresh token（携带递增后的 credentialVersion），
         // 客户端必须用新 token 替换旧 token；旧 token 因版本不匹配被 MustChangePasswordInterceptor 拒绝
         LoginResponse loginResponse = authService.changePassword(UserContext.requireUserId(), req);
+        // Mobile 要求新凭证对通过 body 返回（loginWith/CAS 持久化依赖完整 access+refresh）；
+        // Web 管理端只读取 access token（tokenStorage.setAccess），refresh 走 httpOnly cookie
         setRefreshCookie(response, loginResponse.getRefreshToken());
-        // A1 修复：refresh token 只通过 httpOnly cookie 传递，不在 body 中返回，防止 XSS 通过 API 窃取
-        loginResponse.setRefreshToken(null);
         return R.ok(loginResponse);
     }
 

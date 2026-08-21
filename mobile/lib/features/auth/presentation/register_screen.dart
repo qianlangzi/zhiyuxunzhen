@@ -9,11 +9,13 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../data/models/models.dart';
 import '../data/auth_service.dart';
 import '../data/auth_api.dart';
+import '../providers/auth_provider.dart';
 import '../presentation/widgets/role_segment.dart';
 import '../presentation/widgets/auth_field.dart';
 import '../presentation/widgets/captcha_widget.dart';
@@ -231,13 +233,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         setState(() => _submitting = false);
         return;
       }
+
+      final user = result.user;
+      final token = result.token;
+      final refreshToken = result.refreshToken;
+
       if (_role == UserRole.teacher) {
         AppFeedback.success(context, '注册申请已提交，请等待审核');
+        if (!mounted) return;
+        context.pop();
+        return;
+      }
+
+      // 学生：后端成对返回 access+refresh 时自动登录（loginWith 要求凭证对完整，
+      // 缺失任一则不进入认证状态——fail-closed），否则退回登录页手动登录
+      if (user != null &&
+          token != null && token.isNotEmpty &&
+          refreshToken != null && refreshToken.isNotEmpty) {
+        await ref.read(authProvider.notifier).loginWith(
+              user,
+              token: token,
+              refreshToken: refreshToken,
+            );
+        if (!mounted) return;
+        AppFeedback.success(context, '注册成功，已自动登录');
+        context.goNamed(RouteNames.studentHome);
       } else {
         AppFeedback.success(context, '注册成功，请返回登录');
+        if (!mounted) return;
+        context.pop();
       }
-      if (!mounted) return;
-      context.pop();
     } catch (e) {
       if (!mounted) return;
       AppFeedback.error(context, '注册失败：$e');

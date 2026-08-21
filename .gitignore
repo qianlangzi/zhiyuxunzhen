@@ -80,3 +80,17 @@ docs/短信API服务-发送短信.pdf
 
 # ===== 本地实验目录（模型/依赖/PDF 大体积二进制，勿提交） =====
 experiments/
+
+# ===== 大体积/敏感/一次性文件（勿提交） =====
+# 受版权保护的教材 PDF 与导出大文件，避免仓库膨胀与版权风险
+/《内科学 第10版》.pdf
+/main.pdf
+# 主题预设备份包与第三方插件目录数据
+/mobile_backup_presets_*.zip
+/plugins-catalog.json
+# 含本地用户路径的个人文档（勿泄漏个人信息）
+/DSH使用指南.md
+# 一次性诊断/验证脚本
+/ai/check_milvus.py
+/ai/verify_fixes.py
+/ai/verify_mapping_mock.py

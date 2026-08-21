@@ -26,6 +26,7 @@ from langgraph.graph import END, StateGraph
 from app.agents.mentor_agent import update_tree as mentor_agent_update
 from app.agents.sp_agent import sp_reply_stream_with_tools
 from app.agents.toolkit import toolkit_list
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.domain.policies.output_policy import OutputCheckResult, output_policy
 from app.domain.policies.safety_policy import SafetyDecision, safety_policy
@@ -34,6 +35,9 @@ from app.services.backend_client import backend_client
 from app.services.rag_service import rag_service
 
 logger = get_logger(__name__)
+
+# LLM 兜底/降级产物的文案前缀（见 llm_client._fallback_chat），用于避免假内容写入正式会话。
+_DEGRADED_MARKER_PREFIX = "【降级模式】"
 
 
 def sse(event: str, data: dict[str, Any]) -> dict[str, str]:
@@ -117,12 +121,25 @@ async def safety_check(state: ConsultationState) -> dict[str, Any]:
 
 
 async def rag_search(state: ConsultationState) -> dict[str, Any]:
-    """RAG 教材检索 + 组装 LLM 上下文（history / case_context / citations）。"""
+    """RAG 教材检索 + 组装 LLM 上下文（history / case_context / citations）。
+
+    检索增强：
+      - 查询改写开启（口语→医学术语 + 多轮指代消解，带对话历史）
+      - 命中带图 chunk 时生成 VLM 图述并入 case_context（生成侧多模态）
+    """
     trace_id = state["trace_id"]
     last_user = state["last_user"]
     ctx = state["context"]
+
+    history = build_history(ctx.get("messages", []))
+    if last_user and (not history or history[-1]["role"] != "user" or history[-1]["content"] != last_user):
+        history.append({"role": "user", "content": last_user})
+
     try:
-        citations = await rag_service.search(last_user, top_k=3, trace_id=trace_id)
+        citations = await rag_service.search(
+            last_user, top_k=3, trace_id=trace_id,
+            rewrite=True, history=history,
+        )
     except Exception:  # noqa: BLE001 - 检索不可用降级，不阻断对话
         citations = []
         await _emit(
@@ -133,9 +150,20 @@ async def rag_search(state: ConsultationState) -> dict[str, Any]:
     if citations:
         await _emit(state, "citation", {"citations": [c.model_dump() for c in citations]})
 
-    history = build_history(ctx.get("messages", []))
-    if last_user and (not history or history[-1]["role"] != "user" or history[-1]["content"] != last_user):
-        history.append({"role": "user", "content": last_user})
+    # 生成侧多模态：命中带图 citation → VLM 图述并入上下文（失败静默）
+    image_notes: list[str] = []
+    if settings.image_caption_enabled:
+        try:
+            from app.services.image_index_service import image_index_service
+            for c in citations:
+                if getattr(c, "image_key", None):
+                    note = await image_index_service.caption(
+                        c.image_key, context=c.chunk_text or "", trace_id=trace_id,
+                    )
+                    if note:
+                        image_notes.append(f"[{c.book_name} p{c.page_number} 配图] {note}")
+        except Exception:  # noqa: BLE001 - 图述失败不影响对话
+            pass
 
     case_context = json.dumps(
         {
@@ -145,6 +173,7 @@ async def rag_search(state: ConsultationState) -> dict[str, Any]:
             "standardPath": ctx.get("standardPathJson"),
             "presetExams": ctx.get("presetExams"),
             "citations": [c.model_dump() for c in citations],
+            "imageNotes": image_notes,
         },
         ensure_ascii=False,
     )
@@ -182,9 +211,19 @@ async def output_check(state: ConsultationState) -> dict[str, Any]:
 
 
 async def persist(state: ConsultationState) -> dict[str, Any]:
-    """把本次学生提问与 SP 回复写回业务中台。"""
+    """把本次学生提问与 SP 回复写回业务中台。
+
+    降级/兜底生成的合成文案不得写入正式的会话事实（否则假内容污染历史 / 复盘 / 评分）。
+    """
     last_user = state["last_user"]
     reply = state["reply"]
+    degraded = reply.startswith(_DEGRADED_MARKER_PREFIX)
+    if degraded:
+        # 本轮为 LLM 兜底生成，不入库，仅发状态事件便于前端提示
+        await _emit(state, "status", {"degraded": True, "component": "llm",
+                                      "message": "大模型暂不可用，本轮对话未保存。"})
+        return {}
+
     await backend_client.append_session_messages(
         state["req"].session_id,
         state["student_id"],

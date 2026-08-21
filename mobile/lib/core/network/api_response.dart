@@ -12,12 +12,21 @@ class ApiResponse<T> {
     Map<String, dynamic> json,
     T Function(dynamic)? fromData,
   ) {
+    // 防御式解析：后端某个接口返回的数据结构与约定不符（例如 R<List>
+    // 被约定 R<Map> 解析）时，解析可能抛类型转换异常。这里吞掉单个解析
+    // 异常并把 data 置空，避免异常逃逸到界面层导致页面永久转圈 / 无法返回。
+    T? data;
+    if (json['data'] != null && fromData != null) {
+      try {
+        data = fromData(json['data']);
+      } catch (_) {
+        data = null;
+      }
+    }
     return ApiResponse(
       code: (json['code'] as int?) ?? -1,
       message: (json['message'] as String?) ?? '',
-      data: json['data'] != null && fromData != null
-          ? fromData(json['data'])
-          : null,
+      data: data,
     );
   }
 }

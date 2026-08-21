@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/theme/theme_preset.dart';
 import '../../../data/models/models.dart';
 
 /// 应用设置项
@@ -24,6 +25,7 @@ class AppSettings {
   final bool biometricLogin;
   final bool darkMode;
   final bool agreedToTerms;
+  final ThemePreset themePreset;
 
   const AppSettings({
     this.pushNotifications = true,
@@ -34,6 +36,7 @@ class AppSettings {
     this.biometricLogin = false,
     this.darkMode = false,
     this.agreedToTerms = false,
+    this.themePreset = ThemePreset.herb,
   });
 
   AppSettings copyWith({
@@ -45,6 +48,7 @@ class AppSettings {
     bool? biometricLogin,
     bool? darkMode,
     bool? agreedToTerms,
+    ThemePreset? themePreset,
   }) {
     return AppSettings(
       pushNotifications: pushNotifications ?? this.pushNotifications,
@@ -55,6 +59,7 @@ class AppSettings {
       biometricLogin: biometricLogin ?? this.biometricLogin,
       darkMode: darkMode ?? this.darkMode,
       agreedToTerms: agreedToTerms ?? this.agreedToTerms,
+      themePreset: themePreset ?? this.themePreset,
     );
   }
 
@@ -67,6 +72,7 @@ class AppSettings {
         'biometricLogin': biometricLogin,
         'darkMode': darkMode,
         'agreedToTerms': agreedToTerms,
+        'themePreset': themePreset.name,
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
@@ -78,6 +84,10 @@ class AppSettings {
         biometricLogin: json['biometricLogin'] as bool? ?? false,
         darkMode: json['darkMode'] as bool? ?? false,
         agreedToTerms: json['agreedToTerms'] as bool? ?? false,
+        themePreset: ThemePreset.values.firstWhere(
+          (t) => t.name == json['themePreset'],
+          orElse: () => ThemePreset.herb,
+        ),
       );
 }
 

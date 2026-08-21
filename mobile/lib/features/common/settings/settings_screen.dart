@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/theme_preset.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
@@ -43,6 +44,13 @@ const   SettingsScreen({super.key});
                           ? RouteNames.profileEdit
                           : RouteNames.profileEditTeacher,
                     ),
+                  ),
+
+                  // ========== 主题 ==========
+                  _ThemePresetSection(
+                    settings: settings,
+                    onSelected: (p) =>
+                        notifier.update(settings.copyWith(themePreset: p)),
                   ),
 
                   // ========== 通知 ==========
@@ -449,6 +457,179 @@ class _ActionRow extends StatelessWidget {
           : null,
    trailing: Icon(Icons.chevron_right, size: 16, color: AppColors.text4Of(context)),
       onTap: onTap,
+    );
+  }
+}
+
+/// 主题预设选择区
+///
+/// 三套个性化色板，点击即全局切换（通过 ThemePaletteExtension 驱动
+/// AppColors.*Of 与 AppTheme 一起联动），并随设置持久化。
+class _ThemePresetSection extends StatelessWidget {
+  const _ThemePresetSection({required this.settings, required this.onSelected});
+
+  final AppSettings settings;
+  final ValueChanged<ThemePreset> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    const presets = ThemePreset.values;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              '主题',
+              style: TextStyle(
+                fontFamily: 'JetBrainsMono',
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.06,
+                color: Color(0xFF6B7270),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: 96,
+            child: Row(
+              children: [
+                for (var i = 0; i < presets.length; i++) ...[
+                  if (i != 0) const SizedBox(width: 12),
+                  Expanded(
+                    child: _ThemePresetCard(
+                      preset: presets[i],
+                      selected: settings.themePreset == presets[i],
+                      onTap: () => onSelected(presets[i]),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          // 当前预设说明
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+            child: Text(
+              _descOf(context, settings.themePreset),
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.4,
+                color: AppColors.text4Of(context),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _descOf(BuildContext context, ThemePreset preset) =>
+      preset.desc.isEmpty ? preset.subtitle : preset.desc;
+}
+
+/// 单个预设卡片：色板预览 + 选中态
+class _ThemePresetCard extends StatelessWidget {
+  const _ThemePresetCard({
+    required this.preset,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ThemePreset preset;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final pal = preset.palette(dark: dark);
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: pal.surface,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(
+            color: selected ? preset.lightPalette.primary : pal.surfaceEdge,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 色板预览条
+            SizedBox(
+              height: 18,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: pal.bg,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: pal.surfaceEdge, width: 1),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  for (final c in pal.heat)
+                    Container(
+                      width: 8,
+                      height: 18,
+                      margin: const EdgeInsets.only(left: 3),
+                      decoration: BoxDecoration(
+                        color: c,
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            Row(
+              children: [
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: preset.lightPalette.primary,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: pal.surface,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    preset.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: pal.text,
+                    ),
+                  ),
+                ),
+                if (selected)
+                  Icon(
+                    Icons.check_circle,
+                    size: 16,
+                    color: preset.lightPalette.primary,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

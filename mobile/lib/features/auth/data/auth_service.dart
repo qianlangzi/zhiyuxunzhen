@@ -109,7 +109,7 @@ class AuthService {
   /// Mock 模式：本地存储用户到 SharedPreferences（忽略新增字段）。
   /// 真实模式：调用后端 `/api/v1/auth/register`，透传 realName/schoolName/
   /// grade/className/certificateNo/department/teacherCertificateImage。
-  Future<({UserModel? user, String? error})> register({
+  Future<({UserModel? user, String? error, String? token, String? refreshToken})> register({
     required String phone,
     required String code,
     required String username,
@@ -142,7 +142,7 @@ class AuthService {
     );
   }
 
-  Future<({UserModel? user, String? error})> _mockRegister(
+  Future<({UserModel? user, String? error, String? token, String? refreshToken})> _mockRegister(
     String phone,
     String code,
     String username,
@@ -150,11 +150,11 @@ class AuthService {
     UserRole role,
   ) async {
     if (!_mockVerifyCode(phone, code)) {
-      return (user: null, error: '验证码错误、已过期或未获取');
+      return (user: null, error: '验证码错误、已过期或未获取', token: null, refreshToken: null);
     }
     final store = RegisteredUserStore();
     if (await store.existsByUsername(username.trim())) {
-      return (user: null, error: '该用户名已被注册，请更换');
+      return (user: null, error: '该用户名已被注册，请更换', token: null, refreshToken: null);
     }
     final user = UserModel(
       id: DateTime.now().millisecondsSinceEpoch,
@@ -167,10 +167,10 @@ class AuthService {
     );
     await store.save(user);
     _pending.remove(phone.trim());
-    return (user: user, error: null);
+    return (user: user, error: null, token: null, refreshToken: null);
   }
 
-  Future<({UserModel? user, String? error})> _realRegister(
+  Future<({UserModel? user, String? error, String? token, String? refreshToken})> _realRegister(
     String phone,
     String code,
     String username,
@@ -200,8 +200,10 @@ class AuthService {
       teacherCertificateImage: teacherCertificateImage,
     );
     return switch (result) {
-      RegisterOk(:final user) => (user: user, error: null),
-      RegisterFail(:final message) => (user: null, error: message),
+      RegisterOk(:final user, :final token, :final refreshToken) =>
+        (user: user, error: null, token: token, refreshToken: refreshToken),
+      RegisterFail(:final message) =>
+        (user: null, error: message, token: null, refreshToken: null),
     };
   }
 

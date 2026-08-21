@@ -24,4 +24,6 @@ public class ReportSessionVO {
     private LocalDateTime createdAt;
     /** AI 生成的 PDF URL（PRD 4.11.3），AI 不可用时为 null */
     private String pdfUrl;
+    /** AI 生成的结构化报告内容 JSON（title/overview/typicalMistakes/standardPath/textbookRefs/nextSteps），AI 不可用时为 null */
+    private String reportContent;
 }
