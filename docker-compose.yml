@@ -118,6 +118,11 @@ services:
       SMS_PROVIDER: ${SMS_PROVIDER:-}
       SMS_JUHE_KEY: ${SMS_JUHE_KEY:-}
       SMS_JUHE_TPL_ID: ${SMS_JUHE_TPL_ID:-}
+      # AI 模型密钥：DataInitializer 种子从环境变量读取（值在 .env，勿硬编码进代码）
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DASHSCOPE_HOST: ${DASHSCOPE_HOST:-}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      SILICONFLOW_API_KEY: ${SILICONFLOW_API_KEY:-}
       # 上传目录指向与 AI 共享的对象存储根目录（host ./data/objects，AI 侧只读挂载）：后端可写、AI 读取 PDF 入库
       UPLOAD_DIR: /app/data/objects
       UPLOAD_BASE_URL: /uploads
