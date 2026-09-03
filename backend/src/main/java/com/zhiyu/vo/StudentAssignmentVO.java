@@ -3,7 +3,9 @@ package com.zhiyu.vo;
 import lombok.Builder;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 学生作业列表项（PRD 9.1）
@@ -19,4 +21,7 @@ public class StudentAssignmentVO {
     private LocalDateTime deadline;
     /** 0未开始 1问诊中 2格式打回 3AI批阅中 4待复核 5已完成 */
     private Integer status;
+    private BigDecimal score;
+    /** 组合任务包:任务项摘要 */
+    private List<StudentItemVO> items;
 }

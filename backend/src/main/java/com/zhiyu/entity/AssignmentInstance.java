@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 /**
@@ -21,6 +22,7 @@ public class AssignmentInstance extends BaseEntity {
 
     private Long studentId;
 
+    /** 兼容存量:存量作业的病例ID(组合包作业为NULL,病例挂在任务项进度上) */
     private Long caseId;
 
     /** 该学生的防作弊变量快照 JSON */
@@ -35,6 +37,9 @@ public class AssignmentInstance extends BaseEntity {
     private String formatCheckResult;
 
     private LocalDateTime submitTime;
+
+    /** 作业总分(组合包聚合各任务项得分) */
+    private BigDecimal score;
 
     /** 0未开始 1问诊中 2格式打回 3AI批阅中 4待复核 5已完成 */
 

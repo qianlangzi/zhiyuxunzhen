@@ -19,7 +19,7 @@ public class StudentWeakness extends BaseEntity {
 
     private String knowledgeTag;
 
-    /** 掌握度 0.00 ~ 1.00 */
+    /** 掌握度 0.00 ~ 1.00，越高越扎实、越低越薄弱（推荐按升序取最薄弱） */
     private BigDecimal weaknessScore;
 
     private Integer evidenceCount;

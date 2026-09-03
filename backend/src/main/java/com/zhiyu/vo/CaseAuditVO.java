@@ -25,5 +25,8 @@ public class CaseAuditVO {
 
     private String creatorName;
 
+    /** 1待审核 2通过 3驳回 */
+    private Integer auditStatus;
+
     private LocalDateTime createdAt;
 }

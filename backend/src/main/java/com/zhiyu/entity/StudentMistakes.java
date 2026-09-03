@@ -30,6 +30,9 @@ public class StudentMistakes extends BaseEntity {
     /** 关键证据和脱轨节点 JSON */
     private String evidenceJson;
 
+    /** 错题 AI 归因结果 JSON（rootCause/explanation/recommendedTags/practiceHint/source/status） */
+    private String aiAnalysisJson;
+
     /** 0未复习 1已复习 2已掌握 */
     private Integer resolvedStatus;
 }

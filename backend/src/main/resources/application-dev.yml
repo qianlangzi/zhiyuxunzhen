@@ -1,7 +1,7 @@
 # 开发环境配置 —— 端口全暴露、SQL 日志 stdout、CORS 放开
 spring:
   datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${MYSQL_DATABASE:zhiyu_db}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:13306}/${MYSQL_DATABASE:zhiyu_db}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: ${DB_USER:root}
     password: ${DB_PASSWORD:root123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -21,6 +21,16 @@ spring:
 zhiyu:
   jwt:
     secret: ${JWT_SECRET:dev-only-secret-key-32chars-minimum-aaaa}
+  init:
+    # 演示数据开关：仅 dev/test 开启，生产环境必须为 false
+    # 控制 DataInitializer 是否创建 teacher01/student01/admin01 演示账号
+    demo-data: ${DEMO_DATA:true}
+  textbook:
+    ingest-reconcile:
+      # 教材入库自动对账：每 10 分钟扫描「处理中超 30 分钟未回调」的任务并自动重触发
+      cron: "0 */10 * * * ?"
+      max-auto-retry: 3
+      stale-after-minutes: 30
 
 mybatis-plus:
   configuration:

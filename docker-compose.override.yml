@@ -20,31 +20,35 @@ services:
   # ---- Redis:暴露端口方便调试 ----
   redis:
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "${REDIS_PORT:-16379}:6379"
 
-  # ---- Milvus:暴露端口方便调试 ----
+  # ---- Milvus:暴露端口方便 Attu 连接 ----
+  # 注意：本机另一个项目 kg-milvus 占用了 19530/9091，所以 zhiyu 让出使用 19531/9092
   milvus:
     ports:
-      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_PORT:-19531}:19530"
+      - "${MILVUS_METRICS_PORT:-9092}:9091"
 
   # ---- Minio:暴露控制台 ----
   minio:
     ports:
-      - "9001:9001"
+      - "9002:9001"
 
-  # ---- 后端:暴露端口 + 日志挂载 ----
+  # ---- 后端:暴露端口 + 日志挂载 + jar 热替换 ----
   backend:
     ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      - "${BACKEND_PORT:-18080}:8080"
     volumes:
       - ./logs/backend:/app/logs
+      # 开发热替换：宿主机 mvn package 后 docker compose restart backend 即生效，无需重建镜像
+      - ./backend/target/zhiyu-backend.jar:/app/app.jar
     environment:
       SPRING_PROFILE: dev
 
   # ---- AI:暴露端口 + 日志挂载 ----
   ai:
     ports:
-      - "${AI_PORT:-8000}:8000"
+      - "${AI_PORT:-18000}:8000"
     volumes:
       # 开发热重载:挂载源码,uvicorn --reload 自动重启
       - ./ai/app:/app/app
@@ -52,8 +56,9 @@ services:
     # 覆盖启动命令:开启热重载
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # ---- 前端:开发期用 Vite dev server,支持 HMR ----
+  # ---- 前端(学生端):已停用,仅在 profile=web 时启动。管理端用本地 npm run dev:admin ----
   front:
+    profiles: ["web"]
     ports:
       - "${FRONT_PORT:-5173}:5173"
     # 覆盖构建:开发期不走多阶段构建,直接跑 Vite

@@ -1,0 +1,191 @@
+/**
+ * 管理端主题层（pure-admin 风格设计 token）
+ * 原则：
+ *   1. 不动 @/styles/main.css 的 zy-* 基础变量（学生端/教师端共用），
+ *      管理端增强变量全部用 --adm-* 前缀，避免跨端污染
+ *   2. Element Plus 主色对齐品牌色，全局统一观感
+ *   3. 暗黑模式：html.dark + element-plus/theme-chalk/dark/css-vars.css，
+ *      所有颜色走 CSS 变量，组件内禁止硬编码色值
+ */
+
+:root {
+  /* ---------- 管理端专属 token ---------- */
+  --adm-sidebar-width: 232px;
+  --adm-sidebar-collapsed-width: 64px;
+  --adm-topbar-height: 56px;
+  --adm-tagsbar-height: 38px;
+
+  /* 侧边栏：深色面板（pure-admin 经典双栏配色） */
+  --adm-sidebar-bg: #10232b;
+  --adm-sidebar-bg-deep: #0b1a20;
+  --adm-sidebar-ink: rgba(236, 246, 248, 0.92);
+  --adm-sidebar-muted: rgba(214, 232, 235, 0.55);
+  --adm-sidebar-line: rgba(255, 255, 255, 0.08);
+  --adm-sidebar-hover: rgba(255, 255, 255, 0.08);
+  --adm-sidebar-active: rgba(64, 190, 210, 0.16);
+  --adm-sidebar-active-ink: #6fd8e8;
+
+  /* 内容区 */
+  --adm-content-bg: #f3f6f7;
+  --adm-card-bg: #ffffff;
+  --adm-card-line: rgba(16, 32, 35, 0.08);
+  --adm-card-radius: 12px;
+  --adm-card-shadow: 0 1px 2px rgba(16, 32, 35, 0.04), 0 8px 24px rgba(16, 32, 35, 0.05);
+
+  /* Element Plus 主色对齐品牌色 #0f4c5c */
+  --el-color-primary: #0f4c5c;
+  --el-color-primary-light-3: #3d7484;
+  --el-color-primary-light-5: #6b98a5;
+  --el-color-primary-light-7: #9abcc6;
+  --el-color-primary-light-8: #bcD4dc;
+  --el-color-primary-light-9: #dfebf0;
+  --el-color-primary-dark-2: #0c3d4a;
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+}
+
+/* ---------- 暗黑模式 ---------- */
+html.dark {
+  color-scheme: dark;
+
+  --adm-content-bg: #0d1518;
+  --adm-card-bg: #131f24;
+  --adm-card-line: rgba(255, 255, 255, 0.09);
+  --adm-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  --adm-sidebar-bg: #0b161b;
+  --adm-sidebar-bg-deep: #081014;
+  --adm-sidebar-line: rgba(255, 255, 255, 0.06);
+
+  --zy-bg: #0d1518;
+  --zy-bg-soft: #101b1f;
+  --zy-surface: #131f24;
+  --zy-surface-soft: #16252b;
+  --zy-ink: #e6eef0;
+  --zy-muted: #9fb3b8;
+  --zy-soft: #7e9399;
+  --zy-line: rgba(255, 255, 255, 0.1);
+  --zy-line-strong: rgba(111, 216, 232, 0.3);
+  --zy-brand: #4fb6c9;
+  --zy-brand-strong: #6fd8e8;
+  --zy-brand-soft: rgba(64, 190, 210, 0.16);
+  --zy-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  --zy-shadow-soft: 0 12px 34px rgba(0, 0, 0, 0.35);
+
+  --el-bg-color: #131f24;
+  --el-bg-color-overlay: #182830;
+  --el-fill-color-blank: #131f24;
+  --el-border-color: rgba(255, 255, 255, 0.14);
+  --el-border-color-light: rgba(255, 255, 255, 0.1);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.08);
+  --el-text-color-primary: #e6eef0;
+  --el-text-color-regular: #c3d2d6;
+  --el-text-color-secondary: #9fb3b8;
+}
+
+/* ---------- 通用卡片（管理端页面统一质感） ---------- */
+.adm-card {
+  border: 1px solid var(--adm-card-line);
+  border-radius: var(--adm-card-radius);
+  background: var(--adm-card-bg);
+  box-shadow: var(--adm-card-shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.adm-card:hover {
+  border-color: rgba(15, 76, 92, 0.22);
+}
+
+html.dark .adm-card:hover {
+  border-color: rgba(111, 216, 232, 0.28);
+}
+
+.adm-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--adm-card-line);
+}
+
+.adm-card-head h3 {
+  margin: 0;
+  color: var(--zy-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.adm-card-body {
+  padding: 18px;
+}
+
+/* 页面骨架：所有业务页复用 */
+.admin-page {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-page-head span {
+  display: block;
+  color: var(--zy-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.admin-page-head h1 {
+  margin: 6px 0 0;
+  color: var(--zy-ink);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+@media (max-width: 760px) {
+  .admin-page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+/* ---------- Element Plus 微调 ---------- */
+.el-button {
+  font-weight: 500;
+}
+
+.el-table {
+  --el-table-border-color: var(--adm-card-line);
+  --el-table-header-bg-color: var(--zy-bg-soft);
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600;
+}
+
+.el-dialog {
+  border-radius: 12px;
+}
+
+/* 页面切换过渡 */
+.page-fade-enter-active,
+.page-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.page-fade-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.page-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}

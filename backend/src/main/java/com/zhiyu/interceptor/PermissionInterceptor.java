@@ -7,17 +7,33 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.springframework.web.util.UrlPathHelper;
 
 /**
  * RBAC 权限拦截器（PRD 10.3 / 3.1）
- * 基于请求路径前缀与角色匹配：
- *   /api/v1/admin/**   → 角色 4(管理员) 5(运维)
- *   /api/v1/teacher/** → 角色 1(教师)，且需 audit_status=2
- *   /api/v1/student/** → 角色 0(学生)
+ * 基于请求路径前缀 + 端点精确匹配与角色校验：
+ *   /api/v1/admin/users/import (POST) → 角色 2(教学秘书) 4(管理员)
+ *   /api/v1/admin/dashboard (GET)     → 角色 3(教研室主任) 4(管理员) 5(运维)
+ *   /api/v1/admin/teacher-audits|case-audits|question-audits|textbooks
+ *                                      → 角色 6(普通审核员) 也允许（审核中心）
+ *   /api/v1/admin/** (其余)           → 角色 4(管理员)
+ *   /api/v1/teacher/**                → 角色 1(教师)，且需 audit_status=2
+ *   /api/v1/student/**                → 角色 0(学生)
  * 数据级权限（教师只能看授权班级、学生只能看本人数据）由 Service 层校验
+ *
+ * 权限分层：
+ *   超级管理员(4)：全部管理端功能（含模型管理/系统配置/审计日志/用户管理）
+ *   普通审核员(6)：仅审核中心（教师入驻/病例/基础题库/教材）查看与处置，
+ *                  无法访问模型管理/系统配置/审计日志等运维类模块
+ *
+ * 路径获取：使用 UrlPathHelper.getPathWithinApplication() 而非 getRequestURI()，
+ * 自动去除 context-path 前缀，避免未来配置 server.servlet.context-path 后路径失配。
  */
 @Component
 public class PermissionInterceptor implements HandlerInterceptor {
+
+    /** 用于获取去除 context-path 的应用内路径，兼容 context-path 变更 */
+    private static final UrlPathHelper PATH_HELPER = new UrlPathHelper();
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) {
@@ -26,21 +42,65 @@ public class PermissionInterceptor implements HandlerInterceptor {
             // 未登录请求由 JwtAuthInterceptor 拦截，此处放行让其走正常流程
             return true;
         }
-        String uri = req.getRequestURI();
+        // 使用应用内路径（去除 context-path），避免 context-path 变更导致 RBAC 失配
+        String uri = PATH_HELPER.getPathWithinApplication(req);
         Integer role = user.getRole();
 
         if (uri.startsWith("/api/v1/admin/")) {
-            if (role == null || (role != 4 && role != 5)) {
+            if (role == null) {
                 throw new BizException(ResultCode.FORBIDDEN);
+            }
+            String method = req.getMethod();
+            // 精确端点角色矩阵（PRD 3.1 最小权限）：
+            //   POST /admin/users/import → 教学秘书(2)、管理员(4)
+            //   GET  /admin/dashboard    → 教研室主任(3)、管理员(4)、运维(5)
+            //   审核中心（teacher-audits/case-audits/question-audits/textbooks）
+            //                              → 管理员(4)、普通审核员(6)
+            //   其余 /admin/**            → 仅管理员(4)
+            // role 5 的模型配置/系统日志待后端支持白名单后开放；role 3 的审批流程待接口实现
+            if (role == 6) {
+                // 普通审核员：仅允许访问审核中心相关接口
+                boolean auditScope = uri.startsWith("/api/v1/admin/teacher-audits")
+                        || uri.startsWith("/api/v1/admin/case-audits")
+                        || uri.startsWith("/api/v1/admin/question-audits")
+                        || uri.startsWith("/api/v1/admin/textbooks");
+                if (!auditScope) {
+                    throw new BizException(ResultCode.FORBIDDEN);
+                }
+            } else if ("POST".equalsIgnoreCase(method) && "/api/v1/admin/users/import".equals(uri)) {
+                if (role != 2 && role != 4) {
+                    throw new BizException(ResultCode.FORBIDDEN);
+                }
+            } else if ("GET".equalsIgnoreCase(method)
+                    && ("/api/v1/admin/users".equals(uri) || "/api/v1/admin/users/stats".equals(uri))) {
+                // 人数管理（列表查询 / 人数总览）：教学秘书(2)、管理员(4)。
+                // 与批量导入权限对齐——能导入学生的角色必须能看到自己导入的账号，
+                // 否则会出现"导入成功但无法核实结果"的断点。
+                // 其余用户写操作（冻结/解冻/改角色/重置密码）维持仅管理员(4)。
+                if (role != 2 && role != 4) {
+                    throw new BizException(ResultCode.FORBIDDEN);
+                }
+            } else if ("GET".equalsIgnoreCase(method) && uri.startsWith("/api/v1/admin/dashboard")) {
+                // 驾驶舱及用户数据看板子接口（/dashboard、/dashboard/user-overview 等）
+                if (role != 3 && role != 4 && role != 5) {
+                    throw new BizException(ResultCode.FORBIDDEN);
+                }
+            } else {
+                if (role != 4) {
+                    throw new BizException(ResultCode.FORBIDDEN);
+                }
             }
         } else if (uri.startsWith("/api/v1/teacher/")) {
             if (role == null || role != 1) {
                 throw new BizException(ResultCode.FORBIDDEN);
             }
-            // 教师需资质审核通过才能操作写接口（GET 预览/试诊放宽）
+            // H2 修复：audit_status!=2 时禁止所有教师业务接口（含 GET），仅放行资质提交。
+            // 旧实现仅拦截非 GET 请求 → 驳回教师重新提交后 audit_status 3→1，
+            // 即可访问批阅/作业/AI 等全部 GET 接口，绕过审核等待。
+            // 现改为所有方法均校验，audit_status!=2 时仅允许 audit-submit。
             Integer audit = user.getAuditStatus();
-            boolean isWrite = !"GET".equalsIgnoreCase(req.getMethod());
-            if (isWrite && (audit == null || audit != 2)) {
+            boolean isAuditSubmit = "/api/v1/teacher/profile/audit-submit".equals(uri);
+            if (!isAuditSubmit && (audit == null || audit != 2)) {
                 throw new BizException(ResultCode.TEACHER_NOT_AUDITED);
             }
         } else if (uri.startsWith("/api/v1/student/")) {

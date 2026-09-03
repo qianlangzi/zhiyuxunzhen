@@ -7,5 +7,5 @@
     "allowSyntheticDefaultImports": true,
     "strict": true
   },
-  "include": ["vite.config.ts", "vite.node.d.ts"]
+  "include": ["vite.admin.config.ts", "vite.node.d.ts"]
 }

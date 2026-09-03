@@ -1,5 +1,6 @@
 package com.zhiyu.service;
 
+import com.zhiyu.service.dto.internal.KnowledgeCallbackDTO;
 import com.zhiyu.service.dto.internal.MistakesSyncDTO;
 import com.zhiyu.service.dto.internal.ModelEventLogDTO;
 import com.zhiyu.service.dto.internal.ReviewCallbackDTO;
@@ -36,4 +37,9 @@ public interface InternalCallbackService {
      * 记录模型异常和降级事件
      */
     void logModelEvent(ModelEventLogDTO dto);
+
+    /**
+     * 教材向量化入库完成回调（AI 中台异步告知入库成功/失败，更新 textbook.ingest_status）
+     */
+    void knowledgeCallback(KnowledgeCallbackDTO dto);
 }

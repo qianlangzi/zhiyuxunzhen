@@ -26,7 +26,8 @@ export default defineConfig(({ mode }) => {
         '/api': {
           target: env.VITE_API_BASE || 'http://backend:8080',
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, '')
+          // 不 rewrite：后端 Controller 路径含 /api/v1 前缀（context-path=/），
+          // 保留 /api 原样转发，否则 /api/v1/auth/login 会变成 /v1/auth/login 导致 404
         },
         '/ai': {
           target: env.VITE_AI_BASE || 'http://ai:8000',

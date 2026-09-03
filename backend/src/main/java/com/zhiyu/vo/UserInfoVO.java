@@ -22,4 +22,6 @@ public class UserInfoVO {
     private String avatar;
     private String authorizedClasses;
     private LocalDateTime lastLoginAt;
+    /** 是否需要强制修改密码（批量导入学生首次登录时为 true） */
+    private Boolean mustChangePassword;
 }

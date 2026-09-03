@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @Builder
 public class TeacherCaseListVO {
     private Long id;
+    /** 统一病例号（如 BL000001） */
+    private String caseNo;
     private String title;
     private String department;
     private Integer difficulty;

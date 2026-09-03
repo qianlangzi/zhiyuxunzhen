@@ -14,11 +14,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 学生账号 Excel 批量导入（PRD 4.14）
- * 路径 /api/v1/users/import 不在 /admin/ 前缀下，权限在 Service 层校验
+ * 路径 /api/v1/admin/users/import 落在 /admin/ 前缀下，由 PermissionInterceptor 精确匹配 role 2/4
+ * Service 层保留 requireRole(2,4) 作为纵深防御
  */
 @Tag(name = "用户管理-批量导入")
 @RestController
-@RequestMapping("/api/v1/users")
+@RequestMapping("/api/v1/admin/users")
 @RequiredArgsConstructor
 public class UserImportController {
 

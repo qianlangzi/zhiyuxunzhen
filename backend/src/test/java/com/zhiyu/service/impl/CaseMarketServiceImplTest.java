@@ -79,7 +79,7 @@ class CaseMarketServiceImplTest {
         creator.setRealName("王医生");
         when(userMapper.selectList(any())).thenReturn(List.of(creator));
 
-        PageResult<CaseMarketListVO> result = service.list(1, 10, null, null, null, null);
+        PageResult<CaseMarketListVO> result = service.list(1, 10, null, null, null, null, null);
 
         assertThat(result).isNotNull();
         assertThat(result.getTotal()).isEqualTo(1);
@@ -105,10 +105,10 @@ class CaseMarketServiceImplTest {
         });
 
         // 不同排序方式均应正常执行
-        service.list(1, 10, null, null, "rating", "desc");
-        service.list(1, 10, null, null, "reference", "asc");
-        service.list(1, 10, null, null, "createdAt", "desc");
-        service.list(1, 10, null, null, null, null); // 默认排序
+        service.list(1, 10, null, null, null, "rating", "desc");
+        service.list(1, 10, null, null, null, "reference", "asc");
+        service.list(1, 10, null, null, null, "createdAt", "desc");
+        service.list(1, 10, null, null, null, null, null); // 默认排序
 
         verify(caseMapper, times(4)).selectPage(any(Page.class), any());
     }
@@ -123,10 +123,43 @@ class CaseMarketServiceImplTest {
             return p;
         });
 
-        PageResult<CaseMarketListVO> result = service.list(1, 10, "内科", 2, null, null);
+        PageResult<CaseMarketListVO> result = service.list(1, 10, "内科", 2, null, null, null);
 
         assertThat(result).isNotNull();
         verify(caseMapper, times(1)).selectPage(any(Page.class), any());
+    }
+
+    @Test
+    @DisplayName("list 带关键字搜索 → 正常返回（服务端模糊匹配标题/画像/知识点）")
+    void should_filter_by_keyword() {
+        when(caseMapper.selectPage(any(Page.class), any())).thenAnswer(inv -> {
+            Page<SpCaseConfig> p = inv.getArgument(0);
+            p.setRecords(List.of());
+            p.setTotal(0);
+            return p;
+        });
+
+        PageResult<CaseMarketListVO> result = service.list(1, 10, null, null, "心肌梗死", null, null);
+
+        assertThat(result).isNotNull();
+        verify(caseMapper, times(1)).selectPage(any(Page.class), any());
+    }
+
+    @Test
+    @DisplayName("departments → 返回去重排序后的科室列表")
+    void should_return_distinct_departments() {
+        SpCaseConfig c1 = buildPublicCase(); // 内科
+        SpCaseConfig c2 = buildPublicCase();
+        c2.setId(2L);
+        c2.setDepartment("外科");
+        SpCaseConfig c3 = buildPublicCase();
+        c3.setId(3L);
+        c3.setDepartment("内科"); // 与 c1 重复，应去重
+        when(caseMapper.selectList(any())).thenReturn(List.of(c1, c2, c3));
+
+        List<String> departments = service.departments();
+
+        assertThat(departments).containsExactly("内科", "外科");
     }
 
     // ==================== quote ====================

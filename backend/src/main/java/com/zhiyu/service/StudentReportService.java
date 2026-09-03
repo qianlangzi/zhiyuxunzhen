@@ -1,15 +1,14 @@
 package com.zhiyu.service;
 
-import com.zhiyu.service.dto.ExportReportDTO;
-import com.zhiyu.vo.ReviewReportVO;
+import com.zhiyu.vo.StudentLearningOverviewVO;
 
 /**
- * 学生复盘报告服务（PRD 4.11）
+ * 学生成长概览服务（原复盘报告链路的 export 已于 2026-09-02 下线）
  */
 public interface StudentReportService {
 
     /**
-     * 导出复盘报告：汇总指定会话/日期范围的问诊数据，并写审计日志
+     * 成长页概览：能力评分（OSCE 四维均值）+ 近 90 天活动热力图
      */
-    ReviewReportVO export(ExportReportDTO req);
+    StudentLearningOverviewVO overview();
 }

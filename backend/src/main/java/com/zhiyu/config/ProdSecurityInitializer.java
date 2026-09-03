@@ -1,0 +1,82 @@
+package com.zhiyu.config;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.zhiyu.entity.SysUser;
+import com.zhiyu.mapper.SysUserMapper;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+/**
+ * 生产环境安全初始化（仅 prod profile 激活）
+ *
+ * 作用：如果数据库中仍存在使用演示密码 123456 的演示账号（admin01/teacher01/student01），
+ * 自动将其冻结（status=1），防止弱密码账号在生产环境被利用。
+ *
+ * 场景：开发环境曾连接过生产数据库并创建了演示账号，切换到生产部署后残留。
+ * DataInitializer 在 prod 已通过 demo-data=false 禁止新增，本类处理存量数据。
+ */
+@Slf4j
+@Component
+@Profile("prod")
+@RequiredArgsConstructor
+public class ProdSecurityInitializer implements CommandLineRunner {
+
+    /** 演示账号用户名列表 */
+    private static final List<String> DEMO_USERNAMES = List.of("admin01", "teacher01", "student01");
+
+    /** 演示账号明文密码，用于匹配判断 */
+    private static final String DEMO_PASSWORD = "123456";
+
+    private final SysUserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
+
+    @Override
+    public void run(String... args) {
+        int disabled = 0;
+        for (String username : DEMO_USERNAMES) {
+            SysUser user = userMapper.selectOne(
+                    new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, username));
+            if (user == null) {
+                continue;
+            }
+            // 仅冻结密码仍为演示密码 123456 的账号，避免误冻结已改密的真实账号
+            if (!passwordEncoder.matches(DEMO_PASSWORD, user.getPasswordHash())) {
+                log.warn("演示账号 {} 已修改密码，跳过冻结", username);
+                continue;
+            }
+            if (user.getStatus() != null && user.getStatus() == 1) {
+                log.info("演示账号 {} 已处于冻结状态，无需重复操作", username);
+                continue;
+            }
+            // P0-4 修复：冻结时同步递增 credential_version，撤销该账号所有已签发 token。
+            // 使用 UpdateWrapper（列名字符串）而非 LambdaUpdateWrapper，避免 lambda cache
+            // 在隔离运行时未预热导致 NPE。setSql 原子递增版本，防止并发覆盖。
+            //
+            // P1-4 修复：CAS 条件增加 password_hash 和 status=0，确保仅在密码未变且未冻结时才冻结。
+            // 旧实现在 read 和 update 之间非原子：若用户在此期间改了密码，CAS 因 password_hash
+            // 不匹配而失败（rows=0），避免冻结已改密的账号。多实例启动时也防止重复冻结。
+            int rows = userMapper.update(null,
+                    new com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper<SysUser>()
+                            .eq("id", user.getId())
+                            .eq("password_hash", user.getPasswordHash())
+                            .eq("status", 0)
+                            .set("status", 1)
+                            .setSql("credential_version = credential_version + 1"));
+            if (rows == 0) {
+                log.info("演示账号 {} 密码已变更或状态已改变，跳过冻结", username);
+                continue;
+            }
+            log.warn("安全告警：已冻结演示账号 {}（密码仍为默认 123456，已撤销所有活跃 token），请立即删除或重置密码", username);
+            disabled++;
+        }
+        if (disabled > 0) {
+            log.error("生产环境检测到 {} 个弱密码演示账号并已冻结，请尽快清理", disabled);
+        }
+    }
+}

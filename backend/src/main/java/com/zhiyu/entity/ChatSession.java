@@ -21,6 +21,9 @@ public class ChatSession extends BaseEntity {
 
     private Long assignmentInstanceId;
 
+    /** 组合包:病例任务项进度ID(存量作业为NULL) */
+    private Long assignmentItemProgressId;
+
     /** 四维评分 JSON */
     private String osceScoreJson;
 

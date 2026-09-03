@@ -2,6 +2,7 @@ package com.zhiyu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
@@ -10,6 +11,7 @@ import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.TeacherCaseService;
 import com.zhiyu.service.dto.CaseCreateDTO;
 import com.zhiyu.service.dto.CaseUpdateDTO;
@@ -22,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +39,8 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
 
     private final SpCaseConfigMapper caseMapper;
     private final AssignmentMapper assignmentMapper;
+    private final AuditLogService auditLogService;
+    private final ObjectMapper objectMapper;
 
     @Override
     public Long create(CaseCreateDTO req) {
@@ -49,6 +55,8 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
         c.setStandardPathJson(req.getStandardPathJson());
         c.setPresetExams(req.getPresetExams());
         c.setKnowledgeTags(req.getKnowledgeTags());
+        c.setReferenceAnswer(req.getReferenceAnswer());
+        c.setScoringPointsJson(req.getScoringPointsJson());
         c.setIsPublic(false);
         c.setReferenceCount(0);
         c.setRatingAvg(BigDecimal.ZERO);
@@ -56,6 +64,8 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
         c.setVersion(1);
         c.setStatus(0);
         caseMapper.insert(c);
+        applyCaseNo(c);
+        caseMapper.updateById(c);
         log.info("教师{}创建病例{}", creatorId, c.getId());
         return c.getId();
     }
@@ -86,24 +96,38 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
         c.setStandardPathJson(req.getStandardPathJson());
         c.setPresetExams(req.getPresetExams());
         c.setKnowledgeTags(req.getKnowledgeTags());
+        c.setReferenceAnswer(req.getReferenceAnswer());
+        c.setScoringPointsJson(req.getScoringPointsJson());
         c.setVersion(c.getVersion() == null ? 1 : c.getVersion() + 1);
         caseMapper.updateById(c);
         log.info("教师{}更新病例{}，version={}", userId, id, c.getVersion());
     }
 
     @Override
-    public PageResult<TeacherCaseListVO> myCases(Integer pageNum, Integer pageSize, String title, String department) {
+    public PageResult<TeacherCaseListVO> myCases(Integer pageNum, Integer pageSize, String title, String department, Integer status) {
         Long userId = UserContext.requireUserId();
+        return doQuery(pageNum, pageSize, title, department, status, true, userId);
+    }
+
+    @Override
+    public PageResult<TeacherCaseListVO> allCases(Integer pageNum, Integer pageSize, String title, String department, Integer status) {
+        return doQuery(pageNum, pageSize, title, department, status, false, null);
+    }
+
+    private PageResult<TeacherCaseListVO> doQuery(Integer pageNum, Integer pageSize, String title,
+                                                  String department, Integer status, boolean onlyMine, Long userId) {
         Page<SpCaseConfig> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<SpCaseConfig> wrapper = new LambdaQueryWrapper<SpCaseConfig>()
-                .eq(SpCaseConfig::getCreatorId, userId)
+                .eq(onlyMine, SpCaseConfig::getCreatorId, onlyMine ? userId : null)
                 .like(StringUtils.hasText(title), SpCaseConfig::getTitle, title)
                 .eq(StringUtils.hasText(department), SpCaseConfig::getDepartment, department)
-                .orderByDesc(SpCaseConfig::getCreatedAt);
+                .eq(status != null, SpCaseConfig::getStatus, status)
+                .orderByDesc(SpCaseConfig::getUpdatedAt);
         caseMapper.selectPage(page, wrapper);
 
         List<TeacherCaseListVO> list = page.getRecords().stream().map(c -> TeacherCaseListVO.builder()
                 .id(c.getId())
+                .caseNo(c.getCaseNo())
                 .title(c.getTitle())
                 .department(c.getDepartment())
                 .difficulty(c.getDifficulty())
@@ -127,8 +151,22 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
         if (!userId.equals(c.getCreatorId())) {
             throw new BizException(ResultCode.FORBIDDEN);
         }
+        return toPreviewVO(c);
+    }
+
+    @Override
+    public CasePreviewVO previewPublic(Long id) {
+        SpCaseConfig c = caseMapper.selectById(id);
+        if (c == null) {
+            throw new BizException(ResultCode.CASE_NOT_FOUND);
+        }
+        return toPreviewVO(c);
+    }
+
+    private CasePreviewVO toPreviewVO(SpCaseConfig c) {
         return CasePreviewVO.builder()
                 .id(c.getId())
+                .caseNo(c.getCaseNo())
                 .title(c.getTitle())
                 .department(c.getDepartment())
                 .difficulty(c.getDifficulty())
@@ -137,6 +175,8 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
                 .standardPathJson(c.getStandardPathJson())
                 .presetExams(c.getPresetExams())
                 .knowledgeTags(c.getKnowledgeTags())
+                .referenceAnswer(c.getReferenceAnswer())
+                .scoringPointsJson(c.getScoringPointsJson())
                 .isPublic(c.getIsPublic())
                 .sourceCaseId(c.getSourceCaseId())
                 .referenceCount(c.getReferenceCount())
@@ -147,6 +187,72 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
                 .createdAt(c.getCreatedAt())
                 .updatedAt(c.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void publishToMarket(Long id) {
+        Long userId = UserContext.requireUserId();
+        SpCaseConfig c = caseMapper.selectById(id);
+        if (c == null) {
+            throw new BizException(ResultCode.CASE_NOT_FOUND);
+        }
+        if (!userId.equals(c.getCreatorId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能发布本人创建的病例");
+        }
+        // 必填字段校验：标题、隐藏诊断、患者画像、标准路径
+        if (!StringUtils.hasText(c.getTitle()) || !StringUtils.hasText(c.getHiddenDisease())
+                || !StringUtils.hasText(c.getPatientProfile()) || !StringUtils.hasText(c.getStandardPathJson())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "病例必填字段不完整，无法发布");
+        }
+        // 评分依据校验：发布到广场前需具备标准答案/评分要点（保证可评判、可管理）
+        if (!StringUtils.hasText(c.getReferenceAnswer()) && !StringUtils.hasText(c.getScoringPointsJson())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "请先填写标准答案或评分要点，再发布到病例广场");
+        }
+        // 已发布且待审/通过，避免重复提交
+        int audit = c.getAdminAuditStatus() == null ? 0 : c.getAdminAuditStatus();
+        if (Boolean.TRUE.equals(c.getIsPublic()) && (audit == 1 || audit == 2)) {
+            throw new BizException(ResultCode.BAD_REQUEST, "病例已提交或已通过审核，无需重复发布");
+        }
+
+        Map<String, Object> before = new HashMap<>();
+        before.put("isPublic", c.getIsPublic());
+        before.put("adminAuditStatus", c.getAdminAuditStatus());
+        before.put("status", c.getStatus());
+
+        c.setIsPublic(true);
+        c.setAdminAuditStatus(1); // 待管理员审核
+        c.setStatus(1);           // 已发布
+        caseMapper.updateById(c);
+
+        Map<String, Object> after = new HashMap<>();
+        after.put("isPublic", true);
+        after.put("adminAuditStatus", 1);
+        after.put("status", 1);
+
+        auditLogService.record("case_publish_to_market", "sp_case_config", id,
+                toJson(before), toJson(after));
+        log.info("教师{}发布病例{}到广场，待管理员审核", userId, id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        Long userId = UserContext.requireUserId();
+        SpCaseConfig c = caseMapper.selectById(id);
+        if (c == null) {
+            throw new BizException(ResultCode.CASE_NOT_FOUND);
+        }
+        if (!userId.equals(c.getCreatorId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能删除本人创建的病例");
+        }
+        // 仅草稿（status=0）可删除；已发布/待审核的病例需走管理员下架，避免破坏已引用作业
+        if (c.getStatus() != null && c.getStatus() != 0) {
+            throw new BizException(ResultCode.BAD_REQUEST, "仅草稿可删除，已发布的病例请联系管理员下架");
+        }
+        caseMapper.deleteById(id);
+        auditLogService.record("case_delete", "sp_case_config", id, toJson(Map.of("status", c.getStatus())), "{}");
+        log.info("教师{}删除草稿病例{}", userId, id);
     }
 
     /**
@@ -163,5 +269,24 @@ public class TeacherCaseServiceImpl implements TeacherCaseService {
     /** 判断字符串字段是否发生实质性变更（请求值非空且与当前值不同） */
     private boolean isChanged(String reqVal, String curVal) {
         return reqVal != null && !reqVal.equals(curVal);
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("JSON序列化失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 为新创建病例生成统一病例号，格式 BL + 6 位零填充 id。
+     * 若数据库迁移已回填过则保留已有值。
+     */
+    private void applyCaseNo(SpCaseConfig c) {
+        if (c.getCaseNo() == null || c.getCaseNo().isBlank()) {
+            c.setCaseNo(String.format("BL%06d", c.getId()));
+        }
     }
 }

@@ -22,6 +22,10 @@ public class MistakeVO {
     private String standardAnswer;
     /** 关键证据和脱轨节点 JSON */
     private String evidenceJson;
+    /** 错题 AI 归因结果（rootCause/explanation/recommendedTags/practiceHint/source/status），未分析为 null */
+    private Object aiAnalysis;
+    /** 归因状态：SUCCESS / DEGRADED / null（未分析） */
+    private String aiStatus;
     /** 0未复习 1已复习 2已掌握 */
     private Integer resolvedStatus;
     private LocalDateTime createdAt;

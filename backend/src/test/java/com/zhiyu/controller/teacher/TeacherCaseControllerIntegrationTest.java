@@ -5,6 +5,8 @@ import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.common.util.JwtUtils;
 import com.zhiyu.config.MyBatisTestConfig;
+import com.zhiyu.entity.SysUser;
+import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.TeacherCaseService;
 import com.zhiyu.service.dto.CaseCreateDTO;
 import com.zhiyu.vo.TeacherCaseListVO;
@@ -21,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,12 +48,20 @@ class TeacherCaseControllerIntegrationTest {
     @MockBean
     private JwtUtils jwtUtils;
 
+    @MockBean
+    private SysUserMapper userMapper;
+
     private static final String VALID_CASE_JSON =
             "{\"title\":\"测试病例\",\"department\":\"内科\",\"difficulty\":2,"
                     + "\"patientProfile\":\"{\\\"age\\\":30}\",\"hiddenDisease\":\"流感\","
                     + "\"standardPathJson\":\"{}\"}";
 
-    /** 模拟 JWT 解析返回指定角色的用户 */
+    /** 模拟 JWT 解析返回指定角色的用户，并 mock 数据库返回 mustChangePassword=false 的用户
+     *
+     * 注意：MustChangePasswordInterceptor 在 PermissionInterceptor 之前执行（order=15 < 20），
+     * 会调用 userMapper.selectById 查库。若不 mock，测试会被 1001/2015 阻断。
+     * 必须同时设置 credentialVersion（token 与 DB 一致），否则版本校验返回 1001。
+     */
     private void mockJwtUser(Long userId, String username, Integer role, Integer auditStatus) {
         Claims claims = org.mockito.Mockito.mock(Claims.class);
         when(claims.getSubject()).thenReturn(String.valueOf(userId));
@@ -58,7 +69,16 @@ class TeacherCaseControllerIntegrationTest {
         when(claims.get("username", String.class)).thenReturn(username);
         when(claims.get("role", Integer.class)).thenReturn(role);
         when(claims.get("auditStatus", Integer.class)).thenReturn(auditStatus);
+        when(claims.get("credentialVersion", Integer.class)).thenReturn(0);
         when(jwtUtils.parseToken(anyString())).thenReturn(claims);
+
+        SysUser user = new SysUser();
+        user.setId(userId);
+        user.setMustChangePassword(false);
+        user.setCredentialVersion(0);
+        user.setRole(role);
+        user.setStatus(0);
+        when(userMapper.selectById(anyLong())).thenReturn(user);
     }
 
     // ==================== POST /api/v1/teacher/cases ====================
@@ -132,7 +152,7 @@ class TeacherCaseControllerIntegrationTest {
                 .isPublic(false)
                 .build();
         PageResult<TeacherCaseListVO> pageResult = PageResult.of(List.of(vo), 1, 1, 10);
-        when(teacherCaseService.myCases(any(), any(), any(), any())).thenReturn(pageResult);
+        when(teacherCaseService.myCases(any(), any(), any(), any(), any())).thenReturn(pageResult);
 
         mockMvc.perform(get("/api/v1/teacher/cases")
                         .header("Authorization", "Bearer teacher-token"))
@@ -143,17 +163,14 @@ class TeacherCaseControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("GET /teacher/cases 教师 audit=0（GET 不检查 audit）→ 200, R<PageResult>")
-    void should_allow_get_when_teacher_audit_not_2() throws Exception {
-        // GET 请求不检查 audit_status，教师未审核也可以查看列表
+    @DisplayName("GET /teacher/cases 教师 audit=0 → 403 TEACHER_NOT_AUDITED(2003)（H2: GET 也检查 audit）")
+    void should_deny_get_when_teacher_audit_not_2() throws Exception {
+        // H2 修复：audit_status!=2 禁止所有教师业务接口（含 GET），仅放行 audit-submit
         mockJwtUser(10L, "teacher01", 1, 0);
-
-        PageResult<TeacherCaseListVO> pageResult = PageResult.of(List.of(), 0, 1, 10);
-        when(teacherCaseService.myCases(any(), any(), any(), any())).thenReturn(pageResult);
 
         mockMvc.perform(get("/api/v1/teacher/cases")
                         .header("Authorization", "Bearer teacher-token"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(0));
+                .andExpect(jsonPath("$.code").value(2003));
     }
 }

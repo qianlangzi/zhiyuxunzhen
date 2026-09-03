@@ -217,7 +217,7 @@ class TeacherCaseServiceImplTest {
                 return p;
             });
 
-            PageResult<TeacherCaseListVO> result = service.myCases(1, 10, null, null);
+            PageResult<TeacherCaseListVO> result = service.myCases(1, 10, null, null, null);
 
             assertThat(result).isNotNull();
             assertThat(result.getTotal()).isEqualTo(1);

@@ -19,6 +19,7 @@ public class UserContext {
         private String username;
         private Integer role;          // 0学生 1教师 2教学秘书 3教研室主任 4管理员 5运维
         private Integer auditStatus;   // 教师认证状态：0未提交 1待审核 2通过 3驳回
+        private Integer credentialVersion; // 凭证版本：与 DB 比较，不匹配则拒绝（撤销旧 token）
     }
 
     private static final ThreadLocal<LoginUser> HOLDER = new ThreadLocal<>();

@@ -16,6 +16,9 @@ public class MedicalRecordReview extends BaseEntity {
 
     private Long instanceId;
 
+    /** 组合包:病例任务项进度ID(存量为NULL,按instance_id) */
+    private Long assignmentItemProgressId;
+
     /** AI / TEACHER */
     private String reviewerType;
 

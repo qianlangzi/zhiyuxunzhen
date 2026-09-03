@@ -18,6 +18,9 @@ public class AssignmentProgressVO {
     /** 各状态学生数：notStarted/inProgress/formatRejected/aiReviewing/pendingReview/completed */
     private Map<String, Long> statusStats;
 
+    /** 组合任务包:各任务项统计 */
+    private List<AssignmentItemStatVO> itemStats;
+
     /** 学生明细列表 */
     private List<StudentProgressVO> students;
 }

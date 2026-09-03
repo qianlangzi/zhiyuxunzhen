@@ -8,9 +8,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
 
 /**
  * 学生端-错题本接口（PRD 4.11 / 9.1）
@@ -30,5 +34,11 @@ public class StudentMistakeController {
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) String mistakeType) {
         return R.ok(studentMistakeService.myMistakes(pageNum, pageSize, mistakeType));
+    }
+
+    @Operation(summary = "单条错题 AI 归因（缓存命中直接返回；未命中调用 AI 并缓存）")
+    @PostMapping("/{id}/analyze")
+    public R<Map<String, Object>> analyze(@PathVariable Long id) {
+        return R.ok(studentMistakeService.analyzeMistake(id));
     }
 }

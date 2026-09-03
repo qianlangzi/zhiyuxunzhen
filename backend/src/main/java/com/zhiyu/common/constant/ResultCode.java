@@ -29,6 +29,15 @@ public enum ResultCode {
     TEACHER_AUDIT_PENDING(2004, "资质审核中，请耐心等待"),
     TEACHER_AUDIT_REJECTED(2005, "资质审核未通过"),
     USERNAME_EXISTS(2006, "用户名已存在"),
+    PHONE_OR_CODE_ERROR(2007, "手机号或验证码错误"),
+    SMS_CODE_TOO_FREQUENT(2008, "验证码发送过于频繁，请稍后再试"),
+    SMS_SERVICE_NOT_CONFIGURED(2009, "短信服务未配置"),
+    PHONE_EXISTS(2010, "手机号已注册"),
+    CAPTCHA_INVALID(2011, "图形验证码错误或已失效"),
+    CAPTCHA_TOO_FREQUENT(2012, "验证码请求过于频繁，请稍后再试"),
+    IP_SMS_LIMIT(2013, "该IP请求验证码过于频繁，请稍后再试"),
+    PASSWORD_SAME_AS_OLD(2014, "新密码不能与原密码相同"),
+    PASSWORD_CHANGE_REQUIRED(2015, "需要修改初始密码后才能使用"),
     CASE_NOT_FOUND(2101, "病例不存在"),
     ASSIGNMENT_NOT_FOUND(2102, "作业不存在"),
     INSTANCE_NOT_FOUND(2103, "作业实例不存在"),
@@ -37,6 +46,17 @@ public enum ResultCode {
     DUPLICATE_SUBMIT(2106, "请勿重复提交"),
     CASE_REFERENCED(2107, "病例已被作业引用，核心诊断字段不可修改"),
     CASE_NOT_QUOTABLE(2108, "该病例未公开或未通过审核，不可引用"),
+    QUESTION_NOT_FOUND(2110, "题目不存在"),
+    QUESTION_SUBMITTED(2111, "题目已提交审核或已通过，不可编辑/重复提交"),
+    DRUG_NOT_FOUND(2130, "药品不存在或已下架"),
+
+    // ---------- 班级管理（教师自建 / 学生加入） ----------
+    CLASS_NOT_FOUND(2120, "班级不存在"),
+    CLASS_NAME_EXISTS(2121, "同名班级已存在"),
+    INVITE_CODE_INVALID(2122, "邀请码无效，请核验后重试"),
+    CLASS_DISSOLVED(2123, "班级已解散"),
+    CLASS_FORBIDDEN(2124, "无权操作该班级"),
+    ALREADY_IN_CLASS(2125, "已在该班级中无需重复加入"),
 
     // ---------- 5xxx 服务端错误 ----------
     INTERNAL_ERROR(5000, "系统内部错误"),

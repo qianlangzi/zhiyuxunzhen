@@ -1,0 +1,226 @@
+{
+  "model": "deepseek-chat",
+  "total": 16,
+  "correct": 16,
+  "accuracy": 1.0,
+  "by_category": [
+    {
+      "exam_name": "传染病学",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "儿科学",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "内科学-呼吸",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "内科学-心血管",
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "外科学-普外",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "外科学-骨科",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "妇产科学",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "生理学",
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "病理学",
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "药理学",
+      "total": 2,
+      "correct": 2,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "诊断学-体格检查",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    },
+    {
+      "exam_name": "诊断学-心电图",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0
+    }
+  ],
+  "details": [
+    {
+      "index": 1,
+      "exam_name": "内科学-心血管",
+      "question": "急性心肌梗死最常见的死亡原因是什么？",
+      "ground_truth": "A",
+      "prediction": "A",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 2,
+      "exam_name": "内科学-心血管",
+      "question": "二尖瓣狭窄最早出现的血流动力学改变是？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 3,
+      "exam_name": "内科学-呼吸",
+      "question": "诊断慢性阻塞性肺疾病（COPD）的肺功能金标准是？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 4,
+      "exam_name": "外科学-普外",
+      "question": "急性阑尾炎最具诊断意义的体征是？",
+      "ground_truth": "A",
+      "prediction": "A",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 5,
+      "exam_name": "外科学-骨科",
+      "question": "Colles 骨折最典型的畸形是？",
+      "ground_truth": "A",
+      "prediction": "A",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 6,
+      "exam_name": "生理学",
+      "question": "静息状态下细胞膜内外的电位差主要取决于？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 7,
+      "exam_name": "生理学",
+      "question": "心动周期中左心室内压最高的时期是？",
+      "ground_truth": "C",
+      "prediction": "C",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 8,
+      "exam_name": "病理学",
+      "question": "纤维素性炎症最常见于哪种组织？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 9,
+      "exam_name": "病理学",
+      "question": "恶性肿瘤区别于良性肿瘤最重要的组织学特征是？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 10,
+      "exam_name": "药理学",
+      "question": "阿托品中毒时解救的首选药物是？",
+      "ground_truth": "A",
+      "prediction": "A",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 11,
+      "exam_name": "药理学",
+      "question": "青霉素最常见的过敏反应类型是？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 12,
+      "exam_name": "诊断学-体格检查",
+      "question": "左心衰竭最早出现的典型体征是？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 13,
+      "exam_name": "诊断学-心电图",
+      "question": "急性下壁心肌梗死典型的心电图改变出现在哪些导联？",
+      "ground_truth": "D",
+      "prediction": "D",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 14,
+      "exam_name": "儿科学",
+      "question": "新生儿生理性黄疸一般出现于生后几天内？",
+      "ground_truth": "B",
+      "prediction": "B",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 15,
+      "exam_name": "传染病学",
+      "question": "乙肝大三阳的血清学指标组合是？",
+      "ground_truth": "A",
+      "prediction": "A",
+      "correct": true,
+      "error": null
+    },
+    {
+      "index": 16,
+      "exam_name": "妇产科学",
+      "question": "正常胎心率的范围是？",
+      "ground_truth": "C",
+      "prediction": "C",
+      "correct": true,
+      "error": null
+    }
+  ]
+}

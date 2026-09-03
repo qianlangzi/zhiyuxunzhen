@@ -11,6 +11,8 @@ dist/
 dist-admin/
 dist-*/
 .vite/
+*.tsbuildinfo
+front/vite.config.d.ts
 *.log
 
 # ===== Python =====
@@ -26,19 +28,105 @@ venv/
 *.iml
 .DS_Store
 
-# ===== Docker / 环境 =====
+# ===== 环境变量 / 密钥（勿提交） =====
 .env
+.env.*
+*.env
 *.env.local
+*.env.*.local
+!.env.example
 
 # ===== 本地数据卷(开发环境挂载,勿提交) =====
 data/mysql/
 data/milvus/
 data/etcd/
 data/minio/
+/data/
 
 # ===== 日志(勿提交) =====
-logs/backend/
-logs/ai/
+logs/
 
 # ===== 上传文件 =====
 uploads/
+
+# ===== 本地/工具目录（勿提交） =====
+.workbuddy/
+.worktrees/
+.scratch/
+.superpowers/
+stitch_ai/
+front/legacy-*/
+
+# ===== Flutter / Dart 生成产物（根目录，勿提交） =====
+# 通常由 Flutter/Dart 在仓库根目录生成，体积巨大且可重新生成，禁止提交
+/build/
+.dart_tool/
+.pub_cache/
+.flutter-plugins-dependencies
+.metadata
+
+# ===== Flutter 平台生成代码（可重新生成，勿提交） =====
+/android/
+/ios/
+mobile/ios/
+mobile/linux/
+mobile/macos/
+mobile/windows/
+
+# ===== 工具/临时目录 =====
+.codegraph/
+.impeccable/
+docs/短信API服务-发送短信.pdf
+
+# ===== 临时 PDF 抽取产物（勿提交） =====
+tmp_pdf_*.txt
+
+# ===== 本地实验目录（模型/依赖/PDF 大体积二进制，勿提交） =====
+experiments/
+
+# ===== 大体积/敏感/一次性文件（勿提交） =====
+# 受版权保护的教材 PDF 与导出大文件，避免仓库膨胀与版权风险
+/《内科学 第10版》.pdf
+/main.pdf
+# 主题预设备份包与第三方插件目录数据
+/mobile_backup_presets_*.zip
+/plugins-catalog.json
+# 含本地用户路径的个人文档（勿泄漏个人信息）
+/DSH使用指南.md
+# 一次性诊断/验证脚本
+/ai/check_milvus.py
+/ai/verify_fixes.py
+/ai/verify_mapping_mock.py
+
+# ===== 敏感 / 临时 / 大体积 / 一次性（勿提交，保证 main 干净） =====
+/login.txt
+/mobile/analyze_out.txt
+/.tmp_assets2/
+/.tmp_night/
+/deploy/release/
+/datasets/raw/
+/datasets/textbooks/
+/student-home/
+/素材/
+
+# ===== 版权教材 / 大体积导出 PDF（根目录与 docs 均勿提交） =====
+# 《内科学 第10版》与导出大 PDF 含版权风险且使仓库膨胀
+docs/《内科学 第10版》.pdf
+docs/main.pdf
+/main.pdf
+
+# ===== 构建产物 / 日志 / 缓存（勿提交） =====
+backend/*.jar.bak
+backend/mvn_out.txt
+*emb_cache.json
+ai/data/bm25_cache/
+mobile/web/favicon_backup.png
+
+# ===== 截图与临时演示素材（勿提交） =====
+_screenshots/
+
+# ===== Android 图标备份（勿提交） =====
+mobile/android/app/src/main/launcher-icon-backup/
+
+# Flutter tool 运行时产物
+.flutter_tool_state

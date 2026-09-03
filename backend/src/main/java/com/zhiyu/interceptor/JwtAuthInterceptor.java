@@ -4,6 +4,7 @@ import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.util.JwtUtils;
+import com.zhiyu.service.OnlineStatsService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -25,6 +26,9 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
     @Autowired
     private JwtUtils jwtUtils;
 
+    @Autowired
+    private OnlineStatsService onlineStatsService;
+
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) {
         String auth = req.getHeader("Authorization");
@@ -42,8 +46,11 @@ public class JwtAuthInterceptor implements HandlerInterceptor {
                     .username(claims.get("username", String.class))
                     .role(claims.get("role", Integer.class))
                     .auditStatus(claims.get("auditStatus", Integer.class))
+                    .credentialVersion(claims.get("credentialVersion", Integer.class))
                     .build();
             UserContext.set(user);
+            // 用户数据看板：在线心跳打点（内部 try/catch，Redis 故障不影响鉴权）
+            onlineStatsService.touch(user.getUserId(), user.getRole());
             return true;
         } catch (ExpiredJwtException e) {
             throw new BizException(ResultCode.TOKEN_EXPIRED);

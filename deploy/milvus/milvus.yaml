@@ -40,6 +40,13 @@ log:
 localStorage:
   path: /var/lib/milvus/rdb_data
 
+# 消息队列配置
+mq:
+  type: rocksmq
+
+rocksmq:
+  path: /var/lib/milvus/rdb_data
+
 # 内存限制(适配 MVP 50 人并发)
 quotaAndLimits:
   dml:

@@ -10,6 +10,7 @@ import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
+import com.zhiyu.mapper.AssignmentItemMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.service.FormatCheckService;
@@ -49,6 +50,9 @@ class StudentAssignmentServiceImplTest {
 
     @Mock
     private AssignmentMapper assignmentMapper;
+
+    @Mock
+    private AssignmentItemMapper itemMapper;
 
     @Mock
     private SpCaseConfigMapper caseMapper;
@@ -100,7 +104,7 @@ class StudentAssignmentServiceImplTest {
             // 实例属于学生 200，当前用户是 100
             when(instanceMapper.selectById(1L)).thenReturn(buildInstance(200L, 0));
 
-            assertThatThrownBy(() -> service.submitRecord(1L, buildSubmitDTO()))
+            assertThatThrownBy(() -> service.submitRecord(1L, null, buildSubmitDTO()))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).getCode())
                             .isEqualTo(ResultCode.FORBIDDEN.getCode()));
@@ -118,7 +122,7 @@ class StudentAssignmentServiceImplTest {
 
             when(instanceMapper.selectById(1L)).thenReturn(buildInstance(100L, 3)); // AI批阅中
 
-            assertThatThrownBy(() -> service.submitRecord(1L, buildSubmitDTO()))
+            assertThatThrownBy(() -> service.submitRecord(1L, null, buildSubmitDTO()))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).getCode())
                             .isEqualTo(ResultCode.DUPLICATE_SUBMIT.getCode()));
@@ -135,7 +139,7 @@ class StudentAssignmentServiceImplTest {
 
             when(instanceMapper.selectById(1L)).thenReturn(buildInstance(100L, 5)); // 已完成
 
-            assertThatThrownBy(() -> service.submitRecord(1L, buildSubmitDTO()))
+            assertThatThrownBy(() -> service.submitRecord(1L, null, buildSubmitDTO()))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).getCode())
                             .isEqualTo(ResultCode.DUPLICATE_SUBMIT.getCode()));
@@ -153,7 +157,7 @@ class StudentAssignmentServiceImplTest {
             when(assignmentMapper.selectById(10L))
                     .thenReturn(buildAssignment(LocalDateTime.now().minusDays(1), false));
 
-            assertThatThrownBy(() -> service.submitRecord(1L, buildSubmitDTO()))
+            assertThatThrownBy(() -> service.submitRecord(1L, null, buildSubmitDTO()))
                     .isInstanceOf(BizException.class)
                     .satisfies(ex -> assertThat(((BizException) ex).getCode())
                             .isEqualTo(ResultCode.ASSIGNMENT_DEADLINE_PASSED.getCode()));
@@ -181,7 +185,7 @@ class StudentAssignmentServiceImplTest {
             when(objectMapper.writeValueAsString(any())).thenReturn("{\"passed\":true}");
             when(instanceMapper.updateById(any())).thenReturn(1);
 
-            SubmitRecordResultVO result = service.submitRecord(1L, buildSubmitDTO());
+            SubmitRecordResultVO result = service.submitRecord(1L, null, buildSubmitDTO());
 
             assertThat(result).isNotNull();
             assertThat(result.getStatus()).isEqualTo(3);
@@ -214,7 +218,7 @@ class StudentAssignmentServiceImplTest {
             when(objectMapper.writeValueAsString(any())).thenReturn("{\"passed\":false}");
             when(instanceMapper.updateById(any())).thenReturn(1);
 
-            SubmitRecordResultVO result = service.submitRecord(1L, buildSubmitDTO());
+            SubmitRecordResultVO result = service.submitRecord(1L, null, buildSubmitDTO());
 
             assertThat(result).isNotNull();
             assertThat(result.getStatus()).isEqualTo(2);
@@ -274,6 +278,9 @@ class StudentAssignmentServiceImplTest {
             c2.setTitle("骨折病例");
 
             when(caseMapper.selectList(any())).thenReturn(List.of(c1, c2));
+
+            // 组合包任务项（loadItemSummary 依赖）：本场景无任务项，返回空列表
+            when(itemMapper.selectList(any())).thenReturn(List.of());
 
             PageResult<StudentAssignmentVO> result = service.myAssignments(1, 10);
 

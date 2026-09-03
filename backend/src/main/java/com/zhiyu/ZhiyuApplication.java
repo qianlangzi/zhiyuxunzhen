@@ -3,6 +3,8 @@ package com.zhiyu;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 智愈寻真 - 业务中台启动入口
@@ -10,6 +12,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication
 @MapperScan("com.zhiyu.mapper")
+@EnableAsync
+@EnableScheduling
 public class ZhiyuApplication {
     public static void main(String[] args) {
         SpringApplication.run(ZhiyuApplication.class, args);

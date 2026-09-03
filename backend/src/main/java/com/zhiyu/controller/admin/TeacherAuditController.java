@@ -5,6 +5,7 @@ import com.zhiyu.common.param.PageParam;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.service.AdminService;
 import com.zhiyu.service.dto.RejectDTO;
+import com.zhiyu.vo.TeacherAuditDetailVO;
 import com.zhiyu.vo.TeacherAuditVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -34,6 +35,12 @@ public class TeacherAuditController {
     public R<PageResult<TeacherAuditVO>> list(PageParam param,
                                               @RequestParam(required = false) Integer auditStatus) {
         return R.ok(adminService.teacherAuditList(param, auditStatus));
+    }
+
+    @Operation(summary = "教师资质审核详情")
+    @GetMapping("/{userId}/detail")
+    public R<TeacherAuditDetailVO> detail(@PathVariable Long userId) {
+        return R.ok(adminService.teacherAuditDetail(userId));
     }
 
     @Operation(summary = "审核通过教师资质")

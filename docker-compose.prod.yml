@@ -44,7 +44,15 @@ services:
   # ---- 后端:生产配置 ----
   backend:
     environment:
-      SPRING_PROFILE: prod
+      SPRING_PROFILES_ACTIVE: prod
+      # 生产强制注入 JWT_SECRET，缺失则 Compose 启动失败（fail-fast）
+      JWT_SECRET: ${JWT_SECRET:?生产环境必须设置 JWT_SECRET}
+      # 生产强制注入 AI_INTERNAL_TOKEN（与 AI 中台一致，防伪造内部请求）
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?生产环境必须设置 AI_INTERNAL_TOKEN}
+      # 生产强制配置 CORS 白名单，不允许通配符
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?生产环境必须设置 CORS_ALLOWED_ORIGINS}
+      # 生产环境严禁创建演示账号
+      DEMO_DATA: "false"
     volumes:
       - ./logs/backend:/app/logs
     deploy:
@@ -60,6 +68,39 @@ services:
   ai:
     # 生产环境不用 --reload
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
+    environment:
+      # 生产强制 prod 模式，触发 config.py validate_prod 拒绝默认密钥和通配 CORS
+      ENV_MODE: prod
+      JWT_SECRET: ${JWT_SECRET:?生产环境必须设置 JWT_SECRET}
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?生产环境必须设置 AI_INTERNAL_TOKEN}
+      OPS_TOKEN: ${OPS_TOKEN:?生产环境必须设置 OPS_TOKEN}
+      # AI 端 CORS 使用 JSON 数组格式（如 ["https://admin.example.com"]）
+      # 与 Java 端的 CORS_ALLOWED_ORIGINS（逗号分隔字符串）隔离，避免格式冲突
+      AI_CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:?生产环境必须设置 AI_CORS_ALLOWED_ORIGINS}
+      # 生产环境必须关闭 fallback（config.py validate_prod 拒绝开启状态）
+      ENABLE_LLM_FALLBACK: "false"
+      ENABLE_MILVUS_FALLBACK: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+
+  # ---- AI Worker:生产配置 ----
+  # 基础 compose 的 ai-worker 通过 *ai-env 锚点继承 dev 配置，
+  # 生产必须显式覆盖，否则 worker 以 dev 模式运行、使用缺失的默认 token
+  ai-worker:
+    environment:
+      ENV_MODE: prod
+      JWT_SECRET: ${JWT_SECRET:?生产环境必须设置 JWT_SECRET}
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:?生产环境必须设置 AI_INTERNAL_TOKEN}
+      OPS_TOKEN: ${OPS_TOKEN:?生产环境必须设置 OPS_TOKEN}
+      AI_CORS_ALLOWED_ORIGINS: ${AI_CORS_ALLOWED_ORIGINS:?生产环境必须设置 AI_CORS_ALLOWED_ORIGINS}
+      ENABLE_LLM_FALLBACK: "false"
+      ENABLE_MILVUS_FALLBACK: "false"
     deploy:
       resources:
         limits:

@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,19 +45,51 @@ public class TeacherCaseController {
         return R.ok();
     }
 
-    @Operation(summary = "我的病例列表（分页）")
+    @Operation(summary = "我的病例列表（分页，status: 0草稿 1已发布，为空不过滤）")
     @GetMapping
     public R<PageResult<TeacherCaseListVO>> list(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
             @RequestParam(required = false) String title,
-            @RequestParam(required = false) String department) {
-        return R.ok(teacherCaseService.myCases(pageNum, pageSize, title, department));
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Integer status) {
+        return R.ok(teacherCaseService.myCases(pageNum, pageSize, title, department, status));
+    }
+
+    @Operation(summary = "全部病例列表（含所有教师的病例，分页+筛选）")
+    @GetMapping("/all")
+    public R<PageResult<TeacherCaseListVO>> allList(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "10") Integer pageSize,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) Integer status) {
+        return R.ok(teacherCaseService.allCases(pageNum, pageSize, title, department, status));
     }
 
     @Operation(summary = "预览病例配置（含隐藏疾病、标准路径）")
     @GetMapping("/{id}/preview")
     public R<CasePreviewVO> preview(@PathVariable Long id) {
         return R.ok(teacherCaseService.preview(id));
+    }
+
+    @Operation(summary = "病例公开预览（全部病例中查看他人病例）")
+    @GetMapping("/public/{id}/preview")
+    public R<CasePreviewVO> previewPublic(@PathVariable Long id) {
+        return R.ok(teacherCaseService.previewPublic(id));
+    }
+
+    @Operation(summary = "发布病例到病例广场（提交管理员审核）")
+    @PostMapping("/{id}/publish-to-market")
+    public R<Void> publishToMarket(@PathVariable Long id) {
+        teacherCaseService.publishToMarket(id);
+        return R.ok();
+    }
+
+    @Operation(summary = "删除草稿病例（仅本人、仅草稿可删）")
+    @DeleteMapping("/{id}")
+    public R<Void> delete(@PathVariable Long id) {
+        teacherCaseService.delete(id);
+        return R.ok();
     }
 }
