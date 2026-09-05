@@ -22,18 +22,25 @@ public interface SpCaseConfigMapper extends BaseMapper<SpCaseConfig> {
     int incrementReferenceCount(@Param("id") Long id);
 
     /**
-     * 随机抽取一个"未使用"的每日一例病例：已发布(status=1)+已通过审核(admin_audit_status=2)+
-     * 未被标记(is_daily=0)+未删除，且从未进入排期表(daily_case_schedule)。
+     * 随机抽取今日「每日一例」候选病例（发布时间/审核通过/含标准诊断）。
      *
-     * @return 命中的病例，无可用病例返回 null
+     * 采用「最久未推荐优先」轮转：从未上过每日一例的病例优先（随机关联打平），
+     * 已用病例则按最近一次排期时间升序、最久远的优先，从而实现复用时避免短期重复。
+     * 因此病例库不会因全部排过一次而耗尽，每日一例可持续生成。
+     *
+     * @return 命中的病例，库中无可发布病例时返回 null
      */
     @Select("""
-            SELECT * FROM sp_case_config
-            WHERE is_daily = 0 AND status = 1 AND admin_audit_status = 2 AND is_deleted = 0
-              AND NOT EXISTS (SELECT 1 FROM daily_case_schedule d WHERE d.case_id = sp_case_config.id)
-            ORDER BY RAND() LIMIT 1
+            SELECT c.* FROM sp_case_config c
+            WHERE c.status = 1 AND c.admin_audit_status = 2 AND c.is_deleted = 0
+              AND c.reference_answer IS NOT NULL AND c.reference_answer <> ''
+            ORDER BY (
+                SELECT COALESCE(MAX(d.publish_date), '1970-01-01')
+                FROM daily_case_schedule d WHERE d.case_id = c.id
+            ) ASC, RAND()
+            LIMIT 1
             """)
-    SpCaseConfig selectRandomUnusedCase();
+    SpCaseConfig selectRandomDailyCase();
 
     /**
      * 将病例标记为"已被每日一例使用"
