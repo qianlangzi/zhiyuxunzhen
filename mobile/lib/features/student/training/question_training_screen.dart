@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
+import '../../../shared/widgets/app_motion.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
@@ -16,10 +17,12 @@ class QuestionTrainingScreen extends ConsumerStatefulWidget {
   const QuestionTrainingScreen({super.key});
 
   @override
-  ConsumerState<QuestionTrainingScreen> createState() => _QuestionTrainingScreenState();
+  ConsumerState<QuestionTrainingScreen> createState() =>
+      _QuestionTrainingScreenState();
 }
 
-class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen> {
+class _QuestionTrainingScreenState
+    extends ConsumerState<QuestionTrainingScreen> {
   static const _fallbackDepartments = ['心血管内科', '呼吸内科', '诊断学', '综合'];
   List<String> _departments = [];
   bool _isLoading = true;
@@ -50,7 +53,9 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
           children: [
             AppBackAppBar(
               title: '基础题库',
-              onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.studentHome),
+              onBack: () => context.canPop()
+                  ? context.pop()
+                  : context.goNamed(RouteNames.studentHome),
             ),
             Expanded(
               child: _isLoading
@@ -60,9 +65,12 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
                         children: [
-                          _buildBankEntry(),
+                          AppReveal(child: _buildBankEntry()),
                           const SizedBox(height: 20),
-                          _buildDeptSection(),
+                          AppReveal(
+                            delay: const Duration(milliseconds: 90),
+                            child: _buildDeptSection(),
+                          ),
                         ],
                       ),
                     ),
@@ -85,8 +93,8 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                AppColors.indigoOf(context),
-                AppColors.indigoOf(context).withValues(alpha: 0.82),
+                AppColors.primaryOf(context),
+                AppColors.primaryOf(context).withValues(alpha: 0.78),
               ],
             ),
             borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -102,8 +110,7 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.grid_view_rounded,
-                    size: 24,
-                    color: Colors.white),
+                    size: 24, color: Colors.white),
               ),
               const SizedBox(width: 14),
               const Expanded(
@@ -117,7 +124,8 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
                             color: Colors.white)),
                     SizedBox(height: 4),
                     Text('按科室 / 知识点 / 难度 / 题型筛选，逐题练习',
-                        style: TextStyle(fontSize: 12.5, color: Colors.white70)),
+                        style:
+                            TextStyle(fontSize: 12.5, color: Colors.white70)),
                   ],
                 ),
               ),
@@ -147,7 +155,10 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
         Text('直接进入某科室练习，进度会在本地自动续接',
             style: TextStyle(fontSize: 12, color: AppColors.text4Of(context))),
         const SizedBox(height: 12),
-        ..._departments.map((dept) => _deptTile(dept)),
+        ..._departments.asMap().entries.map((e) => AppReveal(
+              delay: Duration(milliseconds: 130 + e.key * 45),
+              child: _deptTile(e.value),
+            )),
       ],
     );
   }
@@ -156,7 +167,8 @@ class _QuestionTrainingScreenState extends ConsumerState<QuestionTrainingScreen>
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => QuestionPracticeScreen(title: department, department: department),
+          builder: (_) =>
+              QuestionPracticeScreen(title: department, department: department),
         ),
       ),
       child: PressableScale(
