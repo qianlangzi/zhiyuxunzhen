@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 药品库接口（训练中心 · 药房）
  *
@@ -29,13 +31,13 @@ public class DrugController {
 
     private final DrugService drugService;
 
-    @Operation(summary = "药品列表（分页 + 药理分类/科室筛选 + 关键字搜索）")
+    @Operation(summary = "药品列表（分页 + 药理分类/科室多选筛选 + 关键字搜索）")
     @GetMapping("/list")
     public R<PageResult<DrugListVO>> list(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) String category,
-            @RequestParam(required = false) String department,
+            @RequestParam(required = false) List<String> category,
+            @RequestParam(required = false) List<String> department,
             @RequestParam(required = false) String keyword) {
         return R.ok(drugService.list(pageNum, pageSize, category, department, keyword));
     }

@@ -12,15 +12,16 @@ class DrugApi {
 
   DrugApi({Dio? dio}) : _dio = dio ?? ApiClient.instance;
 
-  /// 药品列表（分页、分类 / 科室筛选、关键字搜索）
+  /// 药品列表（分页、分类 / 科室多选筛选、关键字搜索）
   ///
-  /// [category] 药理分类精确等值；[department] 科室模糊（兼容「心血管」命中
-  /// 「心血管内科」）；[keyword] 服务端模糊匹配 通用名 / 商品名 / 适应症。
+  /// [categories] 药理分类多选（服务端 IN 等值）；[departments] 科室多选
+  /// （服务端多条件 OR LIKE，兼容「心血管」命中「心血管内科」）；
+  /// [keyword] 服务端模糊匹配 通用名 / 商品名 / 适应症。
   Future<ApiResponse<Map<String, dynamic>>> getDrugList({
     int pageNum = 1,
     int pageSize = 10,
-    String? category,
-    String? department,
+    List<String>? categories,
+    List<String>? departments,
     String? keyword,
   }) async {
     try {
@@ -28,9 +29,12 @@ class DrugApi {
         'pageNum': pageNum,
         'pageSize': pageSize,
       };
-      if (category != null && category.isNotEmpty) params['category'] = category;
-      if (department != null && department.isNotEmpty) {
-        params['department'] = department;
+      // Dio 对 List 值会编码成重复参数：category=a&category=b
+      if (categories != null && categories.isNotEmpty) {
+        params['category'] = categories;
+      }
+      if (departments != null && departments.isNotEmpty) {
+        params['department'] = departments;
       }
       if (keyword != null && keyword.trim().isNotEmpty) {
         params['keyword'] = keyword.trim();

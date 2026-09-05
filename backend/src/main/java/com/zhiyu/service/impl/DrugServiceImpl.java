@@ -44,21 +44,43 @@ public class DrugServiceImpl implements DrugService {
     }
 
     @Override
-    public PageResult<DrugListVO> list(Integer pageNum, Integer pageSize, String category,
-                                       String department, String keyword) {
+    public PageResult<DrugListVO> list(Integer pageNum, Integer pageSize, List<String> category,
+                                       List<String> department, String keyword) {
         Page<Drug> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<Drug> wrapper = new LambdaQueryWrapper<Drug>()
                 .eq(Drug::getStatus, 1);
 
-        // 药理分类：精确等值
-        if (StringUtils.hasText(category)) {
-            wrapper.eq(Drug::getCategory, category.trim());
+        // 药理分类：多选 IN 等值（去空格去重）
+        if (category != null) {
+            List<String> cats = category.stream()
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+            if (!cats.isEmpty()) {
+                wrapper.in(Drug::getCategory, cats);
+            }
         }
 
-        // 科室：LIKE 模糊（存的是逗号分隔多值，「心血管」可命中「心血管内科」）
-        if (StringUtils.hasText(department)) {
-            wrapper.apply("department LIKE CONCAT('%', {0}, '%')" + ESCAPE_CLAUSE,
-                    escapeLike(department.trim()));
+        // 科室：多条件 OR LIKE（存的是逗号分隔多值，「心血管」可命中「心血管内科」）；
+        // 同维度多选 = OR，与药理分类维度之间 = AND
+        if (department != null) {
+            List<String> deps = department.stream()
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList();
+            if (!deps.isEmpty()) {
+                wrapper.and(w -> {
+                    for (int i = 0; i < deps.size(); i++) {
+                        if (i > 0) {
+                            w.or();
+                        }
+                        w.apply("department LIKE CONCAT('%', {0}, '%')" + ESCAPE_CLAUSE,
+                                escapeLike(deps.get(i)));
+                    }
+                });
+            }
         }
 
         // 关键字：通用名 / 商品名 / 适应症 三字段 OR 模糊
