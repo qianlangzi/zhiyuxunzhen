@@ -8,16 +8,16 @@ import '../../../core/theme/app_colors.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/paper_surfaces.dart';
 import '../../student/data/student_service.dart';
 
-/// 每日一题（力扣式单题）
+/// 每日一例（开放诊断作答）
 ///
 /// 数据流：GET /daily-cases/today 返回今日排期 VO：
 ///   scheduleId / caseId / caseTitle / department / difficulty
-///   publishDate / question / optionsJson(JSON数组字符串) / textbookRef
-/// 作答后 POST /daily-cases/submit（answer=所选选项文本），后端按
-/// 标准答案规则判题或 AI 判题，返回 correct / correctAnswer / explanation。
+///   publishDate / patientProfile(患者画像) / keyFindings(关键检查)
+/// 学生开放书写「诊断 + 依据 + 初步诊疗方案」，POST /daily-cases/submit
+/// 由 AI（DeepSeek）对照标准诊断要点评审，返回 correct / correctAnswer(标准诊断要点)
+/// / explanation(AI点评) / textbookRef / degraded。
 class DailyCaseScreen extends ConsumerStatefulWidget {
   const DailyCaseScreen({super.key});
 
@@ -28,17 +28,22 @@ class DailyCaseScreen extends ConsumerStatefulWidget {
 class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
   Map<String, dynamic>? _data;
   bool _loading = true;
-
-  int _selected = -1;
   bool _submitting = false;
 
-  /// 判题结果（DailyCaseResultVO 反序列化）
+  final TextEditingController _answerCtrl = TextEditingController();
+
   Map<String, dynamic>? _result;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  @override
+  void dispose() {
+    _answerCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -52,51 +57,72 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
 
   // ---------------- 数据解析 ----------------
 
-  List<String> get _options {
-    final raw = _data?['optionsJson'];
-    if (raw is List) return raw.cast<String>();
-    if (raw is String && raw.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is List) return decoded.cast<String>();
-      } catch (_) {/* 忽略非法 JSON */}
-    }
-    return const [];
-  }
-
-  String get _question =>
-      (_data?['question'] as String?)?.trim().isNotEmpty == true
-          ? _data!['question'] as String
-          : (_data?['caseTitle'] as String? ?? '今日暂无题目');
-
-  String get _department => _data?['department'] as String? ?? '';
   String get _caseTitle => _data?['caseTitle'] as String? ?? '';
+  String get _department => _data?['department'] as String? ?? '';
   int get _difficulty => _data?['difficulty'] as int? ?? 0;
   String get _publishDate => _data?['publishDate'] as String? ?? '';
-  String get _textbookRef => _data?['textbookRef'] as String? ?? '';
+  String get _patientProfile => _data?['patientProfile'] as String? ?? '';
+  String get _keyFindings => _data?['keyFindings'] as String? ?? '';
   int? get _scheduleId => _data?['scheduleId'] as int?;
+
+  /// 当前学生对今日病例的问诊状态：null未做过 / 0进行中 / 1已完成 / 2评估异常
+  int? get _lastSessionStatus => _data?['lastSessionStatus'] as int?;
+
+  String get _difficultyText {
+    if (_difficulty <= 1) return '入门';
+    if (_difficulty == 2) return '进阶';
+    return '挑战';
+  }
+
+  ({String text, Color fg, Color bg}) _sessionInfo() {
+    switch (_lastSessionStatus) {
+      case 0:
+        return (
+          text: '进行中',
+          fg: AppColors.amberOf(context),
+          bg: AppColors.amberSoftOf(context),
+        );
+      case 1:
+        return (
+          text: '已做过',
+          fg: AppColors.moss3Of(context),
+          bg: AppColors.mossTintOf(context),
+        );
+      case 2:
+        return (
+          text: '待重试',
+          fg: AppColors.vermilionOf(context),
+          bg: AppColors.vermilionSoftOf(context),
+        );
+      default:
+        return (
+          text: '未做过',
+          fg: AppColors.text3Of(context),
+          bg: AppColors.ruleSoftOf(context),
+        );
+    }
+  }
 
   // ---------------- 提交判题 ----------------
 
   Future<void> _submit() async {
     if (_submitting) return;
-    if (_selected < 0) {
-      AppFeedback.info(context, '请先选择一个选项');
+    final text = _answerCtrl.text.trim();
+    if (text.length < 8) {
+      AppFeedback.info(context, '再补充一些诊断思路吧，至少 8 个字');
       return;
     }
     final scheduleId = _scheduleId;
     if (scheduleId == null) {
-      AppFeedback.info(context, '该每日一题未配置提交排期');
+      AppFeedback.info(context, '该每日一例未配置提交排期');
       return;
     }
 
+    FocusScope.of(context).unfocus();
     setState(() => _submitting = true);
-    final options = _options;
-    final answer =
-        _selected < options.length ? options[_selected] : '';
     final resp = await StudentService().submitDailyCase(
       scheduleId: scheduleId,
-      answer: answer,
+      answer: text,
     );
     if (!mounted) return;
     setState(() {
@@ -126,7 +152,6 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
                 if (Navigator.of(context).canPop()) {
                   Navigator.of(context).pop();
                 } else {
-                  // 直达路由兜底：回学生端首页
                   context.goNamed(RouteNames.studentHome);
                 }
               },
@@ -135,7 +160,7 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: _result == null ? _buildBottomBar() : null,
+      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
@@ -146,7 +171,7 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
     if (_data == null) {
       return _buildEmpty();
     }
-    return _buildQuestion();
+    return _buildContent();
   }
 
   // ---------------- 空态 ----------------
@@ -158,27 +183,33 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.auto_awesome_outlined,
-              size: 56,
-              color: AppColors.text4Of(context),
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                color: AppColors.mossTintOf(context),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.local_hospital_rounded,
+                size: 44,
+                color: AppColors.moss3Of(context),
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Text(
-              '今日题目暂未发布',
+              '今日病例还未上新',
               style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
                 color: AppColors.textOf(context),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
-              '每天 00:00 自动上新一题，\n明天再来看看新病例吧',
-              textAlign: TextAlign.center,
+              '每天 00:00 自动更新一个临床病例',
               style: TextStyle(
-                fontSize: 13,
-                height: 1.6,
+                fontSize: 13.5,
                 color: AppColors.text3Of(context),
               ),
             ),
@@ -188,139 +219,121 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
     );
   }
 
-  // ---------------- 题目区 ----------------
+  // ---------------- 主内容 ----------------
 
-  Widget _buildQuestion() {
-    final options = _options;
+  Widget _buildContent() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 28),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildHeroCard(),
-          const SizedBox(height: 14),
-          _buildStemCard(),
-          const SizedBox(height: 14),
-          if (_result == null) _buildOptionHeader(),
-          ...options.asMap().entries.map((e) {
-            final idx = e.key;
-            final option = e.value;
-            final state = _optionState(idx);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _buildOptionCard(
-                idx: idx,
-                text: option,
-                enabled: _result == null && !_submitting,
-                state: state,
-                onTap: () => setState(() => _selected = idx),
-              ),
-            );
-          }),
-          if (_result != null) ...[
-            const SizedBox(height: 6),
-            _buildResultCard(),
+          _buildHeader(),
+          const SizedBox(height: 16),
+          if (_patientProfile.isNotEmpty) ...[
+            _sectionCard(
+              icon: Icons.face_rounded,
+              iconColor: AppColors.primaryOf(context),
+              title: '患者画像',
+              child: _buildPatientProfile(),
+            ),
+            const SizedBox(height: 12),
           ],
-          if (_textbookRef.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            _buildTextbookCard(),
+          if (_keyFindings.isNotEmpty) ...[
+            _sectionCard(
+              icon: Icons.monitor_heart_rounded,
+              iconColor: AppColors.indigoOf(context),
+              title: '关键检查',
+              child: _buildKeyFindings(),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (_result == null)
+            _buildAnswerCard()
+          else ...[
+            _buildResultCard(),
+            const SizedBox(height: 12),
+            _buildAnswerReview(),
           ],
         ],
       ),
     );
   }
 
-  /// 选项状态：0 正常 / 1 选中 / 2 正确答案 / 3 我选错
-  int _optionState(int idx) {
-    if (_result == null) return idx == _selected ? 1 : 0;
-    final options = _options;
-    final correctAns = ((_result?['correctAnswer'] as String?) ?? '').trim();
-    final correctIdx = correctAns.isEmpty
-        ? -1
-        : options.indexWhere((o) => o.trim() == correctAns);
-    final correct = _result?['correct'] as bool? ?? false;
-    if (idx == correctIdx) return 2;
-    if (!correct && idx == _selected) return 3;
-    return 0;
-  }
+  // ---------------- 头部（轻量，无深绿大块） ----------------
 
-  // ---------------- 头部 Hero ----------------
-
-  Widget _buildHeroCard() {
-    final date = _publishDate.isNotEmpty ? _fmtDate(_publishDate) : '今日一题';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primaryOf(context),
-            AppColors.primaryOf(context).withValues(alpha: 0.82),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primaryOf(context).withValues(alpha: 0.22),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+  Widget _buildHeader() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.mossTintOf(context),
+            shape: BoxShape.circle,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+          child: Icon(
+            Icons.local_hospital_rounded,
+            size: 24,
+            color: AppColors.primaryOf(context),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _tagChip(
-                text: date,
-                fg: AppColors.onPrimaryOf(context),
-                bg: Colors.white.withValues(alpha: 0.18),
-              ),
-              const Spacer(),
-              if (_caseTitle.isNotEmpty)
-                _tagChip(
-                  text: _caseTitle,
-                  fg: AppColors.onPrimaryOf(context),
-                  bg: Colors.white.withValues(alpha: 0.18),
+              Text(
+                _caseTitle.isNotEmpty ? _caseTitle : '今日临床病例',
+                style: TextStyle(
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
+                  height: 1.3,
+                  color: AppColors.textOf(context),
                 ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  if (_department.isNotEmpty) ...[
+                    Text(
+                      _department,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.text3Of(context),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  _caseStatusChip(),
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 14),
-          Text(
-            _department.isEmpty ? 'AI 每日一题' : _department,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.2,
-              color: AppColors.onPrimaryOf(context),
+        ),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            _lightChip(
+              AppColors.indigoOf(context),
+              AppColors.indigoSoftOf(context),
+              '难度·$_difficultyText',
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _question.length > 46
-                ? '${_question.substring(0, 46)}…'
-                : _question,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.6,
-              color: AppColors.onPrimaryLightOf(context),
-            ),
-          ),
-        ],
-      ),
+            const SizedBox(height: 6),
+            if (_publishDate.isNotEmpty)
+              _lightChip(
+                AppColors.text3Of(context),
+                AppColors.ruleSoftOf(context),
+                _fmtDate(_publishDate),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _tagChip({
-    required String text,
-    required Color fg,
-    required Color bg,
-  }) {
+  Widget _lightChip(Color fg, Color bg, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -329,187 +342,261 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
       ),
       child: Text(
         text,
-        style:
-            TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: fg),
+        style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: fg),
       ),
     );
   }
 
-  // ---------------- 题干卡 ----------------
+  /// 当前学生对今日病例的「已做/进行中/未做」状态小签
+  Widget _caseStatusChip() {
+    final info = _sessionInfo();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: info.bg,
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: info.fg, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            info.text,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: info.fg,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-  Widget _buildStemCard() {
-    return PaperCard(
-      tint: AppColors.surfaceOf(context),
-      tintStrength: 0.4,
-      accent: AppColors.primaryOf(context),
+  // ---------------- 分区卡片 ----------------
+
+  Widget _sectionCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget child,
+  }) {
+    return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.surfaceEdgeOf(context), width: 1),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '题目',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.2,
-              color: AppColors.text3Of(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _question,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.75,
-              color: AppColors.textOf(context),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ---------------- 选项 ----------------
-
-  Widget _buildOptionHeader() {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 10),
-      child: Row(
-        children: [
-          Text(
-            '选择你的答案',
-            style: TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textOf(context),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            _difficultyText,
-            style:
-                TextStyle(fontSize: 11.5, color: AppColors.amberOf(context)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String get _difficultyText {
-    if (_difficulty <= 1) return '难度：入门';
-    if (_difficulty == 2) return '难度：进阶';
-    return '难度：挑战';
-  }
-
-  Widget _buildOptionCard({
-    required int idx,
-    required String text,
-    required bool enabled,
-    required int state,
-    required VoidCallback onTap,
-  }) {
-    const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
-    final letter = idx < letters.length ? letters[idx] : '${idx + 1}';
-
-    final Color accent;
-    final Color bg;
-    switch (state) {
-      case 1: // 选中（未判题）
-        accent = AppColors.primaryOf(context);
-        bg = AppColors.mossTintOf(context);
-        break;
-      case 2: // 正确答案
-        accent = AppColors.moss3Of(context);
-        bg = AppColors.mossTintOf(context);
-        break;
-      case 3: // 我选错
-        accent = AppColors.vermilionOf(context);
-        bg = AppColors.vermilionSoftOf(context);
-        break;
-      default:
-        accent = AppColors.surfaceEdgeOf(context);
-        bg = AppColors.surfaceOf(context);
-    }
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: Ink(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(
-              color: state == 0
-                  ? AppColors.surfaceEdgeOf(context)
-                  : accent,
-              width: state == 0 ? 1 : 1.6,
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: [
-              // 序号圆
               Container(
-                width: 26,
-                height: 26,
-                alignment: Alignment.center,
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
-                  color: state == 0
-                      ? AppColors.surfaceOf(context)
-                      : accent.withValues(alpha: 0.14),
+                  color: iconColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
-                  border: Border.all(color: accent, width: 1.4),
                 ),
-                child: Text(
-                  letter,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: state == 0 ? AppColors.text2Of(context) : accent,
-                  ),
+                child: Icon(icon, size: 17, color: iconColor),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textOf(context),
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 3),
+            ],
+          ),
+          const SizedBox(height: 12),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPatientProfile() {
+    final profile = _patientProfile.trim();
+    final decoded = _tryDecodeMap(profile);
+    if (decoded != null && decoded.isNotEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: decoded.entries.map((e) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 72,
                   child: Text(
-                    text,
+                    '${_patientFieldLabel(e.key)}  ',
                     style: TextStyle(
-                      fontSize: 14.5,
-                      height: 1.5,
-                      color: state == 3
-                          ? AppColors.vermilionOf(context)
-                          : AppColors.textOf(context),
-                      fontWeight:
-                          state == 2 || state == 3
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                      fontSize: 13.5,
+                      color: AppColors.text3Of(context),
                     ),
                   ),
                 ),
+                const SizedBox(width: 2),
+                Expanded(
+                  child: Text(
+                    '${e.value}',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.55,
+                      color: AppColors.textOf(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      );
+    }
+    return Text(
+      profile,
+      style: TextStyle(
+        fontSize: 14,
+        height: 1.7,
+        color: AppColors.textOf(context),
+      ),
+    );
+  }
+
+  Widget _buildKeyFindings() {
+    final lines = _keyFindings
+        .split('\n')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) {
+      return Text(
+        _keyFindings,
+        style: TextStyle(
+          fontSize: 14,
+          height: 1.7,
+          color: AppColors.textOf(context),
+        ),
+      );
+    }
+    return Column(
+      children: lines.asMap().entries.map((entry) {
+        final idx = entry.key;
+        final line = entry.value;
+        final bullet = idx < 26 ? String.fromCharCode(0x2460 + idx) : '${idx + 1}.';
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.indigoOf(context).withValues(alpha: 0.10),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  bullet,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.indigoOf(context),
+                  ),
+                ),
               ),
-              if (state == 1)
-                Icon(Icons.check_circle_rounded,
-                    size: 20,
-                    color: AppColors.primaryOf(context),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.6,
+                    color: AppColors.textOf(context),
+                  ),
                 ),
-              if (state == 2)
-                Icon(Icons.check_circle_rounded,
-                    size: 20,
-                    color: AppColors.moss3Of(context),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ---------------- 作答区（更大） ----------------
+
+  Widget _buildAnswerCard() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 6, bottom: 10),
+          child: Row(
+            children: [
+              Text(
+                '你的诊断',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textOf(context),
                 ),
-              if (state == 3)
-                Icon(Icons.cancel_rounded,
-                    size: 20,
-                    color: AppColors.vermilionOf(context),
-                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'AI 将对照标准诊断要点评审',
+                style: TextStyle(fontSize: 12, color: AppColors.text4Of(context)),
+              ),
             ],
           ),
         ),
-      ),
+        Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(
+              color: AppColors.surfaceEdgeOf(context),
+              width: 1,
+            ),
+          ),
+          child: TextField(
+            controller: _answerCtrl,
+            enabled: !_submitting,
+            maxLines: 9,
+            minLines: 7,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.6,
+              color: AppColors.textOf(context),
+            ),
+            decoration: InputDecoration(
+              hintText: '初步诊断：\n诊断依据（结合画像与检查）：\n初步诊疗方案：',
+              hintStyle: TextStyle(
+                fontSize: 13,
+                height: 1.7,
+                color: AppColors.text4Of(context),
+              ),
+              contentPadding: const EdgeInsets.all(16),
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -517,50 +604,123 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
 
   Widget _buildResultCard() {
     final correct = _result?['correct'] as bool? ?? false;
-    final explanation = _result?['explanation'] as String? ?? '';
     final degraded = _result?['degraded'] as bool? ?? false;
 
-    final accent = correct
-        ? AppColors.moss3Of(context)
-        : AppColors.vermilionOf(context);
-    final soft = correct
-        ? AppColors.mossTintOf(context)
-        : AppColors.vermilionSoftOf(context);
+    final Color accent;
+    final Color soft;
+    IconData icon;
+    String title;
+    String sub;
+    if (degraded) {
+      accent = AppColors.amberOf(context);
+      soft = AppColors.amberSoftOf(context);
+      icon = Icons.schedule_rounded;
+      title = '已保存';
+      sub = '评审服务暂不可用，答案已记录';
+    } else if (correct) {
+      accent = AppColors.moss3Of(context);
+      soft = AppColors.mossTintOf(context);
+      icon = Icons.check_circle_rounded;
+      title = '诊断基本命中';
+      sub = 'AI 已对照标准诊断要点完成评审';
+    } else {
+      accent = AppColors.vermilionOf(context);
+      soft = AppColors.vermilionSoftOf(context);
+      icon = Icons.lightbulb_rounded;
+      title = '思路略有偏差';
+      sub = 'AI 已对照标准诊断要点完成评审';
+    }
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: soft,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: accent.withValues(alpha: 0.4), width: 1),
+        border: Border.all(color: accent.withValues(alpha: 0.35), width: 1),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(
-                correct
-                    ? Icons.emoji_events_rounded
-                    : Icons.lightbulb_rounded,
-                size: 20,
-                color: accent,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                correct ? '回答正确，很棒！' : '回答错误，看看解析',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: accent,
-                ),
-              ),
-            ],
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 21, color: accent),
           ),
-          if (explanation.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Text(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(sub, style: TextStyle(fontSize: 12, color: AppColors.text3Of(context))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAnswerReview() {
+    final correctAnswer = _result?['correctAnswer'] as String? ?? '';
+    final explanation = _result?['explanation'] as String? ?? '';
+    final textbookRef = _result?['textbookRef'] as String? ?? '';
+    final degraded = _result?['degraded'] as bool? ?? false;
+
+    if (degraded && explanation.isEmpty) {
+      return _sectionCard(
+        icon: Icons.auto_awesome_rounded,
+        iconColor: AppColors.indigoOf(context),
+        title: '评审要点',
+        child: Text(
+          '当前评审服务暂不可用，你的答案已保存。',
+          style: TextStyle(
+            fontSize: 13.5,
+            height: 1.7,
+            color: AppColors.text2Of(context),
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (correctAnswer.isNotEmpty) ...[
+          _sectionCard(
+            icon: Icons.local_hospital_rounded,
+            iconColor: AppColors.primaryOf(context),
+            title: '标准诊断要点',
+            child: Text(
+              correctAnswer,
+              style: TextStyle(
+                fontSize: 14,
+                height: 1.7,
+                color: AppColors.primaryOf(context),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (explanation.isNotEmpty)
+          _sectionCard(
+            icon: Icons.rate_review_rounded,
+            iconColor: AppColors.indigoOf(context),
+            title: 'AI 点评',
+            child: Text(
               explanation,
               style: TextStyle(
                 fontSize: 14,
@@ -568,31 +728,29 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
                 color: AppColors.textOf(context),
               ),
             ),
-          ],
-          if (degraded) ...[
-            const SizedBox(height: 10),
-            Text(
-              '（本次由规则兜底判题，深度解析暂不可用）',
-              style: TextStyle(fontSize: 12, color: AppColors.text3Of(context)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextbookCard() {
-    return Row(
-      children: [
-        Icon(Icons.menu_book_rounded, size: 15, color: AppColors.text3Of(context)),
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            '教材出处：$_textbookRef',
-            style:
-                TextStyle(fontSize: 12.5, color: AppColors.text3Of(context)),
           ),
-        ),
+        if (textbookRef.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.only(left: 6),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.menu_book_rounded,
+                  size: 15,
+                  color: AppColors.text3Of(context),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '教材出处：$textbookRef',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.text3Of(context)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -600,9 +758,9 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
   // ---------------- 底部提交栏 ----------------
 
   Widget? _buildBottomBar() {
-    final options = _options;
-    if (options.isEmpty) return null;
-
+    if (_result != null) return null;
+    if (_data == null) return null;
+    final hasText = _answerCtrl.text.trim().length >= 8;
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       decoration: BoxDecoration(
@@ -614,12 +772,12 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
       child: SafeArea(
         top: false,
         child: AppPrimaryButton(
-          label: _submitting ? '判题中…' : '提交答案',
+          label: _submitting ? 'AI 评审中…' : '提交，让 AI 评审',
           fullWidth: true,
           icon: _submitting
               ? null
-              : const Icon(Icons.auto_awesome, size: 16),
-          onPressed: _submitting ? null : _submit,
+              : const Icon(Icons.auto_awesome_rounded, size: 17),
+          onPressed: (_submitting || !hasText) ? null : _submit,
         ),
       ),
     );
@@ -627,11 +785,37 @@ class _DailyCaseScreenState extends ConsumerState<DailyCaseScreen> {
 
   // ---------------- 工具 ----------------
 
+  Map<String, dynamic>? _tryDecodeMap(String text) {
+    final t = text.trim();
+    if (!t.startsWith('{')) return null;
+    try {
+      final decoded = jsonDecode(t);
+      if (decoded is Map<String, dynamic> && decoded.isNotEmpty) {
+        return decoded;
+      }
+    } catch (_) {/* 非法 JSON 则原文展示 */}
+    return null;
+  }
+
+  String _patientFieldLabel(String key) {
+    const map = {
+      'age': '年龄',
+      'gender': '性别',
+      'occupation': '职业',
+      'chiefComplaint': '主诉',
+      'presentIllness': '现病史',
+      'pastHistory': '既往史',
+      'allergy': '过敏史',
+      'personality': '性格',
+      'name': '姓名',
+    };
+    return map[key] ?? key;
+  }
+
   String _fmtDate(String iso) {
     try {
       final d = DateTime.parse(iso);
-      const week = ['一', '二', '三', '四', '五', '六', '日'];
-      return '${d.month}月${d.day}日 · 周${week[d.weekday - 1]}';
+      return '${d.month}月${d.day}日';
     } catch (_) {
       return iso;
     }

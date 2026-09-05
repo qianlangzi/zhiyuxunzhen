@@ -226,11 +226,11 @@ class _SelfTestHistoryScreenState extends State<SelfTestHistoryScreen> {
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: (isAi ? AppColors.primaryOf(context) : AppColors.amberOf(context)).withValues(alpha: 0.12),
+              color: (isAi ? AppColors.indigoOf(context) : AppColors.amberOf(context)).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: Icon(isAi ? Icons.auto_awesome : Icons.rule,
-                size: 20, color: isAi ? AppColors.primaryOf(context) : AppColors.amberOf(context)),
+                size: 20, color: isAi ? AppColors.indigoOf(context) : AppColors.amberOf(context)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -249,7 +249,7 @@ class _SelfTestHistoryScreenState extends State<SelfTestHistoryScreen> {
                       fontSize: 12, color: AppColors.text3Of(context)),
                   const SizedBox(width: 8),
                   if (isAi)
-                    MonoText('AI 组卷', fontSize: 9, color: AppColors.primaryOf(context))
+                    MonoText('AI 组卷', fontSize: 9, color: AppColors.indigoOf(context))
                   else
                     MonoText('规则组卷', fontSize: 9, color: AppColors.amberOf(context)),
                 ]),

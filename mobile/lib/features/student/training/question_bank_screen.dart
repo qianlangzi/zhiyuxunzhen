@@ -4,7 +4,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
-import 'answered_question_store.dart';
 import 'question_practice_screen.dart';
 
 /// 题库浏览/列表行模型（扁平化后交给 ListView.builder 按需构建）
@@ -68,16 +67,11 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
   List<String> _knowledgeTags = [];
   final Set<String> _collapsedGroups = <String>{};
 
-  /// 本地「已做」题目 id（与作答记录/续接同一事实源）
-  Set<int> _answered = <int>{};
-
   @override
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      _answered = await AnsweredQuestionStore.load();
-      if (mounted) setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadFirst();
       _loadFilters();
     });
@@ -420,12 +414,14 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
                     ? '简单'
                     : (_difficulty == 3 ? '困难' : '标准'))),
         const SizedBox(height: 6),
-        _filterRow('题型', ['单选', '多选', '判断', '填空'], (v) {
+        _filterRow('题型', ['单选', '多选', '判断', '填空', '简答', '论述'], (v) {
           setState(() => _questionType = switch (v) {
                 '单选' => 'single_choice',
                 '多选' => 'multiple_choice',
                 '判断' => 'judgment',
                 '填空' => 'fill_blank',
+                '简答' => 'short_answer',
+                '论述' => 'essay',
                 _ => null,
               });
           _applyFilters();
@@ -441,6 +437,8 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
       'multiple_choice' => '多选',
       'judgment' => '判断',
       'fill_blank' => '填空',
+      'short_answer' => '简答',
+      'essay' => '论述',
       _ => null,
     };
   }
@@ -529,14 +527,19 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
       'multiple_choice' => '多选',
       'fill_blank' => '填空',
       'judgment' => '判断',
+      'short_answer' => '简答',
+      'essay' => '论述',
       _ => '单选',
     };
     final title = q['title'] as String? ?? '';
     final questionNo = q['questionNo'] as String? ?? '';
     final qid = (q['id'] as num?)?.toInt() ?? -1;
-    final done = qid >= 0 && _answered.contains(qid);
+    // 账户级作答状态：由后端 student_practice_record 回填
+    final done = qid >= 0 && q['answered'] == true;
+    final wasCorrect = q['correct'] == true;
 
     return GestureDetector(
+      // 点击具体题目 -> 进入该题（可回看此前作答对错），而非续接跳题
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => QuestionPracticeScreen(
           title: '题目作答',
@@ -544,6 +547,7 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
           knowledgeTag: _knowledgeTag,
           difficulty: _difficulty,
           questionType: _questionType,
+          initialQuestionId: qid >= 0 ? qid : null,
         ),
       )),
       child: PressableScale(
@@ -597,12 +601,17 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
                         fontSize: 10, color: AppColors.text4Of(context)),
                     if (done) ...[
                       const SizedBox(width: 8),
-                      Icon(Icons.check_circle_rounded,
-                          size: 11, color: AppColors.primaryOf(context)),
+                      Icon(wasCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                          size: 11,
+                          color: wasCorrect
+                              ? AppColors.primaryOf(context)
+                              : AppColors.vermilionOf(context)),
                       const SizedBox(width: 4),
-                      MonoText('已做',
+                      MonoText(wasCorrect ? '已做·答对' : '已做·答错',
                           fontSize: 10,
-                          color: AppColors.primaryOf(context),
+                          color: wasCorrect
+                              ? AppColors.primaryOf(context)
+                              : AppColors.vermilionOf(context),
                           weight: FontWeight.w600),
                     ],
                   ],

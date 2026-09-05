@@ -6,12 +6,13 @@ import '../../../shared/widgets/typewriter_text.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
-import 'answered_question_store.dart';
 
 /// 基础题作答页（按筛选条件逐题作答）
 ///
-/// 支持单选 / 多选 / 填空，传入 department/knowledgeTag/difficulty/questionType 组合筛选。
+/// 支持单选 / 多选 / 填空 / 简答 / 论述。
+/// 传入 department/knowledgeTag/difficulty/questionType 组合筛选。
 /// 通过分页逐题加载（pageSize=1），提交后显示解析，点击“下一题”继续。
+/// 作答状态（已做/对错/所选答案）由后端按账户持久化，可在回顾时直接展示。
 class QuestionPracticeScreen extends ConsumerStatefulWidget {
   const QuestionPracticeScreen({
     super.key,
@@ -20,7 +21,7 @@ class QuestionPracticeScreen extends ConsumerStatefulWidget {
     this.knowledgeTag,
     this.difficulty,
     this.questionType,
-    this.answeredIds,
+    this.initialQuestionId,
   });
 
   final String title;
@@ -29,8 +30,9 @@ class QuestionPracticeScreen extends ConsumerStatefulWidget {
   final int? difficulty;
   final String? questionType;
 
-  /// 本地已做题目 id 集合：进入时自动跳到首个「未做」的题
-  final Set<int>? answeredIds;
+  /// 指定要打开的题目：进入时定位到该题（用于题库列表点击具体题目回顾）。
+  /// 为空则自动跳到当前筛选下首个「未做」的题。
+  final int? initialQuestionId;
 
   @override
   ConsumerState<QuestionPracticeScreen> createState() => _QuestionPracticeScreenState();
@@ -50,9 +52,6 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
   int _total = 0;
   bool _showNavigator = false;
 
-  /// 已做题库（本地持久化），用于进入时续接上个位置；也能作为手动跳过的已做标记
-  Set<int> _answeredIds = {};
-
   /// 预取的下一题（避免切题时转圈等待）
   Map<String, dynamic>? _cachedNext;
 
@@ -68,26 +67,42 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) => _bootstrap());
   }
 
-  /// 进入时从本地「已做记录」恢复位置：自动跳到首个未做题目
+  /// 进入时定位题目：
+  /// - 指定了 [initialQuestionId]：跳到该题（题库列表点具体题目回顾）；
+  /// - 否则：跳到当前筛选下首个「未做」的题（账户级，来自后端学生作答记录）。
   ///
-  /// 无论从哪个入口进入（科室 / 浏览题库 / 推荐 / 教材），都自己读本地记录，
-  /// 不再依赖调用方手动传 answeredIds（此前大多数入口没传，导致每次都从头刷）。
+  /// 已做状态由后端 /api/v1/student/questions 回填的 answered 字段判断，
+  /// 不再依赖设备本地存储，避免跨账户串号、以及“重启后跳回已做题”的问题。
   Future<void> _bootstrap() async {
-    final answered = await AnsweredQuestionStore.load();
-    if (widget.answeredIds != null && widget.answeredIds!.isNotEmpty) {
-      answered.addAll(widget.answeredIds!);
+    int idx = -1;
+    int total = 0;
+    if (widget.initialQuestionId != null) {
+      final targetId = widget.initialQuestionId!;
+      final (i, t) = await _scan(
+          (q) => (q['id'] as num?)?.toInt() == targetId);
+      idx = i;
+      total = t;
+    }
+    if (idx < 0) {
+      final (i, t) = await _scan((q) => q['answered'] != true);
+      idx = i;
+      total = t;
+      if (idx < 0) idx = 0; // 全部已做 -> 回到第 1 题供回顾
     }
     if (!mounted) return;
-    _answeredIds = answered;
+    final target = (idx + 1).clamp(1, total > 0 ? total : 1);
+    setState(() {
+      _pageNum = target.toInt();
+      _currentIndex = _pageNum - 1;
+      _total = total;
+    });
+    _loadQuestion();
+  }
 
-    if (answered.isEmpty) {
-      _loadQuestion();
-      return;
-    }
-    // 分页扫描定位首个未做题（批量 100/页，常见题库 1~2 次即可定位）
+  /// 分页扫描满足 [pred] 的第一题，返回 (全局下标, 总数)；无匹配返回 (-1, total)。
+  Future<(int, int)> _scan(bool Function(Map<String, dynamic>) pred) async {
     var pageNum = 1;
     const batch = 100;
-    var foundIndex = -1;
     var total = 0;
     while (true) {
       final data = await StudentService().getQuestions(
@@ -98,32 +113,25 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
         difficulty: widget.difficulty,
         questionType: widget.questionType,
       );
-      if (!mounted) return;
+      if (!mounted) return (-1, 0);
       final list = (data?['list'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
       total = (data?['total'] as num?)?.toInt() ?? 0;
       for (var i = 0; i < list.length; i++) {
-        final id = ((list[i]['id'] as num?) ?? 0).toInt();
-        if (!answered.contains(id)) {
-          foundIndex = (pageNum - 1) * batch + i;
-          break;
-        }
+        if (pred(list[i])) return ((pageNum - 1) * batch + i, total);
       }
-      if (foundIndex >= 0 || pageNum * batch >= total) break;
+      if (pageNum * batch >= total) break;
       pageNum++;
     }
-    final targetPage = (foundIndex < 0 ? total : foundIndex + 1)
-        .clamp(1, total > 0 ? total : 1);
-    setState(() {
-      _pageNum = targetPage.toInt();
-      _currentIndex = _pageNum - 1;
-      _total = total;
-    });
-    _loadQuestion();
+    return (-1, total);
   }
 
   String get _questionType => (_current?['questionType'] as String?) ?? 'single_choice';
   bool get _isMulti => _questionType == 'multiple_choice';
   bool get _isBlank => _questionType == 'fill_blank';
+  bool get _isShortAnswer => _questionType == 'short_answer';
+  bool get _isEssay => _questionType == 'essay';
+  /// 简答 / 论述：主观题，需人工对照参考答案
+  bool get _isManual => _isShortAnswer || _isEssay;
   /// 单选 / 判断：点选即自动提交
   bool get _isAutoSubmit => _questionType == 'single_choice' || _questionType == 'judgment';
 
@@ -143,13 +151,50 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     final list = (data?['list'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
     final total = (data?['total'] as num?)?.toInt() ?? 0;
     if (!mounted) return;
+    final cur = list.isNotEmpty ? list.first : null;
+    // 本次前往已做题（回顾）：直接把此前作答的对错/答案/解析呈现出来
+    final existing = _existingResultOf(cur);
     setState(() {
-      _current = list.isNotEmpty ? list.first : null;
+      _current = cur;
       _hasMore = _pageNum < total;
       _total = total;
       _isLoading = false;
+      _resetAnswer();
+      if (existing != null) {
+        _result = existing;
+        _applyMyAnswer(cur!);
+      }
     });
     _prefetchNext();
+  }
+
+  /// 若该题当前学生已作答，构造可直接展示的结果面板数据
+  Map<String, dynamic>? _existingResultOf(Map<String, dynamic>? q) {
+    if (q == null || q['answered'] != true) return null;
+    return {
+      'isCorrect': q['correct'],
+      'selectedAnswer': q['myAnswer'],
+      'correctAnswer': q['answer'],
+      'explanation': q['explanation'],
+    };
+  }
+
+  /// 把学生已作答案回填到输入控件，便于回顾时展示对错
+  void _applyMyAnswer(Map<String, dynamic> q) {
+    final my = (q['myAnswer'] as String?) ?? '';
+    if (_isMulti) {
+      _multiSelected = my
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .map(int.tryParse)
+          .whereType<int>()
+          .toSet();
+    } else if (_isBlank || _isManual) {
+      _blankCtl.text = my;
+    } else {
+      _selected = int.tryParse(my);
+    }
   }
 
   /// 后台预取下一题，让「下一题」几乎秒切
@@ -178,7 +223,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
   }
 
   Future<void> _submit({bool autoAdvance = false}) async {
-    if (_isBlank) {
+    if (_isBlank || _isManual) {
       if (_blankCtl.text.trim().isEmpty) {
         AppFeedback.info(context, '请先填写答案');
         return;
@@ -197,7 +242,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     if (_isMulti) {
       final list = _multiSelected.toList()..sort();
       answer = list.join(',');
-    } else if (_isBlank) {
+    } else if (_isBlank || _isManual) {
       answer = _blankCtl.text.trim();
     } else {
       answer = '$_selected';
@@ -212,15 +257,9 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     setState(() {
       _result = result;
       _submitting = false;
+      _current = {...?_current, 'answered': true, 'myAnswer': answer};
     });
-    if (result?.isNotEmpty == true) {
-      final qid = ((_current?['id'] as num?) ?? 0).toInt();
-      if (qid > 0) {
-        _answeredIds.add(qid);
-        await AnsweredQuestionStore.add(qid);
-      }
-    }
-    // 单选/判断 答对：自动进入下一题；答错：停留在本页展示解析
+    // 作答状态由后端落库；主观题 isCorrect 为 null，不走“自动进入下一题”
     if (autoAdvance && result?['isCorrect'] == true && _hasMore) {
       AppFeedback.success(context, '回答正确');
       Future.delayed(const Duration(milliseconds: 320), () {
@@ -232,6 +271,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
   void _next() {
     if (!_hasMore) return;
     final cached = _cachedNext;
+    final existing = cached != null ? _existingResultOf(cached) : null;
     setState(() {
       _pageNum++;
       _currentIndex++;
@@ -239,6 +279,10 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
       _resetAnswer();
       if (cached != null) {
         _current = cached;
+        if (existing != null) {
+          _result = existing;
+          _applyMyAnswer(cached);
+        }
         _isLoading = false;
         _hasMore = _pageNum < _total;
       } else {
@@ -318,10 +362,19 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     final q = _current!;
     final resolved = _result != null;
     final isCorrect = _result?['isCorrect'] == true;
+    final selfAssess = _result?['isCorrect'] == null;
     final options = (q['options'] as List<dynamic>?)?.cast<String>() ?? const [];
     final difficulty = q['difficulty'] as int? ?? 2;
     final difficultyLabel = difficulty == 1 ? '简单' : (difficulty == 3 ? '困难' : '标准');
-    final typeLabel = _isMulti ? '多选' : (_isBlank ? '填空' : (q['questionType'] == 'judgment' ? '判断' : '单选'));
+    final typeLabel = _isMulti
+        ? '多选'
+        : (_isBlank
+            ? '填空'
+            : (_isShortAnswer
+                ? '简答'
+                : (_isEssay
+                    ? '论述'
+                    : (q['questionType'] == 'judgment' ? '判断' : '单选'))));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
@@ -365,13 +418,17 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
         const SizedBox(height: 18),
         if (_isMulti)
           ...options.asMap().entries.map((e) => _multiOptionTile(e.key, e.value, resolved, isCorrect))
-        else if (_isBlank)
-          _blankField(resolved, isCorrect)
+        else if (_isBlank || _isManual)
+          _blankField(
+            _result?['isCorrect'],
+            maxLines: _isEssay ? 7 : (_isShortAnswer ? 4 : 1),
+            placeholder: _isManual ? '请输入你的作答，提交后对照参考答案' : '请输入答案',
+          )
         else
           ...options.asMap().entries.map((e) => _optionTile(e.key, e.value, resolved, isCorrect)),
         const SizedBox(height: 14),
         if (resolved) ...[
-          _answerPanel(isCorrect),
+          _answerPanel(isCorrect, selfAssess: selfAssess),
           if (!_hasMore) ...[
             const SizedBox(height: 14),
             AppGhostButton(
@@ -551,31 +608,39 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     );
   }
 
-  Widget _blankField(bool resolved, bool isCorrect) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.surfaceOf(context),
-            border: Border.all(
-              color: resolved ? (isCorrect ? AppColors.primary : AppColors.vermilionOf(context)) : AppColors.surfaceEdgeOf(context),
-              width: resolved ? 1.5 : 1,
-            ),
-            borderRadius: BorderRadius.circular(AppRadius.sm),
+  Widget _blankField(bool? outcome,
+    {int maxLines = 1, String placeholder = '请输入答案'}) {
+  // outcome：null=未判/主观题自评 -> 中性；true=答对；false=答错
+  final resolved = outcome != null;
+  final borderColor = resolved
+      ? (outcome == true ? AppColors.primary : AppColors.vermilionOf(context))
+      : AppColors.surfaceEdgeOf(context);
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          border: Border.all(
+            color: borderColor,
+            width: resolved ? 1.5 : 1,
           ),
-          child: TextField(
-            controller: _blankCtl,
-            enabled: !resolved,
-            style: TextStyle(fontSize: 14, color: AppColors.textOf(context)),
-            decoration: InputDecoration(
-              hintText: '请输入答案',
-              hintStyle: TextStyle(fontSize: 14, color: AppColors.text4Of(context)),
-              border: InputBorder.none,
-            ),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: TextField(
+          controller: _blankCtl,
+          enabled: !resolved,
+          maxLines: maxLines,
+          minLines: maxLines > 1 ? 2 : 1,
+          style: TextStyle(fontSize: 14, color: AppColors.textOf(context)),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: TextStyle(fontSize: 13, color: AppColors.text4Of(context)),
+            border: InputBorder.none,
           ),
         ),
+      ),
         if (resolved) ...[
           const SizedBox(height: 8),
           Text('你的答案：${_result?['selectedAnswer'] ?? ''}',
@@ -585,12 +650,26 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     );
   }
 
-  Widget _answerPanel(bool isCorrect) {
+  Widget _answerPanel(bool isCorrect, {bool selfAssess = false}) {
+    final accent = selfAssess
+        ? AppColors.amberOf(context)
+        : (isCorrect ? AppColors.primary : AppColors.vermilionOf(context));
+    final bg = selfAssess
+        ? AppColors.amberSoftOf(context)
+        : (isCorrect ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context));
+    final title = selfAssess
+        ? '参考答案（请自行对照核对）'
+        : (isCorrect ? '回答正确' : '回答错误');
+    final icon = selfAssess
+        ? Icons.rate_review_outlined
+        : (isCorrect ? Icons.check_circle : Icons.cancel);
+    final explanation = (_result?['explanation'] as String?) ?? '';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isCorrect ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context),
+        color: bg,
         borderRadius: BorderRadius.circular(AppRadius.md),
         boxShadow: AppShadow.card(context),
       ),
@@ -599,26 +678,31 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
         children: [
           Row(
             children: [
-              Icon(isCorrect ? Icons.check_circle : Icons.cancel,
-                  size: 18, color: isCorrect ? AppColors.primary : AppColors.vermilionOf(context)),
+              Icon(icon, size: 18, color: accent),
               const SizedBox(width: 6),
-              Text(isCorrect ? '回答正确' : '回答错误',
+              Text(title,
                   style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                      color: isCorrect ? AppColors.primary : AppColors.vermilionOf(context))),
+                      color: accent)),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            '正确答案：${_formatCorrectAnswer(_result?['correctAnswer'] ?? '')}',
+            '参考答案：${_formatCorrectAnswer(_result?['correctAnswer'] ?? '')}',
             style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.textOf(context)),
           ),
           const SizedBox(height: 6),
-          // AI 解析打字机（公共组件）
-          TypewriterText(
-            _result?['explanation'] as String? ?? '',
-            style: TextStyle(
-                fontSize: 12.5, height: 1.6, color: AppColors.text2Of(context)),
-          ),
+          if (explanation.isNotEmpty)
+            TypewriterText(
+              explanation,
+              style: TextStyle(
+                  fontSize: 12.5, height: 1.6, color: AppColors.text2Of(context)),
+            )
+          else
+            Text(
+              '该题暂无官方解析，请对照教材与参考答案自行理解。',
+              style: TextStyle(
+                  fontSize: 12, height: 1.6, color: AppColors.text3Of(context)),
+            ),
         ],
       ),
     );

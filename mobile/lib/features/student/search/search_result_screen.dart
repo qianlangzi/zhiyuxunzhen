@@ -77,40 +77,12 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
   Widget _buildSearchBar() {
     return Container(
       margin: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      height: 40,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, size: 18, color: AppColors.text3Of(context)),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _ctl,
-              textInputAction: TextInputAction.search,
-              onSubmitted: _search,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: '搜索教材 / 知识点 / 病例',
-                hintStyle: TextStyle(color: AppColors.text4Of(context), fontSize: 13),
-                border: InputBorder.none,
-              ),
-              style: TextStyle(fontSize: 13, color: AppColors.textOf(context)),
-            ),
-          ),
-          if (_ctl.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                _ctl.clear();
-                setState(() => _result = null);
-              },
-              child: Icon(Icons.close, size: 16, color: AppColors.text3Of(context)),
-            ),
-        ],
+      child: AppSearchField(
+        controller: _ctl,
+        hintText: '搜索教材 / 知识点 / 病例',
+        onSubmitted: _search,
+        onClear: () => setState(() => _result = null),
+        height: 44,
       ),
     );
   }

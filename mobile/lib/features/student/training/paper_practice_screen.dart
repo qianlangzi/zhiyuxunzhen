@@ -706,7 +706,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
 
     if (resolved) {
       if (isCorrectOption) {
-        bg = AppColors.mossTintOf(context);
+        bg = AppColors.primaryOf(context).withValues(alpha: 0.06);
         border = AppColors.primaryOf(context);
         fg = AppColors.primaryOf(context);
       } else if (isSelected) {
@@ -715,7 +715,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
         fg = AppColors.vermilionOf(context);
       }
     } else if (isSelected) {
-      bg = AppColors.mossTintOf(context);
+      bg = AppColors.primaryOf(context).withValues(alpha: 0.06);
       border = AppColors.primaryOf(context);
       fg = AppColors.primaryOf(context);
     }
@@ -779,7 +779,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
 
     if (resolved) {
       if (isCorrectOption) {
-        bg = AppColors.mossTintOf(context);
+        bg = AppColors.primaryOf(context).withValues(alpha: 0.06);
         border = AppColors.primaryOf(context);
         fg = AppColors.primaryOf(context);
       } else if (isSelected) {
@@ -788,7 +788,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
         fg = AppColors.vermilionOf(context);
       }
     } else if (isSelected) {
-      bg = AppColors.mossTintOf(context);
+      bg = AppColors.primaryOf(context).withValues(alpha: 0.06);
       border = AppColors.primaryOf(context);
       fg = AppColors.primaryOf(context);
     }
@@ -872,25 +872,19 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
   }
 
   Widget _answerPanel(bool isCorrect) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isCorrect ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        boxShadow: AppShadow.card(context),
-      ),
+    final accent = isCorrect ? AppColors.primaryOf(context) : AppColors.vermilionOf(context);
+    return AppCard(
+      borderLeft: accent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
               Icon(isCorrect ? Icons.check_circle : Icons.cancel,
-                  size: 18, color: isCorrect ? AppColors.primaryOf(context) : AppColors.vermilionOf(context)),
+                  size: 18, color: accent),
               const SizedBox(width: 6),
               Text(isCorrect ? '回答正确' : '回答错误',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600,
-                      color: isCorrect ? AppColors.primaryOf(context) : AppColors.vermilionOf(context))),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: accent)),
             ],
           ),
           const SizedBox(height: 8),
@@ -950,7 +944,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: pass ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context),
+                  color: pass ? AppColors.primaryOf(context).withValues(alpha: 0.08) : AppColors.vermilionSoftOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Row(

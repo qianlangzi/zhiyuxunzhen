@@ -445,6 +445,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
             ),
             // 左滑辅助托盘（松手 6s 自动隐藏，点按钮立即执行并收起）
             if (_trayVisible) _buildHelpTray(),
+            // 空闲微互动（2026-09-04）：45s 没开口在输入框上方浮出圆角胶囊，
+            // 带入场上浮 + 反复左滑手势动画；点 × 立即消失。托盘出现时让位。
+            if (_idleHintShown && !_trayVisible)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 118,
+                child: _IdleSwipeHint(
+                  onReveal: () {
+                    setState(() => _idleHintShown = false);
+                    _revealTray();
+                  },
+                  onDismiss: () => setState(() => _idleHintShown = false),
+                ),
+              ),
           ],
         ),
       ),
@@ -726,32 +741,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                 child: const Text('重试',
                     style: TextStyle(fontSize: 11, color: Colors.white)),
               ),
-            ),
-          ],
-        ),
-      );
-    }
-    // 空闲提醒（2026-09-03）：学生 45s 没开口时给一行小字，引导左滑唤出提示；
-    // 点按钮主动要提示，或继续对话后自动消失。不再占一块常驻横幅。
-    if (_idleHintShown) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 4, 12, 6),
-        child: Row(
-          children: [
-            Icon(Icons.swipe_left_rounded,
-                size: 15, color: AppColors.amberOf(context)),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text('没思路？向左滑动屏幕，唤出「提示 / 思维树 / 引用」',
-                  style: TextStyle(
-                      fontSize: 11.5, color: AppColors.text3Of(context))),
-            ),
-            GestureDetector(
-              onTap: () => setState(() => _idleHintShown = false),
-              behavior: HitTestBehavior.opaque,
-              child: Icon(Icons.close,
-                  size: 14, color: AppColors.text4Of(context)),
             ),
           ],
         ),
@@ -1634,14 +1623,9 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     if (_sessionId == null || _streaming) return;
     // 一次性：本次会话只提醒一次，避免反复打扰
     if (_idleHintShown) return;
-    setState(() {
-      _idleHintShown = true;
-      _trayVisible = true; // 顺手把辅助托盘也唤出来，省一次左滑
-    });
-    _trayTimer?.cancel();
-    _trayTimer = Timer(const Duration(seconds: 10), () {
-      if (mounted) setState(() => _trayVisible = false);
-    });
+    // 微互动（2026-09-04）：仅浮出胶囊教用户「左滑唤出」，不再自动拉出托盘，
+    // 让手势本身有存在感；点击胶囊即可直接唤出托盘（见 _IdleSwipeHint）。
+    setState(() => _idleHintShown = true);
   }
 
   void _onScroll() {
@@ -2193,5 +2177,157 @@ class _ThinkingTreeSheetState extends State<_ThinkingTreeSheet> {
       return ('需纠正', AppColors.vermilionOf(ctx));
     }
     return (s, AppColors.amberOf(ctx));
+  }
+}
+
+/// 空闲微互动（2026-09-04 新增）：底部输入框上方浮出的圆角胶囊。
+/// 入场「淡入 + 上浮」一步即止；随后左滑箭头反复循环（尾迹双箭头），
+/// 克制精致地示意「向左滑动唤出提示」，点 × 立即消失。
+class _IdleSwipeHint extends StatefulWidget {
+  const _IdleSwipeHint({
+    required this.onReveal,
+    required this.onDismiss,
+  });
+
+  /// 整颗胶囊点击：收起自身并唤出辅助托盘（免去一次滑动）。
+  final VoidCallback onReveal;
+
+  /// 右上角 ✕：仅收起胶囊。
+  final VoidCallback onDismiss;
+
+  @override
+  State<_IdleSwipeHint> createState() => _IdleSwipeHintState();
+}
+
+class _IdleSwipeHintState extends State<_IdleSwipeHint>
+    with SingleTickerProviderStateMixin {
+  static const _loopDur = Duration(milliseconds: 1500);
+
+  late final AnimationController _loop = AnimationController(
+    vsync: this,
+    duration: _loopDur,
+  )..repeat();
+
+  @override
+  void dispose() {
+    _loop.dispose();
+    super.dispose();
+  }
+
+  /// 把 [v] 平移 [lag] 后回绕到 [0,1)，用来制造一前一后两条「尾迹」箭头。
+  double _lag(double v, double lag) {
+    final wrapped = v - lag;
+    return wrapped < 0 ? wrapped + 1 : wrapped;
+  }
+
+  /// 三角窗：随 [v] 在 [peak] 处升到 1、向两边衰减到 0（循环往返，无硬跳变）。
+  double _tri(double v, double peak) {
+    const width = 0.32;
+    final d = (v - peak).abs();
+    if (d >= width) return 0;
+    return 1 - d / width;
+  }
+
+  Widget _chevron(double v, double lag,
+      {double opacity = 1, Color? color}) {
+    final t = _lag(v, lag);
+    final dx = -9 * t;
+    final opacityCurve = _tri(t, 0.28);
+    final dy = 1.2 * _tri(t, 0.28); // 轻微下沉，增强「划过」手感
+    return Opacity(
+      opacity: opacityCurve * opacity,
+      child: Transform.translate(
+        offset: Offset(dx, dy),
+        child: Icon(Icons.chevron_left_rounded, size: 13, color: color),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final amber = AppColors.amberOf(context);
+    const hint = '没思路？向左一滑，唤出「提示 · 思维树 · 引用」';
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child: Transform.translate(
+          offset: Offset(0, (1 - t) * 10),
+          child: child,
+        ),
+      ),
+      child: GestureDetector(
+        onTap: widget.onReveal,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceOf(context),
+            borderRadius: BorderRadius.circular(AppRadius.full),
+            border: Border.all(color: amber.withValues(alpha: 0.30)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.08),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 左滑尾迹（两个交错箭头，缓慢向左划过）
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: AnimatedBuilder(
+                  animation: _loop,
+                  builder: (context, _) {
+                    final v = _loop.value;
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        _chevron(v, 0.12, opacity: 0.5),
+                        _chevron(v, 0, color: amber),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              // 手心「滑动」图标
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: amber.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.swipe_left_rounded,
+                    size: 14, color: amber),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(hint,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.text2Of(context),
+                        height: 1.2)),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: widget.onDismiss,
+                behavior: HitTestBehavior.opaque,
+                child: Icon(Icons.close_rounded,
+                    size: 14, color: AppColors.text4Of(context)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

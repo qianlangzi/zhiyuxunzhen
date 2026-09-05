@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_colors.dart';
 import 'companion_conversation_provider.dart';
 
-/// 学伴会话历史抽屉（底部弹层）
+/// 学伴会话历史面板（右侧端抽屉 endDrawer）
 /// 展示按时间分组的会话列表，支持新建 / 重命名 / 删除，点击回调 [onSelect]。
 class CompanionHistoryDrawer extends ConsumerWidget {
   final int? currentId;
@@ -84,16 +84,15 @@ class CompanionHistoryDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final convs = ref.watch(companionConversationsProvider);
     final list = convs.valueOrNull ?? const <CompanionConversation>[];
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+    return Material(
+      color: AppColors.surfaceOf(context),
+      elevation: 0,
+      child: SafeArea(
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+              padding: const EdgeInsets.fromLTRB(16, 12, 4, 8),
               child: Row(
                 children: [
                   Text(
@@ -118,17 +117,28 @@ class CompanionHistoryDrawer extends ConsumerWidget {
                     icon: const Icon(Icons.add_comment_outlined, size: 18),
                     label: const Text('新对话'),
                   ),
+                  IconButton(
+                    tooltip: '关闭',
+                    onPressed: () => Navigator.pop(context),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: AppColors.textOf(context),
+                    ),
+                  ),
                 ],
               ),
             ),
+            Divider(
+              height: 1,
+              color: AppColors.surfaceEdgeOf(context),
+            ),
             if (convs.isLoading && list.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(32),
+              const Expanded(
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (list.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(24),
+              const Expanded(
                 child: Center(
                   child: Text(
                     '暂无历史会话',
@@ -137,9 +147,9 @@ class CompanionHistoryDrawer extends ConsumerWidget {
                 ),
               )
             else
-              Flexible(
+              Expanded(
                 child: ListView(
-                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: 16),
                   children: _grouped(list)
                       .entries
                       .expand(

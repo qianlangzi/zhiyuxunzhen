@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
@@ -30,6 +31,14 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
 
   final List<_CompanionMsg> _messages = [];
   bool _loading = false;
+
+  /// 发送防抖：单条消息在途标记。同一时刻只允许一条对话请求，
+  /// 避免连点发送/新建产生重复消息、重复建会话（"发你好没反应"的并发诱因之一）。
+  bool _sending = false;
+
+  /// 流是否已收到 done。看门狗据此判断"后台一直没回应"而主动收敛，
+  /// 否则后端 SseEmitter 0 超时 + LLM 卡住会无限转圈。
+  bool _streamDone = false;
 
   String _streamingText = '';
   bool _streamingDegraded = false;
@@ -92,6 +101,7 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
         _CompanionMsg(
           '嗨，我是你的 AI 学伴～ 学习累了、卡住了、或想聊聊学习方法，都可以找我。'
           '我也会结合你的错题和薄弱点给建议。今天想从哪儿开始？',
+          isGreeting: true,
         ),
       );
     });
@@ -110,6 +120,10 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
     final raw = _ctl.text.trim();
     final image = _pendingImage;
     if (raw.isEmpty && image == null) return;
+    // 发送防抖：上一轮请求在途时丢弃本次输入，避免重复消息 / 重复建会话
+    if (_sending) return;
+    _sending = true;
+    _streamDone = false;
     // 纯图消息给默认提示，保证后端 message 非空校验通过
     final text = image != null && raw.isEmpty ? '请帮我分析这张图片' : raw;
     _ctl.clear();
@@ -132,54 +146,94 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
     });
     _scrollToBottom();
 
-    // 会话历史：首次发送自动建会话，并落地用户消息
-    final convId = await _ensureConversation();
-    if (convId != null) {
-      await _persistMessage(convId, 'user', text, image);
-    }
-
-    // 组装历史（最近 10 轮），支持多轮追问
-    final history = _messages
-        .where((m) => !m.isPending)
-        .map(
-          (m) => {
-            'role': m.isUser ? 'user' : 'assistant',
-            'content': m.text,
-          },
-        )
-        .toList()
-      ..removeLast(); // 去掉刚加的当前问题（纯图消息保留空占位便于对齐）
-
-    await _companionStream(text, history,
-        imageUrl: image, conversationId: convId);
-    if (!mounted) return;
-    final reply = _streamingText.trim();
-    setState(() {
-      _loading = false;
-      // 被安全策略拦截时无 message：透出拦截原因，而非"开小差"
-      final blocked = _streamBlockedReason;
-      if (reply.isEmpty) {
-        _messages.add(
-          _CompanionMsg(
-            blocked ??
-                (_streamError ?? '抱歉，AI 学伴暂时开小差了，请稍后重试。'),
-            isError: blocked == null,
-          ),
-        );
-      } else {
-        _messages.add(_CompanionMsg(reply, degraded: _streamingDegraded));
+    try {
+      // 会话历史：首次发送自动建会话，并落地用户消息
+      final wasNew = _conversationId == null;
+      final convId = await _ensureConversation();
+      if (convId != null) {
+        await _persistMessage(convId, 'user', text, image);
       }
-      _streamingText = '';
-      _streamingDegraded = false;
-      _streamError = null;
-      _streamBlockedReason = null;
-    });
-    // 会话历史：将学伴回复落地到当前会话
-    final currentConv = _conversationId;
-    if (currentConv != null && reply.isNotEmpty) {
-      await _persistMessage(currentConv, 'assistant', reply);
+
+      // 组装历史（最近 10 轮），支持多轮追问。
+      // 排除开场问候语（isGreeting）：问候是 UI 交互提示，非真实对话轮次。
+      // 若把"assistant 问候 + 首条 user"作为新会话唯一历史，会产生没有 user 起头的
+      // 非法消息序列（assistant 先于首个 user），导致新对话模型拒绝/返回空——开新对话
+      // 无法正常使用的根因。
+      final history = _messages
+          .where((m) => !m.isPending && !m.isGreeting)
+          .map(
+            (m) => {
+              'role': m.isUser ? 'user' : 'assistant',
+              'content': m.text,
+            },
+          )
+          .toList()
+        ..removeLast(); // 去掉刚加的当前问题（纯图消息保留空占位便于对齐）
+
+      await _companionStream(text, history,
+          imageUrl: image, conversationId: convId);
+      if (!mounted) return;
+      final reply = _streamingText.trim();
+      setState(() {
+        // 被安全策略拦截时无 message：透出拦截原因，而非"开小差"
+        final blocked = _streamBlockedReason;
+        if (reply.isEmpty) {
+          _messages.add(
+            _CompanionMsg(
+              blocked ??
+                  (_streamError ?? '抱歉，AI 学伴暂时开小差了，请稍后重试。'),
+              isError: blocked == null,
+            ),
+          );
+        } else {
+          _messages.add(_CompanionMsg(reply, degraded: _streamingDegraded));
+        }
+        _streamingText = '';
+        _streamingDegraded = false;
+        _streamError = null;
+        _streamBlockedReason = null;
+      });
+      // 会话历史：将学伴回复落地到当前会话
+      final currentConv = _conversationId;
+      if (currentConv != null && reply.isNotEmpty) {
+        await _persistMessage(currentConv, 'assistant', reply);
+      }
+      // 新会话首个来回成功后，用首问作为标题自动重命名（替代恒为"新对话"）
+      if (wasNew && currentConv != null && reply.isNotEmpty) {
+        await _autoRename(currentConv, text);
+      }
+      _scrollToBottom();
+    } finally {
+      // 无论成功/异常/超时，都结束在途标记并收起加载态，绝不让 UI 卡在转圈
+      _sending = false;
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
-    _scrollToBottom();
+  }
+
+  /// 首问作为标题：命中式截取首条用户消息为新会话命名（ChatGPT 初始命名风格）。
+  /// 失败静默，标题保持默认"新对话"，不影响对话主流程。
+  Future<void> _autoRename(int convId, String text) async {
+    final title = _deriveTitle(text);
+    if (title.isEmpty) return;
+    try {
+      await ref
+          .read(companionConversationsProvider.notifier)
+          .rename(convId, title);
+    } catch (_) {
+      return; // 后端失败已回滚，保留原标题
+    }
+    if (!mounted) return;
+    setState(() => _conversationTitle = title);
+    await _rememberConversation(); // 同步缓存标题，重进页面续接时不再回退"新对话"
+  }
+
+  /// 从用户消息推导标题：取首行、去首尾空白、超过 20 字截断。
+  String _deriveTitle(String text) {
+    final clean = text.trim().split('\n').first.trim();
+    if (clean.isEmpty) return '';
+    return clean.length > 20 ? '${clean.substring(0, 20)}…' : clean;
   }
 
   Future<void> _companionStream(
@@ -190,6 +244,16 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   }) async {
     final token = CancelToken();
     _streamCancel = token;
+    // 流看门狗：后端 SseEmitter 不超时，若 LLM/代理一直没产出、也没收尾，
+    // 到点主动取消本次连接并透出超时原因，避免"发你好没反应"的无限转圈。
+    final watchdog = Timer(const Duration(seconds: 90), () {
+      if (!_streamDone) {
+        _streamCancel?.cancel('companion stream watchdog');
+        if (mounted) {
+          setState(() => _streamError = '学伴回复超时，请稍后重试');
+        }
+      }
+    });
     try {
       await for (final ev in StudentService().companionStream(
         message: text,
@@ -225,10 +289,12 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
               setState(() => _streamError = msg);
             }
           case 'done':
+            _streamDone = true;
             break;
         }
       }
     } finally {
+      watchdog.cancel();
       if (_streamCancel == token) _streamCancel = null;
     }
   }
@@ -268,6 +334,7 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgOf(context),
+      endDrawer: _sideHistoryDrawer(),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -322,7 +389,11 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   }
 
   /// 新开对话：清空当前消息并重新开场，相当于豆包/ChatGPT 的「新对话」
+  /// 防抖：上一轮请求在途时不响应（_sending），避免快速连点建出一堆新会话；
+  /// 同时取消可能还在挂着的 SSE 流，防止页面残留转圈。
   void _newConversation() {
+    if (_sending) return;
+    _streamCancel?.cancel('new conversation');
     _ctl.clear();
     SharedPreferences.getInstance().then((prefs) {
       prefs.remove(_lastConvKey);
@@ -336,25 +407,29 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
       _streamingText = '';
       _streamingDegraded = false;
       _streamError = null;
+      _streamDone = false;
       _loading = false;
       _messages.add(
         _CompanionMsg(
           '嗨，我是你的 AI 学伴～ 学习累了、卡住了、或想聊聊学习方法，都可以找我。'
           '我也会结合你的错题和薄弱点给建议。今天想从哪儿开始？',
+          isGreeting: true,
         ),
       );
     });
   }
 
-  /// 打开会话历史抽屉（底部弹层）
+  /// 打开会话历史（从右侧侧边划出）
   void _openHistory() {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (_) => CompanionHistoryDrawer(
+    Scaffold.of(context).openEndDrawer();
+  }
+
+  /// 组装侧边会话栏入口：宽度约占屏宽 82%，圆润边角
+  Widget _sideHistoryDrawer() {
+    final width = MediaQuery.of(context).size.width * 0.82;
+    return SizedBox(
+      width: width,
+      child: CompanionHistoryDrawer(
         currentId: _conversationId,
         onSelect: (id, title) {
           setState(() {
@@ -857,6 +932,7 @@ class _CompanionMsg {
   final bool degraded;
   final String? image;
   final bool isImageOnly;
+  final bool isGreeting;
 
   _CompanionMsg(
     this.text, {
@@ -865,5 +941,6 @@ class _CompanionMsg {
     this.degraded = false,
     this.image,
     this.isImageOnly = false,
+    this.isGreeting = false,
   }) : isPending = false;
 }

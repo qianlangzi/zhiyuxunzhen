@@ -269,63 +269,15 @@ class _CaseLibraryScreenState extends ConsumerState<CaseLibraryScreen> {
 
   // ---------- 搜索 ----------
   Widget _buildSearchBar() {
-    return Container(
-      height: 46,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.full),
-        border: Border.all(
-          color: AppColors.surfaceEdgeOf(context),
-        ),
-        boxShadow: AppShadow.card(context),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.search, size: 20, color: AppColors.text4Of(context)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _searchCtl,
-              onChanged: _onSearchChanged,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                isCollapsed: true,
-                border: InputBorder.none,
-                hintText: '搜索标题 / 症状 / 知识点',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.text4Of(context),
-                ),
-              ),
-              style: TextStyle(fontSize: 13, color: AppColors.textOf(context)),
-            ),
-          ),
-          if (_query.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                _searchDebounce?.cancel();
-                _searchCtl.clear();
-                setState(() => _query = '');
-                _reload();
-              },
-              child: Container(
-                width: 22,
-                height: 22,
-                decoration: BoxDecoration(
-                  color: AppColors.ruleSoftOf(context),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.clear_rounded,
-                  size: 14,
-                  color: AppColors.text3Of(context),
-                ),
-              ),
-            ),
-        ],
-      ),
+    return AppSearchField(
+      controller: _searchCtl,
+      hintText: '搜索标题 / 症状 / 知识点',
+      onChanged: _onSearchChanged,
+      onClear: () {
+        _searchDebounce?.cancel();
+        setState(() => _query = '');
+        _reload();
+      },
     );
   }
 

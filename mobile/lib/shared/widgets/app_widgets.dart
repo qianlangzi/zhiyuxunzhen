@@ -50,6 +50,218 @@ class _PressableScaleState extends State<PressableScale> {
   }
 }
 
+/// 上浮入场 —— 灵动微交互：元素以「轻微上移 + 淡入」入场。
+///
+/// 纯粹装饰，内容始终可达：动画结束态即内容最终态；开启「减少动态」时直接展示，
+/// 不做位移。用 [delay] 让列表元素错峰入场（stagger），形成灵动的序列感。
+class RiseIn extends StatefulWidget {
+  const RiseIn({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.offset = 12,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  /// 上移距离，单位像素。
+  final double offset;
+
+  @override
+  State<RiseIn> createState() => _RiseInState();
+}
+
+class _RiseInState extends State<RiseIn> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _anim;
+  bool _reduce = false;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // 注：不要在 initState 读取 MediaQuery（可访问，但 dependOn 在 initState 未完成前非法）。
+    _controller =
+        AnimationController(vsync: this, duration: const Duration(milliseconds: 480));
+    _anim = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 在正确的生命周期点读取「减少动态」偏好，并只触发一次入场动画。
+    _reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    if (!_started && !_reduce) {
+      _started = true;
+      Future.delayed(widget.delay, () {
+        if (mounted) _controller.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_reduce) return widget.child;
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (context, child) {
+        final t = _anim.value;
+        return Opacity(
+          opacity: t.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, widget.offset * (1 - t)),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// 可折叠区块 —— 灵动的手风琴：点击头部开合，内容以「高度 + 透明度」动画展开/
+/// 收起，箭头同步旋转。适合容纳数据密度较高的次级内容（如「分模块占比」）。
+class CollapsibleSection extends StatefulWidget {
+  const CollapsibleSection({
+    super.key,
+    required this.title,
+    required this.child,
+    this.meta,
+    this.initiallyExpanded = false,
+  });
+
+  /// 头部标题
+  final String title;
+
+  /// 头部右侧补充信息（如「共 N 个模块」）
+  final String? meta;
+
+  /// 可展开的主体
+  final Widget child;
+
+  final bool initiallyExpanded;
+
+  @override
+  State<CollapsibleSection> createState() => _CollapsibleSectionState();
+}
+
+class _CollapsibleSectionState extends State<CollapsibleSection>
+    with SingleTickerProviderStateMixin {
+  late bool _expanded;
+  late final AnimationController _controller;
+  bool _reduce = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      value: _expanded ? 1.0 : 0.0,
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 在正确的生命周期点读取「减少动态」偏好（initState 内 dependOn 会抛异常）。
+    _reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() {
+      _expanded = !_expanded;
+      if (_reduce) {
+        _controller.value = _expanded ? 1.0 : 0.0;
+      } else if (_expanded) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chevronTurns = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeInOut,
+      reverseCurve: Curves.easeInOut.flipped,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppPressable(
+          onTap: _toggle,
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.title,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text2Of(context),
+                    ),
+                  ),
+                ),
+                if (widget.meta != null) ...[
+                  MonoText(
+                    widget.meta!,
+                    fontSize: 10.5,
+                    color: AppColors.text4Of(context),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                RotationTransition(
+                  turns: Tween(begin: 0.0, end: 0.5).animate(chevronTurns),
+                  child: Icon(
+                    Icons.expand_more_rounded,
+                    size: 18,
+                    color: AppColors.text3Of(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        SizeTransition(
+          sizeFactor: CurvedAnimation(
+            parent: _controller,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+          alignment: Alignment.topCenter,
+          child: ClipRect(
+            child: Align(
+              alignment: Alignment.topCenter,
+              heightFactor: 1,
+              child: widget.child,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// 可点击组件 —— 按压灵动反馈（按压缩放 <100ms）+ 主题水波纹
 ///
 /// 统一「点击跟手」基线：按下即反馈，不阻塞点击。
@@ -1174,6 +1386,164 @@ const AppProgressBar({
             foregroundColor ?? AppColors.vermilionOf(context),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 搜索框
+// ============================================================
+
+/// 全局统一搜索框 —— 胶囊造型 + 聚焦高亮 + 内置清除按钮。
+///
+/// 设计约定：
+/// - 显式置空 TextField 的填充与描边（`filled: false` + 三态 `InputBorder.none`），
+///   避免全局 `InputDecorationTheme` 的 OutlineInputBorder / fillColor
+///   在容器内再画一层「双层胶囊」；
+/// - 聚焦时描边转主题色 + 阴影微浮起，反馈克制而清晰；
+/// - 清除按钮由组件内部监听 [controller] 自动显隐，页面无需 setState。
+class AppSearchField extends StatefulWidget {
+  const AppSearchField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    this.onChanged,
+    this.onSubmitted,
+    this.onClear,
+    this.textInputAction = TextInputAction.search,
+    this.height = 46,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+
+  /// 额外的清除回调（组件已负责 controller.clear()，页面只需刷新列表等）。
+  final VoidCallback? onClear;
+  final TextInputAction textInputAction;
+  final double height;
+
+  @override
+  State<AppSearchField> createState() => _AppSearchFieldState();
+}
+
+class _AppSearchFieldState extends State<AppSearchField> {
+  final FocusNode _focus = FocusNode();
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focus.addListener(() {
+      if (mounted && _focused != _focus.hasFocus) {
+        setState(() => _focused = _focus.hasFocus);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _clear() {
+    widget.controller.clear();
+    widget.onClear?.call();
+    widget.onChanged?.call('');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final edge = AppColors.surfaceEdgeOf(context);
+    final primary = AppColors.primaryOf(context);
+    final borderColor = _focused ? primary : edge;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOut,
+      height: widget.height,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        border: Border.all(color: borderColor, width: _focused ? 1.2 : 1.0),
+        boxShadow: AppShadow.leveled(level: _focused ? 4 : 2),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: _focused
+                  ? primary.withValues(alpha: 0.10)
+                  : AppColors.ruleSoftOf(context),
+              shape: BoxShape.circle,
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              Icons.search_rounded,
+              size: 17,
+              color: _focused ? primary : AppColors.text4Of(context),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _focus,
+              onChanged: widget.onChanged,
+              onSubmitted: widget.onSubmitted,
+              textInputAction: widget.textInputAction,
+              // 关键：显式关掉主题级填充与三态描边，杜绝「框中框」
+              style: TextStyle(
+                fontSize: 13.5,
+                color: AppColors.textOf(context),
+              ),
+              cursorColor: primary,
+              decoration: InputDecoration(
+                isCollapsed: true,
+                filled: false,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                hintText: widget.hintText,
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.text4Of(context),
+                ),
+              ),
+            ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: widget.controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return GestureDetector(
+                onTap: _clear,
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  margin: const EdgeInsets.only(left: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleSoftOf(context),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    Icons.close_rounded,
+                    size: 14,
+                    color: AppColors.text3Of(context),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

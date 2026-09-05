@@ -15,7 +15,8 @@ class MistakeEntry {
         typeKey = m['mistakeType'] as String? ?? '',
         resolvedStatus = (m['resolvedStatus'] as num?)?.toInt() ?? 0,
         date = m['createdAt'] as String? ?? '',
-        title = m['caseTitle'] as String? ?? '',
+        // 病例错题用 caseTitle；刷题错题用 questionTitle（题干）
+        title = (m['caseTitle'] as String?) ?? (m['questionTitle'] as String?) ?? '',
         evidence = m['evidenceJson'] as String? ?? '',
         tags = ((m['knowledgeTag'] as String? ?? '')
             .split(','))
@@ -56,6 +57,8 @@ class MistakeEntry {
         return '文书问题';
       case 'communication':
         return '沟通';
+      case 'practice':
+        return '刷题错题';
       default:
         return type ?? '未知';
     }
@@ -74,13 +77,15 @@ class MistakeEntry {
         return 'record';
       case '沟通':
         return 'communication';
+      case '刷题':
+        return 'practice';
       default:
         return null;
     }
   }
 
   /// 全部筛选标签
-  static const List<String> filterLabels = ['全部', '诊断', '病史', '检查', '病历', '沟通'];
+  static const List<String> filterLabels = ['全部', '诊断', '病史', '检查', '病历', '沟通', '刷题'];
 }
 
 /// 错题卡片 —— 成长页与错题本二级页共用
@@ -149,7 +154,7 @@ class _MistakeTileState extends State<MistakeTile> {
           child: Padding(
             padding: EdgeInsets.fromLTRB(
                 widget.compact ? 14 : 16, widget.compact ? 13 : 15, 16,
-                _expanded ? 14 : (widget.compact ? 13 : 15)),
+                _expanded ? 14 : (widget.compact ? 13 : 15),),
             child: Opacity(
               opacity: mastered ? 0.72 : 1.0,
               child: Column(
@@ -159,7 +164,7 @@ class _MistakeTileState extends State<MistakeTile> {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: 8, vertical: 3,),
                         decoration: BoxDecoration(
                           color: accent.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(AppRadius.full),
@@ -178,7 +183,7 @@ class _MistakeTileState extends State<MistakeTile> {
                       if (mastered)
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 7, vertical: 2),
+                              horizontal: 7, vertical: 2,),
                           decoration: BoxDecoration(
                             color: AppColors.mossTintOf(context),
                             borderRadius:
@@ -187,7 +192,7 @@ class _MistakeTileState extends State<MistakeTile> {
                           child: Text(
                             '已掌握',
                             style: TextStyle(
-                                fontSize: 10, color: AppColors.moss),
+                                fontSize: 10, color: AppColors.moss,),
                           ),
                         ),
                       const Spacer(),
@@ -317,11 +322,11 @@ class _AiAnalysisBlock extends StatelessWidget {
               width: 14,
               height: 14,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: AppColors.primaryOf(context)),
+                  strokeWidth: 2, color: AppColors.primaryOf(context),),
             ),
             const SizedBox(width: 9),
             MonoText('AI 归因分析中…',
-                fontSize: 11, color: AppColors.text3Of(context)),
+                fontSize: 11, color: AppColors.text3Of(context),),
           ],
         ),
       );
@@ -350,7 +355,7 @@ class _AiAnalysisBlock extends StatelessWidget {
         child: Row(
           children: [
             Icon(Icons.cloud_off_outlined,
-                size: 16, color: AppColors.vermilionOf(context)),
+                size: 16, color: AppColors.vermilionOf(context),),
             const SizedBox(width: 9),
             Expanded(
               child: Text(
@@ -363,7 +368,7 @@ class _AiAnalysisBlock extends StatelessWidget {
               onTap: onRetry,
               child: Text('重试',
                   style: TextStyle(
-                      fontSize: 12, color: AppColors.vermilionOf(context))),
+                      fontSize: 12, color: AppColors.vermilionOf(context),),),
             ),
           ],
         ),
@@ -391,12 +396,12 @@ class _AiAnalysisBlock extends StatelessWidget {
           Row(
             children: [
               Icon(Icons.auto_awesome_rounded,
-                  size: 13, color: AppColors.primaryOf(context)),
+                  size: 13, color: AppColors.primaryOf(context),),
               const SizedBox(width: 5),
               MonoText('AI 归因',
                   fontSize: 10,
                   color: AppColors.primaryOf(context),
-                  letterSpacing: 0.06),
+                  letterSpacing: 0.06,),
             ],
           ),
           if (rootCause.isNotEmpty) ...[

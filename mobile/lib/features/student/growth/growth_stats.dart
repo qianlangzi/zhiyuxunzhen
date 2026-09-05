@@ -189,4 +189,101 @@ class AbilityEntry {
   final String key;
   final String label;
   final double score;
+
+  /// 雷达图用的极短标签（取前两字：病史采集 → 病史）
+  String get shortLabel => label.length > 2 ? label.substring(0, 2) : label;
+}
+
+/// 刷题训练统计（GET /student/questions/stats）
+///
+/// 聚合「已刷、答对、答错、正确率」总览 + 分科室（模块）占比，
+/// 供成长页「训练解析」卡做答对/答错与模块分布可视化。
+@immutable
+class QuestionStats {
+  const QuestionStats({
+    required this.totalAnswered,
+    required this.correctCount,
+    required this.accuracy,
+    this.totalCount = 0,
+    this.modules = const [],
+  });
+
+  /// 从接口返回构造；无数据/字段缺失时退化为全零，绝不抛异常。
+  factory QuestionStats.fromApi(Map<String, dynamic>? data) {
+    final total = (data?['totalAnswered'] as num?)?.toInt() ?? 0;
+    final correct = (data?['correctCount'] as num?)?.toInt() ?? 0;
+    final accuracy = (data?['accuracy'] as num?)?.toDouble() ?? 0.0;
+    final bankTotal = (data?['totalCount'] as num?)?.toInt() ?? 0;
+
+    final modules = <ModuleStat>[];
+    final raw = data?['byDepartment'] as List<dynamic>?;
+    if (raw != null) {
+      for (final m in raw) {
+        if (m is! Map) continue;
+        final answered = (m['answered'] as num?)?.toInt() ?? 0;
+        modules.add(ModuleStat(
+          name: (m['department'] as String?)?.trim().isNotEmpty == true
+              ? (m['department'] as String).trim()
+              : '未分类',
+          answered: answered,
+          correct: (m['correct'] as num?)?.toInt() ?? 0,
+          accuracy: (m['accuracy'] as num?)?.toDouble() ?? 0.0,
+          share: total <= 0 ? 0.0 : answered / total,
+        ),);
+      }
+      // 做题量降序，把重点模块排前面
+      modules.sort((a, b) => b.answered.compareTo(a.answered));
+    }
+
+    return QuestionStats(
+      totalAnswered: total,
+      correctCount: correct,
+      accuracy: accuracy,
+      totalCount: bankTotal,
+      modules: modules,
+    );
+  }
+
+  /// 累计已刷题数（去重题）
+  final int totalAnswered;
+
+  /// 累计答对题数
+  final int correctCount;
+
+  /// 总体正确率 0.00 ~ 1.00
+  final double accuracy;
+
+  /// 题库题目总量（用于展示「题库共 N 题」）
+  final int totalCount;
+
+  /// 按科室（模块）聚合，做题量降序
+  final List<ModuleStat> modules;
+
+  /// 答错题数
+  int get wrongCount => totalAnswered - correctCount;
+
+  /// 是否已有刷题记录
+  bool get hasData => totalAnswered > 0;
+}
+
+/// 单个模块（科室）的刷题统计
+@immutable
+class ModuleStat {
+  const ModuleStat({
+    required this.name,
+    required this.answered,
+    required this.correct,
+    required this.accuracy,
+    required this.share,
+  });
+
+  final String name;
+  final int answered;
+  final int correct;
+
+  /// 该模块正确率 0.00 ~ 1.00
+  final double accuracy;
+
+  /// 该模块做题量占总量的占比 0.00 ~ 1.00
+  final double share;
 }

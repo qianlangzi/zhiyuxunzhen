@@ -416,35 +416,13 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
 
   // ---------- 顶部搜索框 ----------
   Widget _buildSearchBar() {
-    return Container(
+    return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: TextField(
+      child: AppSearchField(
         controller: _searchCtl,
+        hintText: '搜索教材 · 书名 / 作者 / 科室 / 知识点',
         onChanged: _onQueryChanged,
-        textInputAction: TextInputAction.search,
-        style: TextStyle(fontSize: 14, color: AppColors.textOf(context)),
-        decoration: InputDecoration(
-          hintText: '搜索教材 · 书名 / 作者 / 科室 / 知识点',
-          hintStyle: TextStyle(fontSize: 13, color: AppColors.text4Of(context)),
-          prefixIcon: Icon(Icons.search, size: 18, color: AppColors.text3Of(context)),
-          suffixIcon: _query.isNotEmpty
-              ? GestureDetector(
-                  onTap: _clearSearch,
-                  child: Icon(Icons.close, size: 16, color: AppColors.text4Of(context)),
-                )
-              : null,
-          filled: true,
-          fillColor: AppColors.surfaceOf(context),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            borderSide: BorderSide(color: AppColors.surfaceEdgeOf(context)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(AppRadius.full),
-            borderSide: BorderSide(color: AppColors.primaryOf(context), width: 1.5),
-          ),
-        ),
+        onClear: _clearSearch,
       ),
     );
   }

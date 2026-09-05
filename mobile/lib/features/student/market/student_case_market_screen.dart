@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../routes/route_names.dart';
-import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../../common/data/drug_api.dart';
 import '../data/student_service.dart';
@@ -85,10 +84,6 @@ class _StudentCaseMarketScreenState
       tag: '内科教研 · 学生端',
       title: '训练中心',
       subtitle: '病例问诊 · 刷题 · 组卷，从这开始练',
-      action: AppIconButton(
-        icon: const Icon(Icons.search_rounded, size: 20),
-        onPressed: () => context.pushNamed(RouteNames.caseLibrary),
-      ),
       loading: _isLoading,
       onRefresh: _load,
       bottomInset: 104,

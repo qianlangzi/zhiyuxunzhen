@@ -19,6 +19,7 @@ class StudyHeatmapCard extends StatelessWidget {
     this.activityDays,
     this.stats,
     this.onDetail,
+    this.dense = false,
   });
 
   /// 原始活动数据 `{'date': '2026-08-29', 'completedCount': 3}`
@@ -29,6 +30,12 @@ class StudyHeatmapCard extends StatelessWidget {
 
   /// 右上角「详情」回调
   final VoidCallback? onDetail;
+
+  /// 精简模式：隐藏三宫格指标行，只在头部给一句摘要。
+  ///
+  /// 成长页已经用 Hero 卡承担了「连续 / 累计」两个主指标，
+  /// 热力卡再摆一排数字就是重复轰炸，故提供此开关。
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +68,9 @@ class StudyHeatmapCard extends StatelessWidget {
               ),
               const Spacer(),
               MonoText(
-                '$year · 累计 ${s.totalTrainings} 次',
+                dense
+                    ? '$year · 本月 ${s.thisMonthTrainings} 次 · 活跃 ${s.activeDays} 天'
+                    : '$year · 累计 ${s.totalTrainings} 次',
                 fontSize: 11,
                 color: AppColors.text3Of(context),
               ),
@@ -71,21 +80,23 @@ class StudyHeatmapCard extends StatelessWidget {
                   onTap: onDetail,
                   behavior: HitTestBehavior.opaque,
                   child: Icon(Icons.chevron_right,
-                      size: 16, color: AppColors.text4Of(context)),
+                      size: 16, color: AppColors.text4Of(context),),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: 13),
-          Row(
-            children: [
-              _metric(context, '本月', '${s.thisMonthTrainings}'),
-              _divider(context),
-              _metric(context, '最长连续', '${s.longestStreakDays} 天'),
-              _divider(context),
-              _metric(context, '活跃', '${s.activeDays} 天'),
-            ],
-          ),
+          if (!dense) ...[
+            const SizedBox(height: 13),
+            Row(
+              children: [
+                _metric(context, '本月', '${s.thisMonthTrainings}'),
+                _divider(context),
+                _metric(context, '最长连续', '${s.longestStreakDays} 天'),
+                _divider(context),
+                _metric(context, '活跃', '${s.activeDays} 天'),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           HeatmapGrid(activityDays: activityDays),
           const SizedBox(height: 11),
@@ -94,7 +105,7 @@ class StudyHeatmapCard extends StatelessWidget {
             children: [
               Text('少',
                   style: TextStyle(
-                      fontSize: 10, color: AppColors.text4Of(context))),
+                      fontSize: 10, color: AppColors.text4Of(context),),),
               const SizedBox(width: 6),
               for (var i = 0; i < 5; i++) ...[
                 Container(
@@ -110,7 +121,7 @@ class StudyHeatmapCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text('多',
                   style: TextStyle(
-                      fontSize: 10, color: AppColors.text4Of(context))),
+                      fontSize: 10, color: AppColors.text4Of(context),),),
             ],
           ),
         ],

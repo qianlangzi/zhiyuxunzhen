@@ -180,23 +180,26 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // 满分提示条
+                // 卷面小结：中性展示，避免大面积色块
                 Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
-                    color: AppColors.mossTintOf(context),
+                    color: AppColors.paper2Of(context),
                     borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.auto_awesome_rounded, size: 15, color: primary),
+                      Icon(Icons.tune_rounded, size: 15, color: AppColors.text3Of(context)),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(
-                          '本卷预估满分 $_totalScore 分 · 共 $_totalQuestions 题',
-                          style: TextStyle(fontSize: 12, color: primary, fontWeight: FontWeight.w600),
+                        child: MonoText(
+                          '共 $_totalQuestions 题 · 本卷满分 $_totalScore 分',
+                          fontSize: 11,
+                          color: AppColors.text2Of(context),
+                          weight: FontWeight.w600,
                         ),
                       ),
+                      Icon(Icons.auto_awesome_rounded, size: 13, color: AppColors.indigoOf(context)),
                     ],
                   ),
                 ),
@@ -225,40 +228,49 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
   /// 头部：AI 图标块 + 标题 + 当前分值徽标
   Widget _buildHeader() {
     final primary = AppColors.primaryOf(context);
+    final indigo = AppColors.indigoOf(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [primary, AppColors.moss3Of(context)],
-              ),
+              color: AppColors.indigoSoftOf(context),
               borderRadius: BorderRadius.circular(AppRadius.md),
-              boxShadow: AppShadow.lifted(context),
             ),
-            child: Icon(Icons.auto_awesome, size: 18, color: AppColors.onPrimaryOf(context)),
+            child: Icon(Icons.auto_awesome_rounded, size: 20, color: indigo),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SerifText('AI 组卷配置', fontSize: 15, color: AppColors.textOf(context), weight: FontWeight.w700),
-                const SizedBox(height: 2),
-                MonoText('选择题型与范围，AI 按薄弱点优先组卷', fontSize: 10, color: AppColors.text4Of(context)),
+                Row(
+                  children: [
+                    SerifText('AI 组卷配置', fontSize: 15, color: AppColors.textOf(context), weight: FontWeight.w700),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.indigoSoftOf(context),
+                        borderRadius: BorderRadius.circular(AppRadius.full),
+                      ),
+                      child: MonoText('智能选项', fontSize: 8, color: indigo, weight: FontWeight.w700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                MonoText('薄弱点优先 · AI 按题库候选智能选题', fontSize: 10, color: AppColors.text4Of(context)),
               ],
             ),
           ),
           const SizedBox(width: 8),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: AppColors.mossTintOf(context),
+              color: primary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(AppRadius.full),
             ),
             child: MonoText('$_scoreLabel 分/题', fontSize: 10, color: primary, weight: FontWeight.w700),
@@ -431,7 +443,7 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
     );
   }
 
-  /// 题型胶囊：选中实底 + 白字（主强调）
+  /// 题型胶囊：选中态用极浅主色底 + 主色描边（克制，避免大面积色块）
   Widget _typePill({
     required ({String value, String label, IconData icon}) t,
     required bool selected,
@@ -449,22 +461,14 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(
-            color: selected ? primary : AppColors.surfaceOf(context),
+            color: selected ? primary.withValues(alpha: 0.10) : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(AppRadius.full),
             border: Border.all(
               color: selected ? primary : AppColors.ruleOf(context),
+              width: selected ? 1.3 : 1,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: primary.withValues(alpha: 0.18),
-                      offset: const Offset(0, 3),
-                      blurRadius: 8,
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -472,15 +476,15 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
               Icon(
                 t.icon,
                 size: 13,
-                color: selected ? AppColors.onPrimaryOf(context) : AppColors.text3Of(context),
+                color: selected ? primary : AppColors.text3Of(context),
               ),
               const SizedBox(width: 5),
               Text(
                 t.label,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: selected ? AppColors.onPrimaryOf(context) : AppColors.text2Of(context),
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  color: selected ? primary : AppColors.text2Of(context),
                 ),
               ),
             ],
@@ -507,7 +511,7 @@ class _PaperConfigFormState extends ConsumerState<PaperConfigForm> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
           decoration: BoxDecoration(
             color: selected
-                ? (emphasized ? primary : AppColors.mossTintOf(context))
+                ? (emphasized ? primary : primary.withValues(alpha: 0.08))
                 : AppColors.surfaceOf(context),
             borderRadius: BorderRadius.circular(AppRadius.full),
             border: Border.all(

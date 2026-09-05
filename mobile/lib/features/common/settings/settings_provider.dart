@@ -75,7 +75,7 @@ class AppSettings {
     this.textScale = TextScale.normal,
     this.darkModeSetting = DarkModeSetting.auto,
     this.agreedToTerms = false,
-    this.themePreset = ThemePreset.herb,
+    this.themePreset = ThemePreset.inkSteel,
   });
 
   AppSettings copyWith({
@@ -105,7 +105,7 @@ class AppSettings {
         agreedToTerms: json['agreedToTerms'] as bool? ?? false,
         themePreset: ThemePreset.values.firstWhere(
           (t) => t.name == json['themePreset'],
-          orElse: () => ThemePreset.herb,
+          orElse: () => ThemePreset.inkSteel,
         ),
       );
 
