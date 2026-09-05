@@ -266,7 +266,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
                   height: 26,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: AppColors.moss,
+                    color: AppColors.primaryOf(context),
                     borderRadius: BorderRadius.circular(AppRadius.full),
                   ),
                   child: Text(
@@ -310,7 +310,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
               const SizedBox(height: 6),
               _metaRow(
                   icon: Icons.task_alt_rounded,
-                  iconColor: AppColors.moss,
+                  iconColor: AppColors.primaryOf(context),
                   text: '完成标准 · $target'),
             ],
             if (resources.isNotEmpty) ...[
@@ -370,7 +370,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
               height: 24,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: AppColors.moss,
+                color: AppColors.primaryOf(context),
                 borderRadius: BorderRadius.circular(AppRadius.full),
               ),
               child: Text('${index + 1}',
@@ -410,7 +410,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.source_outlined, size: 18, color: AppColors.moss),
+              Icon(Icons.source_outlined, size: 18, color: AppColors.primaryOf(context)),
               const SizedBox(width: 6),
               SerifText('证据溯源 · 教材引用',
                   fontSize: 14, color: AppColors.textOf(context)),

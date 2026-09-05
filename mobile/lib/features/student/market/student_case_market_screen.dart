@@ -106,7 +106,7 @@ class _StudentCaseMarketScreenState
       children: [
         Row(children: [
           Expanded(child: _trainCell(
-            icon: Icons.folder_copy_rounded, color: AppColors.moss,
+            icon: Icons.folder_copy_rounded, color: AppColors.primaryOf(context),
             title: '病例库', subtitle: '浏览 · 查找全部病例',
             onTap: () => context.pushNamed(RouteNames.caseLibrary),
           )),

@@ -176,7 +176,7 @@ class _PracticeAnswerScreenState extends ConsumerState<PracticeAnswerScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(Icons.emoji_events_outlined,
-                                size: 16, color: AppColors.moss),
+                                size: 16, color: AppColors.primaryOf(context)),
                             const SizedBox(width: 6),
                             Text(
                               _hasEssay
@@ -185,7 +185,7 @@ class _PracticeAnswerScreenState extends ConsumerState<PracticeAnswerScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
-                                color: AppColors.moss,
+                                color: AppColors.primaryOf(context),
                               ),
                             ),
                           ],
@@ -254,7 +254,7 @@ class _PracticeAnswerScreenState extends ConsumerState<PracticeAnswerScreen> {
         border: Border.all(
           color: _submitted
               ? (correct == true
-                  ? AppColors.moss.withValues(alpha: 0.5)
+                  ? AppColors.primaryOf(context).withValues(alpha: 0.5)
                   : (correct == false
                       ? AppColors.vermilionOf(context).withValues(alpha: 0.5)
                       : AppColors.surfaceEdgeOf(context)))
@@ -312,7 +312,7 @@ class _PracticeAnswerScreenState extends ConsumerState<PracticeAnswerScreen> {
                           Icon(
                             correct ? Icons.check_circle_rounded : Icons.cancel_rounded,
                             size: 17,
-                            color: correct ? AppColors.moss : AppColors.vermilionOf(context),
+                            color: correct ? AppColors.primaryOf(context) : AppColors.vermilionOf(context),
                           ),
                         ],
                       ],

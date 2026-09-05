@@ -423,7 +423,7 @@ class _StudentAppealsScreenState extends ConsumerState<StudentAppealsScreen> {
                     style: TextStyle(
                         fontSize: 11.5,
                         height: 1.5,
-                        color: AppColors.moss)),
+                        color: AppColors.primaryOf(context))),
               ),
             ],
             if (createdAt.isNotEmpty) ...[

@@ -551,8 +551,8 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     if (resolved) {
       if (isCorrectOption) {
         bg = AppColors.mossTintOf(context);
-        border = AppColors.primary;
-        fg = AppColors.primary;
+        border = AppColors.primaryOf(context);
+        fg = AppColors.primaryOf(context);
       } else if (isSelected) {
         bg = AppColors.vermilionSoftOf(context);
         border = AppColors.vermilionOf(context);
@@ -595,7 +595,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
                   borderRadius: BorderRadius.circular(AppRadius.xs),
                 ),
                 child: (isSelected || isCorrectOption)
-                    ? Center(child: Icon(Icons.check, size: 13, color: isCorrectOption ? AppColors.primary : border))
+                    ? Center(child: Icon(Icons.check, size: 13, color: isCorrectOption ? AppColors.primaryOf(context) : border))
                     : null,
               ),
               const SizedBox(width: 10),
@@ -613,7 +613,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
   // outcome：null=未判/主观题自评 -> 中性；true=答对；false=答错
   final resolved = outcome != null;
   final borderColor = resolved
-      ? (outcome == true ? AppColors.primary : AppColors.vermilionOf(context))
+      ? (outcome == true ? AppColors.primaryOf(context) : AppColors.vermilionOf(context))
       : AppColors.surfaceEdgeOf(context);
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -653,7 +653,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
   Widget _answerPanel(bool isCorrect, {bool selfAssess = false}) {
     final accent = selfAssess
         ? AppColors.amberOf(context)
-        : (isCorrect ? AppColors.primary : AppColors.vermilionOf(context));
+        : (isCorrect ? AppColors.primaryOf(context) : AppColors.vermilionOf(context));
     final bg = selfAssess
         ? AppColors.amberSoftOf(context)
         : (isCorrect ? AppColors.mossTintOf(context) : AppColors.vermilionSoftOf(context));
@@ -731,8 +731,8 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
     if (resolved) {
       if (isCorrectOption) {
         bg = AppColors.mossTintOf(context);
-        border = AppColors.primary;
-        fg = AppColors.primary;
+        border = AppColors.primaryOf(context);
+        fg = AppColors.primaryOf(context);
       } else if (isSelected) {
         bg = AppColors.vermilionSoftOf(context);
         border = AppColors.vermilionOf(context);
@@ -772,7 +772,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
                           width: 10,
                           height: 10,
                           decoration: BoxDecoration(
-                            color: isCorrectOption ? AppColors.primary : border,
+                            color: isCorrectOption ? AppColors.primaryOf(context) : border,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -782,7 +782,7 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
               const SizedBox(width: 10),
               Expanded(child: Text(text, style: TextStyle(fontSize: 14, color: fg))),
               if (resolved && isCorrectOption)
-                const Icon(Icons.check_circle, size: 16, color: AppColors.primary),
+                Icon(Icons.check_circle, size: 16, color: AppColors.primaryOf(context)),
             ],
           ),
         ),

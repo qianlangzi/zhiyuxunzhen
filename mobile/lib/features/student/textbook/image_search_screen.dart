@@ -134,7 +134,7 @@ class _ImageSearchScreenState extends ConsumerState<ImageSearchScreen> {
                 height: 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: AppColors.moss,
+                  color: AppColors.primaryOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.full),
                 ),
                 child: const Icon(Icons.image_search_rounded,
@@ -307,9 +307,9 @@ class _ImageSearchScreenState extends ConsumerState<ImageSearchScreen> {
                   color: AppColors.mossTintOf(context),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(Icons.menu_book_rounded,
-                      size: 17, color: AppColors.primary),
+                      size: 17, color: AppColors.primaryOf(context)),
                 ),
               ),
               const SizedBox(width: 10),

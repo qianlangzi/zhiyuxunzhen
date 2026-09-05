@@ -236,7 +236,7 @@ class _AssignmentCard extends StatelessWidget {
           color: done ? AppColors.mossTintOf(context) : AppColors.bgOf(context),
           borderRadius: BorderRadius.circular(AppRadius.full),
           border: Border.all(
-            color: done ? AppColors.moss.withValues(alpha: 0.5) : AppColors.ruleOf(context),
+            color: done ? AppColors.primaryOf(context).withValues(alpha: 0.5) : AppColors.ruleOf(context),
           ),
         ),
         child: Row(
@@ -246,7 +246,7 @@ class _AssignmentCard extends StatelessWidget {
               width: 6,
               height: 6,
               decoration: BoxDecoration(
-                color: done ? AppColors.moss : typeColor,
+                color: done ? AppColors.primaryOf(context) : typeColor,
                 shape: BoxShape.circle,
               ),
             ),
@@ -255,7 +255,7 @@ class _AssignmentCard extends StatelessWidget {
               title.isEmpty ? '任务' : title,
               style: TextStyle(
                 fontSize: 10,
-                color: done ? AppColors.moss : AppColors.text2Of(context),
+                color: done ? AppColors.primaryOf(context) : AppColors.text2Of(context),
               ),
             ),
           ],

@@ -312,7 +312,7 @@ class _LearningArchiveScreenState extends ConsumerState<LearningArchiveScreen> {
               child: _shortcutCard(
                 context,
                 icon: Icons.route_rounded,
-                color: AppColors.moss,
+                color: AppColors.primaryOf(context),
                 label: '学习路径',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const LearningPathScreen()),

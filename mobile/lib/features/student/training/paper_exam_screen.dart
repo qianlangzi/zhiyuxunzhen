@@ -207,7 +207,7 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
           child: Row(
             children: [
-              Icon(Icons.lock_outline, size: 13, color: AppColors.primary),
+              Icon(Icons.lock_outline, size: 13, color: AppColors.primaryOf(context)),
               const SizedBox(width: 4),
               MonoText('考试中 · 提交后可查看答案与解析', fontSize: 11, color: AppColors.text4Of(context)),
               const Spacer(),
@@ -219,7 +219,7 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
           value: (_index + 1) / _total,
           minHeight: 4,
           backgroundColor: AppColors.paper2Of(context),
-          valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+          valueColor: AlwaysStoppedAnimation(AppColors.primaryOf(context)),
         ),
         Expanded(
           child: ListView(
@@ -314,11 +314,11 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
                 width: 18,
                 height: 18,
                 decoration: BoxDecoration(
-                  border: Border.all(color: isSelected ? AppColors.primary : AppColors.ruleOf(context), width: 1.5),
+                  border: Border.all(color: isSelected ? AppColors.primaryOf(context) : AppColors.ruleOf(context), width: 1.5),
                   shape: multi ? BoxShape.rectangle : BoxShape.circle,
                 ),
                 child: isSelected
-                    ? Center(child: Icon(Icons.check, size: 13, color: AppColors.primary))
+                    ? Center(child: Icon(Icons.check, size: 13, color: AppColors.primaryOf(context)))
                     : null,
               ),
               const SizedBox(width: 10),
@@ -365,14 +365,14 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
           ),
           child: Column(
             children: [
-              Icon(pass ? Icons.emoji_events_outlined : Icons.trending_up, size: 40, color: pass ? AppColors.amberOf(context) : AppColors.primary),
+              Icon(pass ? Icons.emoji_events_outlined : Icons.trending_up, size: 40, color: pass ? AppColors.amberOf(context) : AppColors.primaryOf(context)),
               const SizedBox(height: 10),
               SerifText('考试完成', fontSize: 18, color: AppColors.textOf(context), weight: FontWeight.w700),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _stat('$_correctCount', '答对', AppColors.primary),
+                  _stat('$_correctCount', '答对', AppColors.primaryOf(context)),
                   _stat('$_total', '总题数', AppColors.indigoOf(context)),
                   _stat('${(accuracy * 100).toStringAsFixed(0)}%', '正确率', AppColors.amberOf(context)),
                 ],
@@ -400,7 +400,7 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
       decoration: BoxDecoration(
         color: AppColors.surfaceOf(context),
         border: Border.all(
-          color: ok ? AppColors.primary.withValues(alpha: 0.4) : AppColors.vermilionOf(context).withValues(alpha: 0.4),
+          color: ok ? AppColors.primaryOf(context).withValues(alpha: 0.4) : AppColors.vermilionOf(context).withValues(alpha: 0.4),
         ),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
@@ -409,11 +409,11 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
         children: [
           Row(
             children: [
-              Icon(ok ? Icons.check_circle : Icons.cancel, size: 17, color: ok ? AppColors.primary : AppColors.vermilionOf(context)),
+              Icon(ok ? Icons.check_circle : Icons.cancel, size: 17, color: ok ? AppColors.primaryOf(context) : AppColors.vermilionOf(context)),
               const SizedBox(width: 6),
               MonoText('第 ${i + 1} 题', fontSize: 11, color: AppColors.text4Of(context)),
               const Spacer(),
-              Text(ok ? '正确' : '错误', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ok ? AppColors.primary : AppColors.vermilionOf(context))),
+              Text(ok ? '正确' : '错误', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: ok ? AppColors.primaryOf(context) : AppColors.vermilionOf(context))),
             ],
           ),
           const SizedBox(height: 6),
@@ -421,7 +421,7 @@ class _PaperExamScreenState extends ConsumerState<PaperExamScreen> {
           const SizedBox(height: 8),
           Text('你的答案：${r['selectedAnswer'] ?? ''}', style: TextStyle(fontSize: 12, color: AppColors.text2Of(context))),
           const SizedBox(height: 2),
-          Text('正确答案：$correctText', style: TextStyle(fontSize: 12, color: ok ? AppColors.primary : AppColors.vermilionOf(context))),
+          Text('正确答案：$correctText', style: TextStyle(fontSize: 12, color: ok ? AppColors.primaryOf(context) : AppColors.vermilionOf(context))),
           if ((r['explanation'] as String?)?.isNotEmpty == true) ...[
             const SizedBox(height: 6),
             Text('解析：${r['explanation']}', style: TextStyle(fontSize: 12.5, height: 1.6, color: AppColors.text2Of(context))),

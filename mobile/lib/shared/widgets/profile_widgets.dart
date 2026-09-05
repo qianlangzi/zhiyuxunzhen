@@ -148,9 +148,9 @@ class ProfileHero extends StatelessWidget {
                             ),
                             child: Text(
                               badge!,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 10,
-                                color: AppColors.primary,
+                                color: AppColors.primaryOf(context),
                               ),
                             ),
                           ),

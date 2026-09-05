@@ -192,7 +192,7 @@ class _MistakeTileState extends State<MistakeTile> {
                           child: Text(
                             '已掌握',
                             style: TextStyle(
-                                fontSize: 10, color: AppColors.moss,),
+                                fontSize: 10, color: AppColors.primaryOf(context),),
                           ),
                         ),
                       const Spacer(),

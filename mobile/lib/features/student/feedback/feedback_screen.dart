@@ -246,8 +246,8 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.history_rounded,
-                  size: 18, color: AppColors.moss),
+              Icon(Icons.history_rounded,
+                  size: 18, color: AppColors.primaryOf(context)),
               const SizedBox(width: 6),
               SerifText('我的反馈记录', fontSize: 14, color: AppColors.textOf(context)),
               const Spacer(),
@@ -324,7 +324,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: status == 1
-                        ? AppColors.moss.withValues(alpha: 0.12)
+                        ? AppColors.primaryOf(context).withValues(alpha: 0.12)
                         : AppColors.text4Of(context).withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(AppRadius.full),
                   ),
@@ -333,7 +333,7 @@ class _FeedbackScreenState extends ConsumerState<FeedbackScreen> {
                     style: TextStyle(
                       fontSize: 10,
                       color: status == 1
-                          ? AppColors.moss
+                          ? AppColors.primaryOf(context)
                           : AppColors.text3Of(context),
                     ),
                   ),

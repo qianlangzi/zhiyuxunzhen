@@ -132,8 +132,8 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
               color: AppColors.mossTintOf(context),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: const Center(
-              child: Icon(Icons.menu_book_rounded, size: 20, color: AppColors.primary),
+            child: Center(
+              child: Icon(Icons.menu_book_rounded, size: 20, color: AppColors.primaryOf(context)),
             ),
           ),
           const SizedBox(width: 12),
@@ -207,7 +207,7 @@ class _SearchResultScreenState extends ConsumerState<SearchResultScreen> {
               width: 4,
               height: 36,
               decoration: BoxDecoration(
-                color: AppColors.primary,
+                color: AppColors.primaryOf(context),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

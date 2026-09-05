@@ -702,8 +702,8 @@ class _CoverPlaceholder extends StatelessWidget {
       ),
       child: Center(
         child: initial.isEmpty
-            ? Icon(Icons.menu_book_rounded, size: 24, color: AppColors.primary)
-            : SerifText(initial, fontSize: 26, color: AppColors.primary),
+            ? Icon(Icons.menu_book_rounded, size: 24, color: AppColors.primaryOf(context))
+            : SerifText(initial, fontSize: 26, color: AppColors.primaryOf(context)),
       ),
     );
   }

@@ -322,7 +322,7 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
                     height: 26,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AppColors.moss,
+                      color: AppColors.primaryOf(context),
                       borderRadius: BorderRadius.circular(AppRadius.full),
                     ),
                     child: Icon(Icons.psychology_alt_outlined,

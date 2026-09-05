@@ -673,7 +673,7 @@ class _CodeButton extends StatelessWidget {
         style: TextStyle(
           fontSize: 13,
           fontWeight: FontWeight.w600,
-          color: disabled ? AppColors.ink4 : AppColors.primaryOf(context),
+          color: disabled ? AppColors.text4Of(context) : AppColors.primaryOf(context),
         ),
       ),
     );

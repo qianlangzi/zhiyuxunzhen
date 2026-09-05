@@ -105,7 +105,7 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
         const SizedBox(width: 10),
         _statusCard('已复习', reviewed, AppColors.amberOf(context)),
         const SizedBox(width: 10),
-        _statusCard('已掌握', mastered, AppColors.moss),
+        _statusCard('已掌握', mastered, AppColors.primaryOf(context)),
       ],
     );
   }

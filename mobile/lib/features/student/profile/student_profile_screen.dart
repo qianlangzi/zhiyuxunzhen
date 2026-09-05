@@ -72,7 +72,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                     ProfileStatsStrip(
                       stats: [
                         ProfileStat('${_stats.totalTrainings}', '累计训练',
-                            AppColors.primary),
+                            AppColors.primaryOf(context)),
                         ProfileStat('${_stats.streakDays}', '连续天数',
                             AppColors.amberOf(context)),
                         ProfileStat(
@@ -112,7 +112,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
               children: [
                 ProfileMenuTile(
                   icon: Icons.folder_copy_outlined,
-                  color: AppColors.moss,
+                  color: AppColors.primaryOf(context),
                   title: '学习档案',
                   onTap: () => context.pushNamed(RouteNames.learningArchive),
                 ),
@@ -124,7 +124,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                 ),
                 ProfileMenuTile(
                   icon: Icons.thumb_up_alt_outlined,
-                  color: AppColors.moss,
+                  color: AppColors.primaryOf(context),
                   title: '批阅申诉',
                   onTap: () => context.pushNamed(RouteNames.studentAppeals),
                 ),
