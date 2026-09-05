@@ -9,12 +9,16 @@ import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.result.PageResult;
+import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.DailyCaseSchedule;
 import com.zhiyu.entity.DailyCaseSubmission;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.StudentMistakes;
+import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.DailyCaseScheduleMapper;
 import com.zhiyu.mapper.DailyCaseSubmissionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.DailyCaseService;
 import com.zhiyu.service.dto.DailyCaseAnswerDTO;
@@ -32,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 /**
  * 每日一例服务实现（PRD 4.10 / 4.16 / 8.10）
@@ -41,12 +46,22 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class DailyCaseServiceImpl implements DailyCaseService {
 
-    private static final String TODAY_KEY = "daily_case_today";
+    // v2：结构升级（新增 patientProfile/keyFindings），与旧缓存不兼容故提升版本号
+    private static final String TODAY_KEY = "daily_case_today_v2";
     private static final Duration TODAY_TTL = Duration.ofDays(2);
+
+    /** 业务时区：容器为 UTC，日期必须显式按北京时间计算，否则 0~8 点会取到前一天 */
+    private static final ZoneId ZONE_CN = ZoneId.of("Asia/Shanghai");
+
+    private static LocalDate todayCn() {
+        return LocalDate.now(ZONE_CN);
+    }
 
     private final DailyCaseScheduleMapper scheduleMapper;
     private final DailyCaseSubmissionMapper submissionMapper;
     private final SpCaseConfigMapper caseMapper;
+    private final ChatSessionMapper chatSessionMapper;
+    private final StudentMistakesMapper mistakeMapper;
     private final AiPlatformClient aiPlatformClient;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
@@ -102,6 +117,8 @@ public class DailyCaseServiceImpl implements DailyCaseService {
                     .difficulty(c == null ? null : c.getDifficulty())
                     .publishDate(s.getPublishDate())
                     .targetGrade(s.getTargetGrade())
+                    .patientProfile(c == null ? null : c.getPatientProfile())
+                    .keyFindings(c == null ? null : extractKeyFindings(c.getPresetExams()))
                     .question(s.getQuestion())
                     .optionsJson(s.getOptionsJson())
                     .textbookRef(s.getTextbookRef())
@@ -114,19 +131,53 @@ public class DailyCaseServiceImpl implements DailyCaseService {
     @Override
     public DailyCaseVO today() {
         String cached = redisTemplate.opsForValue().get(TODAY_KEY);
+        DailyCaseVO vo;
         if (cached != null && !cached.isBlank()) {
-            DailyCaseVO vo = parseVo(cached);
-            if (vo != null) {
-                return vo;
+            vo = parseVo(cached);
+            // 日期兜底：缓存里的 publishDate 不是今天（如容器重启错过 0 点 cron、TTL 未到期）一律视为过期，
+            // 立即按当天日期重新排期，绝不把昨天的题留给学生
+            if (vo != null && !todayCn().equals(vo.getPublishDate())) {
+                log.info("每日一例缓存日期过期: cachedDate={} today={}, 重新排期", vo.getPublishDate(), todayCn());
+                vo = null;
             }
+            if (vo == null) {
+                vo = resolveAndCacheToday();
+            }
+        } else {
+            vo = resolveAndCacheToday();
         }
-        return resolveAndCacheToday();
+        // 病例内容全局缓存，但「已做/进行中/未做」是按学生实时计算的个人状态，逐请求查询拼接
+        if (vo != null && vo.getCaseId() != null) {
+            vo.setLastSessionStatus(resolveSessionStatus(vo.getCaseId()));
+        }
+        return vo;
     }
 
-    /** 每天 0 点自动排期（Asia/Shanghai；可用 zhiyu.daily-case.cron 覆盖） */
-    @Scheduled(cron = "${zhiyu.daily-case.cron:0 0 0 * * *}")
+    /** 当前学生对指定病例最近一次问诊状态：null未做过 / 0进行中 / 1已完成 / 2评估异常 */
+    private Integer resolveSessionStatus(Long caseId) {
+        try {
+            Long studentId = UserContext.requireUserId();
+            if (studentId == null) {
+                return null;
+            }
+            ChatSession last = chatSessionMapper.selectOne(
+                    new LambdaQueryWrapper<ChatSession>()
+                            .eq(ChatSession::getStudentId, studentId)
+                            .eq(ChatSession::getCaseId, caseId)
+                            .in(ChatSession::getStatus, 0, 1, 2)
+                            .orderByDesc(ChatSession::getId)
+                            .last("LIMIT 1"));
+            return last == null ? null : last.getStatus();
+        } catch (Exception e) {
+            log.debug("每日一例查询个人问诊状态失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /** 每天 0 点自动排期（按北京时间；可用 zhiyu.daily-case.cron 覆盖） */
+    @Scheduled(cron = "${zhiyu.daily-case.cron:0 0 0 * * *}", zone = "Asia/Shanghai")
     public void autoScheduleToday() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = todayCn();
         log.info("每日一例自动排期开始: date={}", today);
         DailyCaseSchedule s = selectTodaySchedule();
         if (s != null) {
@@ -165,11 +216,12 @@ public class DailyCaseServiceImpl implements DailyCaseService {
 
     @Transactional(rollbackFor = Exception.class)
     protected DailyCaseSchedule tryAutoPickToday() {
-        SpCaseConfig c = caseMapper.selectRandomUnusedCase();
+        // 最久未推荐优先：先用从未上过的，用完从库里轮转复用，池子不会耗尽
+        SpCaseConfig c = caseMapper.selectRandomDailyCase();
         if (c == null) {
             return null;
         }
-        LocalDate today = LocalDate.now();
+        LocalDate today = todayCn();
         DailyCaseSchedule s = new DailyCaseSchedule();
         s.setCaseId(c.getId());
         s.setPublishDate(today);
@@ -197,11 +249,41 @@ public class DailyCaseServiceImpl implements DailyCaseService {
                 .difficulty(c == null ? null : c.getDifficulty())
                 .publishDate(s.getPublishDate())
                 .targetGrade(s.getTargetGrade())
+                .patientProfile(c == null ? null : c.getPatientProfile())
+                .keyFindings(c == null ? null : extractKeyFindings(c.getPresetExams()))
                 .question(s.getQuestion())
                 .optionsJson(s.getOptionsJson())
                 .textbookRef(s.getTextbookRef())
                 .status(s.getStatus())
                 .build();
+    }
+
+    /** 将 presetExams JSON 数组格式化为可展示文本：每项"项目：结果"一行，方便画像+检查全展示 */
+    private String extractKeyFindings(String presetExamsJson) {
+        if (presetExamsJson == null || presetExamsJson.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode arr = objectMapper.readTree(presetExamsJson);
+            if (!arr.isArray()) {
+                return presetExamsJson;
+            }
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode it : arr) {
+                String name = it.path("name").asText("");
+                String result = it.path("result").asText("");
+                if (name.isBlank() && result.isBlank()) {
+                    continue;
+                }
+                if (sb.length() > 0) {
+                    sb.append("\n");
+                }
+                sb.append(name).append("：").append(result);
+            }
+            return sb.length() == 0 ? null : sb.toString();
+        } catch (Exception e) {
+            return presetExamsJson;
+        }
     }
 
     private void writeToRedis(DailyCaseVO vo) {
@@ -232,6 +314,8 @@ public class DailyCaseServiceImpl implements DailyCaseService {
                     .difficulty(n.path("difficulty").isNull() ? null : n.path("difficulty").asInt())
                     .publishDate(pDate.isEmpty() ? null : LocalDate.parse(pDate))
                     .targetGrade(textOrNull(n.path("targetGrade")))
+                    .patientProfile(textOrNull(n.path("patientProfile")))
+                    .keyFindings(textOrNull(n.path("keyFindings")))
                     .question(textOrNull(n.path("question")))
                     .optionsJson(textOrNull(n.path("optionsJson")))
                     .textbookRef(textOrNull(n.path("textbookRef")))
@@ -266,24 +350,8 @@ public class DailyCaseServiceImpl implements DailyCaseService {
             throw new BizException(ResultCode.DUPLICATE_SUBMIT, "今日病例已经提交过");
         }
 
-        DailyCaseResultVO result;
-        String evaluationJson;
-        if (s.getStandardAnswer() != null && !s.getStandardAnswer().isBlank()) {
-            boolean correct = s.getStandardAnswer().trim().equalsIgnoreCase(dto.getAnswer().trim());
-            result = DailyCaseResultVO.builder()
-                    .scheduleId(s.getId())
-                    .evaluated(true)
-                    .correct(correct)
-                    .correctAnswer(s.getStandardAnswer())
-                    .explanation(s.getAnswerExplanation())
-                    .textbookRef(s.getTextbookRef())
-                    .degraded(false)
-                    .build();
-            evaluationJson = toJson(result);
-        } else {
-            result = evaluateWithAi(studentId, s, dto.getAnswer());
-            evaluationJson = toJson(result);
-        }
+        DailyCaseResultVO result = evaluateWithAi(studentId, s, dto.getAnswer());
+        String evaluationJson = toJson(result);
 
         DailyCaseSubmission submission = new DailyCaseSubmission();
         submission.setScheduleId(s.getId());
@@ -293,27 +361,47 @@ public class DailyCaseServiceImpl implements DailyCaseService {
         submission.setEvaluationJson(evaluationJson);
         submission.setSubmittedAt(LocalDateTime.now());
         submissionMapper.insert(submission);
+
+        // 答错且非降级（确已评审）→ 自动收进错题本，供复习
+        if (Boolean.FALSE.equals(result.getCorrect()) && !Boolean.TRUE.equals(result.getDegraded())) {
+            addToMistakes(studentId, s, dto.getAnswer(), result.getCorrectAnswer());
+        }
         return result;
+    }
+
+    /** 将每日一例错答写入错题本（caseId 关联；course 类型为空，仅病例错题） */
+    private void addToMistakes(Long studentId, DailyCaseSchedule schedule, String answer, String correctAnswer) {
+        try {
+            StudentMistakes m = new StudentMistakes();
+            m.setStudentId(studentId);
+            m.setCaseId(schedule.getCaseId());
+            m.setMistakeType("practice");
+            m.setStudentAnswer(answer);
+            m.setStandardAnswer(correctAnswer == null ? null : correctAnswer);
+            m.setKnowledgeTag(null);
+            m.setResolvedStatus(0);
+            mistakeMapper.insert(m);
+            log.info("每日一例错答入错题本: studentId={} caseId={} scheduleId={}", studentId, schedule.getCaseId(), schedule.getId());
+        } catch (Exception e) {
+            log.warn("每日一例错答入错题本失败: {}", e.getMessage());
+        }
     }
 
     private DailyCaseResultVO evaluateWithAi(Long studentId, DailyCaseSchedule schedule, String answer) {
         try {
-            // 获取病例配置，构建完整 AI 判题上下文
+            // 获取病例配置，构建完整 AI 判题上下文；开放作答一律走 AI 对照标准诊断评审
             SpCaseConfig caseConfig = schedule.getCaseId() == null ? null : caseMapper.selectById(schedule.getCaseId());
             String caseSummary = null;
             String keyFindings = null;
-            if (caseConfig != null) {
-                StringBuilder summaryBuilder = new StringBuilder();
-                if (caseConfig.getPatientProfile() != null) {
-                    summaryBuilder.append("患者画像：").append(caseConfig.getPatientProfile()).append("\n");
-                }
-                if (caseConfig.getHiddenDisease() != null) {
-                    summaryBuilder.append("潜在疾病：").append(caseConfig.getHiddenDisease());
-                }
-                caseSummary = summaryBuilder.length() > 0 ? summaryBuilder.toString() : null;
-                keyFindings = caseConfig.getPresetExams();
-            }
             String standardAnswer = schedule.getStandardAnswer();
+            if (caseConfig != null) {
+                caseSummary = caseConfig.getPatientProfile();
+                keyFindings = extractKeyFindings(caseConfig.getPresetExams());
+                // 评分金标准优先取病例参考诊断；排期未配置时以此兜底
+                if (caseConfig.getReferenceAnswer() != null && !caseConfig.getReferenceAnswer().isBlank()) {
+                    standardAnswer = caseConfig.getReferenceAnswer();
+                }
+            }
             String raw = aiPlatformClient.evaluateDailyCase(studentId, schedule.getCaseId(), answer,
                     caseSummary, keyFindings, standardAnswer);
             JsonNode data = objectMapper.readTree(raw).path("data");
