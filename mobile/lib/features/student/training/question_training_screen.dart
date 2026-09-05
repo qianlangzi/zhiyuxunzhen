@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
-import '../../../shared/widgets/app_motion.dart';
+import '../../../shared/widgets/paper_surfaces.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
@@ -45,38 +45,24 @@ class _QuestionTrainingScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            AppBackAppBar(
-              title: '基础题库',
-              onBack: () => context.canPop()
-                  ? context.pop()
-                  : context.goNamed(RouteNames.studentHome),
-            ),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
-                        children: [
-                          AppReveal(child: _buildBankEntry()),
-                          const SizedBox(height: 20),
-                          AppReveal(
-                            delay: const Duration(milliseconds: 90),
-                            child: _buildDeptSection(),
-                          ),
-                        ],
-                      ),
-                    ),
-            ),
-          ],
-        ),
+    return AmbientScaffold(
+      tag: '内科教研 · 学生端',
+      title: '基础题库',
+      onBack: () => context.canPop()
+          ? context.pop()
+          : context.goNamed(RouteNames.studentHome),
+      onRefresh: _load,
+      loading: _isLoading,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 30),
+        children: [
+          RiseIn(child: _buildBankEntry()),
+          const SizedBox(height: 20),
+          RiseIn(
+            delay: const Duration(milliseconds: 90),
+            child: _buildDeptSection(),
+          ),
+        ],
       ),
     );
   }
@@ -155,7 +141,7 @@ class _QuestionTrainingScreenState
         Text('直接进入某科室练习，进度会在本地自动续接',
             style: TextStyle(fontSize: 12, color: AppColors.text4Of(context))),
         const SizedBox(height: 12),
-        ..._departments.asMap().entries.map((e) => AppReveal(
+        ..._departments.asMap().entries.map((e) => RiseIn(
               delay: Duration(milliseconds: 130 + e.key * 45),
               child: _deptTile(e.value),
             )),

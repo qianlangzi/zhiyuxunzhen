@@ -62,32 +62,46 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ProfileHero(
-                      initial: initial,
-                      displayName: displayName,
-                      subtitle: subtitle,
-                      avatarPath: user?.avatarPath,
-                      onEdit: () => context.pushNamed(RouteNames.profileEdit),
+                    RiseIn(
+                      child: ProfileHero(
+                        initial: initial,
+                        displayName: displayName,
+                        subtitle: subtitle,
+                        avatarPath: user?.avatarPath,
+                        onEdit: () => context.pushNamed(RouteNames.profileEdit),
+                      ),
                     ),
-                    ProfileStatsStrip(
-                      stats: [
-                        ProfileStat('${_stats.totalTrainings}', '累计训练',
-                            AppColors.primaryOf(context)),
-                        ProfileStat('${_stats.streakDays}', '连续天数',
-                            AppColors.amberOf(context)),
-                        ProfileStat(
-                            _stats.hasAbility
-                                ? _stats.osceAvg.toStringAsFixed(1)
-                                : '—',
-                            'OSCE 均分',
-                            AppColors.indigoOf(context)),
-                      ],
+                    RiseIn(
+                      delay: const Duration(milliseconds: 80),
+                      child: ProfileStatsStrip(
+                        stats: [
+                          ProfileStat('${_stats.totalTrainings}', '累计训练',
+                              AppColors.primaryOf(context)),
+                          ProfileStat('${_stats.streakDays}', '连续天数',
+                              AppColors.amberOf(context)),
+                          ProfileStat(
+                              _stats.hasAbility
+                                  ? _stats.osceAvg.toStringAsFixed(1)
+                                  : '—',
+                              'OSCE 均分',
+                              AppColors.indigoOf(context)),
+                        ],
+                      ),
                     ),
-                    _buildStudySection(context),
-                    _buildGeneralSection(context),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: MedicalDisclaimer(),
+                    RiseIn(
+                      delay: const Duration(milliseconds: 160),
+                      child: _buildStudySection(context),
+                    ),
+                    RiseIn(
+                      delay: const Duration(milliseconds: 220),
+                      child: _buildGeneralSection(context),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: RiseIn(
+                        delay: const Duration(milliseconds: 260),
+                        child: const MedicalDisclaimer(),
+                      ),
                     ),
                   ],
                 ),
