@@ -29,6 +29,7 @@ COPY --from=repo / /app/mmore_repo
 # 2) 从 PyPI CPU 索引装纯 CPU 版 torch（避免默认拉取数 GB 的 CUDA/nvidia 库）
 # 3) 安装 mmore 的 process+cpu 最小依赖集 + API 包装器
 RUN apt-get remove -y python3-sympy python3-mpmath 2>/dev/null; \
+    pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
     cd /app/mmore_repo && \
     pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
