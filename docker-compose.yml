@@ -215,7 +215,10 @@ services:
   # ==================== MMORE PDF 处理服务 ====================
   # 多模态 PDF 解析：图文分离、表格提取、OCR
   # AI Worker 通过 HTTP 调用此服务处理上传的教材 PDF
+  # 构建上下文引用 experiments/mmore/repo（gitignore，不在 git 内），
+  # 因此设为可选 profile：默认 up 不构建不启动；需要 PDF 入库时加 --profile mmore
   mmore:
+    profiles: ["mmore"]
     build:
       context: ./mmore
       dockerfile: Dockerfile
