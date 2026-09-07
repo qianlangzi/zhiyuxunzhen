@@ -265,14 +265,22 @@ services:
 # ==================== 数据卷 ====================
 volumes:
   mysql_data:
+    # 卷名可用环境变量覆盖：服务器从旧项目目录迁移时，指向旧项目的实际卷名
+    # （默认值 = 本地开发行为，保持不变）
+    name: ${MYSQL_DATA_VOLUME:-mysql_data}
   # 复用既有（外部）数据卷，避免容器重建/项目化后向量库等数据被孤立。
   # 这些卷由早期手动容器创建（未加 zhiyu_ 前缀），已含真实数据。
+  # 服务器迁移场景：在 .env 里用 XXX_DATA_VOLUME 指向旧卷实际名称。
   redis_data:
     external: true
+    name: ${REDIS_DATA_VOLUME:-redis_data}
   milvus_data:
     external: true
+    name: ${MILVUS_DATA_VOLUME:-milvus_data}
   etcd_data:
     external: true
+    name: ${ETCD_DATA_VOLUME:-etcd_data}
   minio_data:
     external: true
+    name: ${MINIO_DATA_VOLUME:-minio_data}
   flutter_pub_cache:
