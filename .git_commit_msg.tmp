@@ -1,9 +1,0 @@
-feat: 每日病历闭环 / AI Agent 统一网关 / 错题本改进（backend+ai+mobile+front）
-
-- backend: 新增 DailyMr 系列（控制器/服务/实体/VO/迁移 V43），每日病历提示与提交闭环
-- backend: 新增 TraceIdInterceptor + AiHttpClient 及 Mentor/Companion/Coach/Consultation/Evaluator/Teacher/Lesson 门面客户端，统一 /internal/agent 调用
-- backend: 错题本闭环（V42、MistakeAnalysisTrigger）；课件任务进度（V45）；删除旧每日病例相关接口
-- ai: 新增 agent_gateway / gateway_features / mr 端点，config_center 热配，Agent 采样修复；同步修正各类 workers/工作流/测试
-- mobile: 每日病历（工坊/题库/日历/报告）、引导层(guide/)、课件资料预览、OSCE历史、教师每日病历控制台、通用 media_url/patient_profile 工具；学伴会话全局常驻修复
-- front: aiConfig / AiAgentManage 适配统一网关
-- docs: 新增每日病历、SP多模态、病案训练、错题本、Agent审计白皮书
