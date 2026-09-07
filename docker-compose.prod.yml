@@ -139,7 +139,9 @@ services:
       # HTTPS 证书(按需)
       # - ./deploy/nginx/certs:/etc/nginx/certs:ro
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost/nginx-health"]
+      # 用 127.0.0.1 而非 localhost：容器内 localhost 可能解析为 IPv6 ::1，
+      # 而 nginx 只监听 IPv4，会导致健康检查误报 unhealthy
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1/nginx-health"]
       interval: 30s
       timeout: 5s
       retries: 3
