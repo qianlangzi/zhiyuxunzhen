@@ -27,7 +27,7 @@ from app.core.errors import (
     OutputSchemaInvalidError,
     RetrievalUnavailableError,
 )
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.domain.policies.safety_policy import safety_policy
 from app.models.common import R
@@ -36,6 +36,8 @@ from app.models.teacher import (
     CaseDraftResult,
     ClassInsightRequest,
     ClassInsightResult,
+    MaterialAdviceRequest,
+    MaterialAdviceResult,
     PracticeQuestionsRequest,
     PracticeQuestionsResult,
     QualityRequest,
@@ -48,6 +50,7 @@ from app.models.teacher import (
 from app.prompts.templates import (
     case_draft_prompt,
     class_insight_prompt,
+    material_advice_prompt,
     practice_questions_prompt,
     quality_check_prompt,
     recommend_cases_prompt,
@@ -83,7 +86,7 @@ async def generate_case_draft(
     req: CaseDraftRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # 未配置大模型时直接给出可操作提示（避免降级文案被当作 JSON 解析后报 schema 错，
@@ -163,7 +166,7 @@ async def class_insight(
     req: ClassInsightRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         stats_text = "\n".join(f"- {s.label}: {s.value}" for s in req.stats) or "（暂无统计）"
@@ -210,7 +213,7 @@ async def review_assist(
     req: ReviewAssistRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # RAG：用批阅中的扣分点/诊断关键词检索教材，作为复核依据（防幻觉）
@@ -264,7 +267,7 @@ async def recommend_cases(
     req: RecommendCasesRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         if not req.candidateCases:
@@ -319,7 +322,7 @@ async def quality_check(
     req: QualityRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # RAG：以隐藏疾病检索教材，作为质检依据
@@ -370,7 +373,7 @@ async def practice_questions(
     req: PracticeQuestionsRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # RAG：以知识点+隐藏疾病检索教材，作为出题事实锚点
@@ -409,5 +412,45 @@ async def practice_questions(
         log_event(logger, WARNING, "practice_questions_failed", trace_id=trace_id,
                   error=type(e).__name__, msg=str(e))
         return R(code=500, message=f"练习题生成失败：{e}", data=None)
+    finally:
+        reset_context()
+
+# ---------- 7. 病例素材智能推荐 ----------
+
+@router.post("/case/material_advice", response_model=R)
+async def material_advice(
+    req: MaterialAdviceRequest,
+    _token: None = Depends(require_internal_token),
+):
+    """教师构建病例时，AI 推荐应准备的多模态材料清单（X光/CT/心电图/报告单等）。
+
+    纯归纳型能力：只基于病例自身信息推荐，不引入教材 RAG，杜绝编造检查依据。
+    """
+    trace_id = ensure_trace_id()
+    set_context(trace_id=trace_id)
+    try:
+        existing = "、".join(req.existingExams) if req.existingExams else "（暂无）"
+        messages = [
+            {"role": "system", "content": material_advice_prompt(
+                title=req.title, department=req.department, complaint=req.complaint,
+                hidden_disease=req.hiddenDisease, present_illness=req.presentIllness,
+                existing=existing,
+            )},
+            {"role": "user", "content": "请按 schema 输出素材建议 JSON。"},
+        ]
+        raw = await llm_client.chat(messages, trace_id=trace_id)
+        result: MaterialAdviceResult = await structured_output.parse_and_validate(
+            raw, MaterialAdviceResult, trace_id=trace_id,
+        )
+        log_event(logger, INFO, "material_advice_done", trace_id=trace_id,
+                  case_id=req.caseId, suggestions=len(result.suggestions))
+        return R(data=result.model_dump())
+    except ApiError as e:
+        log_event(logger, WARNING, "material_advice_unavailable", trace_id=trace_id, code=e.code)
+        return R(code=e.http_status, message=e.message, data=None)
+    except Exception as e:  # noqa: BLE001
+        log_event(logger, WARNING, "material_advice_failed", trace_id=trace_id,
+                  error=type(e).__name__, msg=str(e))
+        return R(code=500, message=f"素材推荐失败：{e}", data=None)
     finally:
         reset_context()

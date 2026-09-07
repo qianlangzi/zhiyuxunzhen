@@ -174,7 +174,11 @@ class CompanionConversationNotifier
   }
 }
 
-final companionConversationsProvider = StateNotifierProvider.autoDispose<
+/// 会话列表状态全局常驻：CompanionScreen 仅通过 `ref.read(...).create()`
+/// 在异步发送中重建/追加会话，若改用 autoDispose 会在 await 期间因无可观察
+/// 依赖而被 dispose，回到 create() 再写 state 抛 `Bad state: ... after dispose`，
+/// 导致「用户消息已显示但 AI 无回复」。故不 autoDispose。
+final companionConversationsProvider = StateNotifierProvider<
     CompanionConversationNotifier, AsyncValue<List<CompanionConversation>>>(
   (ref) => CompanionConversationNotifier()..load(),
 );

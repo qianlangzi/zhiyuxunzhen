@@ -44,6 +44,10 @@ dependencies:
   printing: ^5.13.3
   pdfx: ^2.11.0
 
+  # 课件资料在线预览（视频 / 音频）
+  video_player: ^2.9.2
+  audioplayers: ^6.1.0
+
   # Secure Storage
   flutter_secure_storage: ^9.2.2
 

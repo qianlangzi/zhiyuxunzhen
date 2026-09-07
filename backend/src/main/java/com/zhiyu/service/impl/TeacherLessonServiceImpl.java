@@ -54,6 +54,7 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
     private final TeachingClassMapper classMapper;
     private final SysUserMapper userMapper;
     private final StudentClassMembershipMapper membershipMapper;
+    private final LessonTaskProgressMapper lessonTaskProgressMapper;
     private final TextbookMapper textbookMapper;
     private final TeacherAssignmentService assignmentService;
     private final TeacherDashboardService dashboardService;
@@ -953,6 +954,15 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
         if (classIds.isEmpty()) {
             return tasks;
         }
+        // 我已完成的资料发布（completed=true 的不再作为待办展示）
+        Set<Long> donePublishIds = new HashSet<>();
+        lessonTaskProgressMapper.selectList(new LambdaQueryWrapper<LessonTaskProgress>()
+                        .eq(LessonTaskProgress::getStudentId, studentId)
+                        .eq(LessonTaskProgress::getStatus, 1))
+                .forEach(p -> donePublishIds.add(p.getPublishId()));
+        // 班级名（待办页按课程分组需要）
+        Map<Long, String> classNameById = new HashMap<>();
+        classMapper.selectBatchIds(classIds).forEach(c -> classNameById.put(c.getId(), c.getName()));
         // 1) 备课资料任务（material_only 或带作业的备课均展示资料）
         List<LessonPublish> pubs = publishMapper.selectList(
                 new LambdaQueryWrapper<LessonPublish>()
@@ -976,6 +986,9 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
             t.put("deadline", lp.getDeadline());
             t.put("assignmentId", lp.getAssignmentId());
             t.put("caseId", plan.getCaseId());
+            t.put("completed", donePublishIds.contains(lp.getId()));
+            t.put("classId", lp.getClassId());
+            t.put("className", classNameById.getOrDefault(lp.getClassId(), ""));
             t.put("materials", mats.stream().map(m -> {
                 Map<String, Object> mm = new HashMap<>();
                 mm.put("id", m.getId());
@@ -1014,6 +1027,12 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
         detail.put("deadline", lp.getDeadline());
         detail.put("assignmentId", lp.getAssignmentId());
         detail.put("caseId", plan.getCaseId());
+        // 我是否已标记完成（资料详情页显示完成态）
+        Long doneCnt = lessonTaskProgressMapper.selectCount(new LambdaQueryWrapper<LessonTaskProgress>()
+                .eq(LessonTaskProgress::getPublishId, publishId)
+                .eq(LessonTaskProgress::getStudentId, UserContext.requireUserId())
+                .eq(LessonTaskProgress::getStatus, 1));
+        detail.put("completed", doneCnt != null && doneCnt > 0);
         detail.put("materials", mats.stream().map(m -> {
             Map<String, Object> mm = new HashMap<>();
             mm.put("id", m.getId());
@@ -1025,6 +1044,42 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
             return mm;
         }).toList());
         return detail;
+    }
+
+    @Override
+    public void completeLessonTask(Long publishId) {
+        Long studentId = UserContext.requireUserId();
+        LessonPublish lp = publishMapper.selectById(publishId);
+        if (lp == null) {
+            throw new BizException(ResultCode.NOT_FOUND, "学习任务不存在");
+        }
+        // 仅班级成员可标记完成
+        Long inClass = membershipMapper.selectCount(new LambdaQueryWrapper<StudentClassMembership>()
+                .eq(StudentClassMembership::getStudentId, studentId)
+                .eq(StudentClassMembership::getClassId, lp.getClassId()));
+        if (inClass == null || inClass == 0) {
+            throw new BizException(ResultCode.FORBIDDEN, "仅班级成员可标记完成");
+        }
+        LessonTaskProgress exist = lessonTaskProgressMapper.selectOne(
+                new LambdaQueryWrapper<LessonTaskProgress>()
+                        .eq(LessonTaskProgress::getPublishId, publishId)
+                        .eq(LessonTaskProgress::getStudentId, studentId));
+        if (exist != null) {
+            // 幂等：重复标记直接返回
+            if (exist.getStatus() == null || exist.getStatus() != 1) {
+                exist.setStatus(1);
+                exist.setCompletedAt(LocalDateTime.now());
+                lessonTaskProgressMapper.updateById(exist);
+            }
+            return;
+        }
+        LessonTaskProgress p = new LessonTaskProgress();
+        p.setPublishId(publishId);
+        p.setStudentId(studentId);
+        p.setStatus(1);
+        p.setCompletedAt(LocalDateTime.now());
+        lessonTaskProgressMapper.insert(p);
+        log.info("学生{}标记资料任务{}完成", studentId, publishId);
     }
 
     // ---------------- 私有方法 ----------------

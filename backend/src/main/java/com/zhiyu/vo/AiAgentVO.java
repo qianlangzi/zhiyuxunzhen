@@ -18,6 +18,9 @@ public class AiAgentVO {
     private BigDecimal temperature;
     private Integer maxTokens;
     private String toolsConfig;
+    private String strategy;
+    private String model;
+    private Integer maxIterations;
     private Boolean isActive;
     private Integer status;
     private LocalDateTime createdAt;

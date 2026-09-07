@@ -19,4 +19,10 @@ public class MyClassVO {
     private String teacherName;
     private Long studentCount;
     private LocalDateTime joinedAt;
+
+    /** 该班我的未完成作业数（作业实例状态 0/1/2），与待办页口径一致 */
+    private Long pendingAssignmentCount;
+
+    /** 该班我的未完成资料任务数（materialOnly=1 且未标记完成） */
+    private Long pendingLessonCount;
 }

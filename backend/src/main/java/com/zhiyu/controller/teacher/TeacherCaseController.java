@@ -32,6 +32,56 @@ public class TeacherCaseController {
 
     private final TeacherCaseService teacherCaseService;
 
+    /** 病例多模态素材上传目录（与问诊影像同源，静态映射 /uploads/**） */
+    @org.springframework.beans.factory.annotation.Value("${zhiyu.upload.dir:./uploads}")
+    private String uploadDir;
+
+    @org.springframework.beans.factory.annotation.Value("${zhiyu.upload.base-url:/uploads}")
+    private String uploadBaseUrl;
+
+    @Operation(summary = "上传病例多模态素材（图片/PDF/音频/视频，≤20MB，返回可访问 URL）")
+    @PostMapping("/media")
+    public R<java.util.Map<String, String>> uploadMedia(
+            @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new com.zhiyu.common.exception.BizException(
+                    com.zhiyu.common.constant.ResultCode.VALIDATION_FAILED, "文件不能为空");
+        }
+        long maxBytes = 20 * 1024 * 1024; // 20MB
+        if (file.getSize() > maxBytes) {
+            throw new com.zhiyu.common.exception.BizException(
+                    com.zhiyu.common.constant.ResultCode.VALIDATION_FAILED, "文件不能超过 20MB");
+        }
+        String origName = file.getOriginalFilename();
+        String ext = "";
+        if (origName != null && origName.contains(".")) {
+            ext = origName.substring(origName.lastIndexOf('.')).toLowerCase();
+        }
+        boolean isImage = ext.matches("\\.(jpg|jpeg|png|gif|bmp|webp)");
+        boolean isDoc = ext.matches("\\.(pdf)");
+        boolean isAudio = ext.matches("\\.(mp3|wav|m4a|aac)");
+        boolean isVideo = ext.matches("\\.(mp4|mov|m4v)");
+        if (!isImage && !isDoc && !isAudio && !isVideo) {
+            throw new com.zhiyu.common.exception.BizException(
+                    com.zhiyu.common.constant.ResultCode.VALIDATION_FAILED,
+                    "仅支持图片/PDF/音频/视频素材");
+        }
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get(uploadDir, "multimodal");
+            java.nio.file.Files.createDirectories(dir);
+            String filename = "case_" + java.util.UUID.randomUUID() + ext;
+            java.nio.file.Path target = dir.resolve(filename);
+            file.transferTo(target.toFile());
+            String url = uploadBaseUrl + "/multimodal/" + filename;
+            String mediaType = isImage ? "image" : isDoc ? "pdf" : isAudio ? "audio" : "video";
+            return R.ok(java.util.Map.of("url", url, "mediaType", mediaType, "filename", filename));
+        } catch (java.io.IOException e) {
+            throw new com.zhiyu.common.exception.BizException(
+                    com.zhiyu.common.constant.ResultCode.FILE_UPLOAD_ERROR,
+                    "素材上传失败：" + e.getMessage());
+        }
+    }
+
     @Operation(summary = "创建病例")
     @PostMapping
     public R<Long> create(@Valid @RequestBody CaseCreateDTO req) {

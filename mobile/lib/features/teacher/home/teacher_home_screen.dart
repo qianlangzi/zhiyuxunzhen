@@ -7,6 +7,7 @@ import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../common/guide/guide_anchor.dart';
 
 /// 教师首页 · 工作台
 ///
@@ -77,7 +78,11 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
                         children: [
                           _buildGreeting(context),
                           const SizedBox(height: 20),
-                          _buildHeroMarket(context),
+                          // 套 GuideTarget：新手指引会高亮 SP 病例广场大卡
+                          GuideTarget(
+                            anchor: GuideAnchors.teacherHomeMarket,
+                            child: _buildHeroMarket(context),
+                          ),
                           const SizedBox(height: 14),
                           _buildSubTools(context),
                           const SizedBox(height: 14),
@@ -253,27 +258,40 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
   // ================= 教材 / 题库 次卡 =================
 
   Widget _buildSubTools(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
       children: [
-        Expanded(
-          child: _SubToolCard(
-            icon: Icons.menu_book_rounded,
-            color: AppColors.indigoOf(context),
-            title: '教材管理',
-            subtitle: '上传 · 审核分发',
-            route: RouteNames.teacherTextbook,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _SubToolCard(
+                icon: Icons.menu_book_rounded,
+                color: AppColors.indigoOf(context),
+                title: '教材管理',
+                subtitle: '上传 · 审核分发',
+                route: RouteNames.teacherTextbook,
+              ),
+            ),
+            SizedBox(width: 14),
+            Expanded(
+              child: _SubToolCard(
+                icon: Icons.playlist_add_check_circle_outlined,
+                color: AppColors.amberOf(context),
+                title: '基础题库',
+                subtitle: '录入 · 审核 · 组卷',
+                route: RouteNames.teacherQuestions,
+              ),
+            ),
+          ],
         ),
-        SizedBox(width: 14),
-        Expanded(
-          child: _SubToolCard(
-            icon: Icons.playlist_add_check_circle_outlined,
-            color: AppColors.amberOf(context),
-            title: '基础题库',
-            subtitle: '录入 · 审核 · 组卷',
-            route: RouteNames.teacherQuestions,
-          ),
+        const SizedBox(height: 14),
+        // 每日病历批阅台：AI 初筛 + 复核 + 班级缺陷热力图
+        _SubToolCard(
+          icon: Icons.assignment_turned_in_rounded,
+          color: AppColors.moss3Of(context),
+          title: '每日病历批阅台',
+          subtitle: 'AI 初筛 · 复核 · 缺陷热力',
+          route: RouteNames.teacherMrConsole,
         ),
       ],
     );

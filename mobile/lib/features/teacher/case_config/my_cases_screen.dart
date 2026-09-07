@@ -777,8 +777,8 @@ class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
                       else
                         Expanded(
                           child: AppGhostButton(
-                            label: isDraft ? '继续编辑' : '查看',
-                            icon: isDraft ? const Icon(Icons.edit_outlined, size: 14) : const Icon(Icons.visibility_outlined, size: 14),
+                            label: isDraft ? '继续编辑' : '二次编辑',
+                            icon: const Icon(Icons.edit_outlined, size: 14),
                             small: true,
                             fullWidth: true,
                             onPressed: () => _edit(c),

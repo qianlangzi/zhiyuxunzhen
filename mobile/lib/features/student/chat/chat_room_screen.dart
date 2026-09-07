@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/media_url.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
@@ -1051,8 +1052,63 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
             const SizedBox(height: 8),
             _buildImageStrip(r.imageKeys),
           ],
+          if (r.imageUrls.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildPatientImageStrip(r.imageUrls),
+          ],
         ],
       ),
+    );
+  }
+
+  /// 患者影像条：教师上传的自备素材（患者本人的 X 光/CT/报告单照片），点击全屏
+  Widget _buildPatientImageStrip(List<String> urls) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.personal_injury_outlined,
+                size: 12, color: AppColors.text3Of(context)),
+            const SizedBox(width: 4),
+            Text('患者影像资料',
+                style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.text3Of(context),
+                    letterSpacing: 0.06)),
+          ],
+        ),
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (var i = 0; i < urls.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => _showFullScreenImage(urls[i]),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      resolveMediaUrl(urls[i]),
+                      width: 120,
+                      height: 90,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 120,
+                        height: 90,
+                        color: AppColors.ruleSoftOf(context),
+                        child: Icon(Icons.broken_image_outlined,
+                            size: 20, color: AppColors.text4Of(context)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1204,6 +1260,71 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
         Text(r.conclusion,
             style: TextStyle(fontSize: 13, color: AppColors.textOf(context), height: 1.55)),
       ],
+    );
+  }
+
+  /// 全屏查看患者影像：黑幕 + 手势缩放，点击关闭
+  void _showFullScreenImage(String url) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (dialogCtx) => GestureDetector(
+        onTap: () => Navigator.of(dialogCtx).pop(),
+        child: Scaffold(
+          backgroundColor: Colors.transparent,
+          body: SafeArea(
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: InteractiveViewer(
+                    maxScale: 6,
+                    child: Center(
+                      child: Image.network(
+                        resolveMediaUrl(url),
+                        fit: BoxFit.contain,
+                        loadingBuilder: (ctx, child, progress) {
+                          if (progress == null) return child;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white70),
+                              const SizedBox(height: 10),
+                              Text('图片加载中…',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.white.withValues(alpha: 0.7))),
+                            ],
+                          );
+                        },
+                        errorBuilder: (_, __, ___) => Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.broken_image_outlined,
+                                size: 44, color: Colors.white38),
+                            const SizedBox(height: 10),
+                            Text('图片加载失败，请检查网络后重试',
+                                style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: Colors.white.withValues(alpha: 0.75))),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: 12,
+                  right: 16,
+                  child: Icon(Icons.close_rounded,
+                      size: 26,
+                      color: Colors.white.withValues(alpha: 0.85)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1666,6 +1787,7 @@ class _ExamReport {
   final Map<String, dynamic>? ecg; // pattern / rate / rhythm
   final List<Map<String, dynamic>> table; // lab rows
   final List<String> imageKeys; // 教材配图（多 kind 通用）
+  final List<String> imageUrls; // 教师上传的患者影像（URL 直连，多 kind 通用）
 
   const _ExamReport({
     required this.examName,
@@ -1674,12 +1796,14 @@ class _ExamReport {
     this.ecg,
     this.table = const [],
     this.imageKeys = const [],
+    this.imageUrls = const [],
   });
 
   factory _ExamReport.fromJson(Map<String, dynamic> data) {
     final ecg = data['ecg'];
     final rawTable = data['table'];
     final rawKeys = data['imageKeys'];
+    final rawUrls = data['imageUrls'];
     return _ExamReport(
       examName: (data['examName'] as String?) ?? '',
       kind: (data['kind'] as String?) ?? 'text',
@@ -1690,6 +1814,9 @@ class _ExamReport {
           : const [],
       imageKeys: rawKeys is List
           ? rawKeys.whereType<String>().toList(growable: false)
+          : const [],
+      imageUrls: rawUrls is List
+          ? rawUrls.whereType<String>().toList(growable: false)
           : const [],
     );
   }

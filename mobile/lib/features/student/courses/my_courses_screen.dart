@@ -8,10 +8,10 @@ import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../data/student_service.dart';
 
-/// 学生端 · 我的课程（学习通式独立页）
+/// 学生端 · 我的课程
 ///
-/// 学生通过老师分享的二维码/邀请码加入班级后，这里以课程卡片形式展示
-/// 已加入的所有班级（多对多），点进卡片查看老师分享的资料与作业（闭环）。
+/// 以简约纸感卡片展示已加入班级，左侧苔藓绿色带点缀。
+/// 点击进入班级主页查看老师分享的学习资料与作业。
 class MyCoursesScreen extends ConsumerStatefulWidget {
   const MyCoursesScreen({super.key});
 
@@ -49,9 +49,8 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final bg = AppColors.bgOf(context);
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: AppColors.bgOf(context),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -82,9 +81,8 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 40),
       itemCount: classes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (context, index) =>
-          _buildCourseCard(classes[index], index % _grads.length),
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) => _buildCourseCard(classes[index]),
     );
   }
 
@@ -132,7 +130,8 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
     );
   }
 
-  Widget _buildCourseCard(dynamic raw, int colorIndex) {
+  /// 简约纸感课程卡片：左侧色带 + 主信息，无渐变、无蓝色、无夸张装饰
+  Widget _buildCourseCard(dynamic raw) {
     final m = _mapOf(raw);
     final name = (m['name'] ?? '未命名课程').toString();
     final teacher = (m['teacherName'] ?? '未知教师').toString();
@@ -140,110 +139,122 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
     final joined = m['joinedAt'] == null
         ? ''
         : _shortDate(DateTime.tryParse(m['joinedAt'].toString()));
+    // 待办联动：未完成作业 + 未完成资料任务（完成后自动清零）
+    final pendingAssignment = (m['pendingAssignmentCount'] as num?)?.toInt() ?? 0;
+    final pendingLesson = (m['pendingLessonCount'] as num?)?.toInt() ?? 0;
+    final pending = pendingAssignment + pendingLesson;
 
     return AppPressable(
-      onTap: () => context.pushNamed(
-        RouteNames.myCourseDetail,
-        extra: {'classId': (m['id'] as num).toInt(), 'name': name},
-      ),
-      borderRadius: BorderRadius.circular(18),
+      onTap: () {
+        final id = (m['id'] as num?)?.toInt();
+        if (id == null) return;
+        context
+            .pushNamed(
+          RouteNames.myCourseDetail,
+          pathParameters: {'id': '$id'},
+          extra: {'name': name},
+        )
+            .then((_) => _refresh());
+      },
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: _grads[colorIndex],
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: AppShadow.lifted(context),
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          boxShadow: AppShadow.card(context),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -18,
-              bottom: -22,
-              child: Icon(Icons.menu_book_rounded,
-                  size: 96, color: Colors.white.withValues(alpha: 0.12)),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 42,
-                        height: 42,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.16),
-                          borderRadius: BorderRadius.circular(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: IntrinsicHeight(
+            child: Row(
+              children: [
+                // 左侧苔藓绿色带，作为课程卡片唯一主题点缀
+                Container(width: 5, color: AppColors.primaryOf(context)),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 12, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SerifText(name,
+                            fontSize: 17,
+                            weight: FontWeight.w700,
+                            height: 1.3),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Icon(Icons.person_outline_rounded,
+                                size: 14, color: AppColors.text3Of(context)),
+                            const SizedBox(width: 5),
+                            Text(teacher,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    color: AppColors.text2Of(context))),
+                          ],
                         ),
-                        child: Icon(Icons.school_rounded,
-                            color: Colors.white, size: 22),
-                      ),
-                      const Spacer(),
-                      Icon(Icons.chevron_right_rounded,
-                          color: Colors.white.withValues(alpha: 0.9)),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      height: 1.25,
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            _metaText('$count 名同学'),
+                            if (joined.isNotEmpty) ...[
+                              const SizedBox(width: 10),
+                              Container(
+                                width: 3,
+                                height: 3,
+                                decoration: BoxDecoration(
+                                  color: AppColors.text4Of(context),
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              _metaText('加入于 $joined'),
+                            ],
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    teacher,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withValues(alpha: 0.9)),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(right: 14),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _metaChip(Icons.groups_outlined, '$count 名同学', context),
-                      if (joined.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        _metaChip(Icons.schedule, '加入于 $joined', context),
-                      ],
+                      // 待办角标：与待办页同口径，完成后清零
+                      if (pending > 0)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE5484D)
+                                .withValues(alpha: 0.12),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.full),
+                          ),
+                          child: Text('$pending 项待办',
+                              style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFFE5484D))),
+                        ),
+                      Icon(Icons.chevron_right_rounded,
+                          size: 20, color: AppColors.text4Of(context)),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _metaChip(IconData icon, String text, BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: Colors.white),
-          const SizedBox(width: 4),
-          Text(text,
-              style: TextStyle(
-                  fontSize: 11.5, color: Colors.white.withValues(alpha: 0.95))),
-        ],
-      ),
-    );
+  Widget _metaText(String text) {
+    return Text(text,
+        style: TextStyle(fontSize: 12, color: AppColors.text3Of(context)));
   }
 
   Map<String, dynamic> _mapOf(dynamic raw) {
@@ -260,13 +271,4 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
   }
 
   String _p(int n) => n.toString().padLeft(2, '0');
-
-  static const List<List<Color>> _grads = [
-    [Color(0xFF4A6CFE), Color(0xFF7C93FF)],
-    [Color(0xFF22B573), Color(0xFF6FD5A0)],
-    [Color(0xFFF59E0B), Color(0xFFFBBF24)],
-    [Color(0xFFEF4444), Color(0xFFF87171)],
-    [Color(0xFF8B5CF6), Color(0xFFA78BFA)],
-    [Color(0xFF06B6D4), Color(0xFF22D3EE)],
-  ];
 }

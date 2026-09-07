@@ -1,13 +1,14 @@
 package com.zhiyu.service;
 
 import com.zhiyu.common.result.PageResult;
-import com.zhiyu.service.dto.DailyCaseAnswerDTO;
 import com.zhiyu.service.dto.DailyCaseScheduleDTO;
 import com.zhiyu.vo.DailyCaseVO;
-import com.zhiyu.vo.DailyCaseResultVO;
 
 /**
  * 每日一例服务（PRD 4.10 / 4.16 / 8.10）
+ *
+ * <p>旧版开放作答提交接口（/daily-cases/submit）已随移动端切换到九段病历版下线；
+ * 本接口仅保留排期管理与「今日排期」解析（后者被每日病历 DailyMrService 复用）。
  */
 public interface DailyCaseService {
 
@@ -26,10 +27,4 @@ public interface DailyCaseService {
      * 返回今天已发布(status=2)的排期，无则返回 null
      */
     DailyCaseVO today();
-
-    /**
-     * 学生提交每日一例答案（PRD 4.10.2）
-     * 调用 AI 中台评估，返回评估结果 JSON
-     */
-    DailyCaseResultVO submitAnswer(DailyCaseAnswerDTO dto);
 }

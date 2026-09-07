@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
+import '../../../shared/utils/media_url.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
@@ -48,8 +50,8 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
   String _gender = '';
   final _personalityTags = <String>[];
 
-  // 检查项目（可用"添加检查项"新增）
-  final List<({String name, String cost, String? mark, int type})> _exams = [];
+  // 检查项目（可用"添加检查项"新增；mediaUrl 为教师上传的影像/报告附件）
+  final List<({String name, String cost, String? mark, int type, String? mediaUrl})> _exams = [];
   bool _saving = false;
   bool _aiLoading = false;
 
@@ -185,14 +187,23 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
             .toList(),
       ),
       'presetExams': jsonEncode(
-        _exams
-            .map((e) => {
-                  'name': e.name,
-                  'cost': e.cost.replaceAll('¥', '').replaceAll(',', ''),
-                  'mark': e.mark,
-                  'type': e.type,
-                })
-            .toList(),
+        _exams.map((e) {
+          final item = <String, dynamic>{
+            'name': e.name,
+            'cost': e.cost.replaceAll('¥', '').replaceAll(',', ''),
+            'mark': e.mark,
+            'type': e.type,
+          };
+          // 教师上传的影像/报告附件 → result.imageUrls（问诊报告卡与每日病历展示）
+          if (e.mediaUrl != null && e.mediaUrl!.isNotEmpty) {
+            item['result'] = {
+              'kind': 'image',
+              'conclusion': e.mark ?? '详见报告',
+              'imageUrls': [e.mediaUrl],
+            };
+          }
+          return item;
+        }).toList(),
       ),
       'knowledgeTags': jsonEncode(_tags),
       'referenceAnswer': _referenceCtl.text.trim(),
@@ -690,11 +701,17 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         if (name.isEmpty) continue;
         final isKey = e is Map && e['isKey'] == true;
         final costRaw = (e is Map ? e['cost'] : 0).toString();
+        String? mediaUrl;
+        if (e is Map && e['result'] is Map) {
+          final urls = (e['result'] as Map)['imageUrls'];
+          if (urls is List && urls.isNotEmpty) mediaUrl = urls.first.toString();
+        }
         _exams.add((
           name: name,
           cost: _formatCost(costRaw),
           mark: isKey ? '关键' : null,
           type: isKey ? 1 : 0,
+          mediaUrl: mediaUrl,
         ));
       }
     }
@@ -825,12 +842,13 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
           if (name.isEmpty) continue;
           final markRaw = e['mark'];
           final typeRaw = e['type'];
-          _exams.add((
-            name: name,
-            cost: _formatCost((e['cost'] ?? '').toString()),
-            mark: markRaw is String && markRaw.isNotEmpty ? markRaw : null,
-            type: typeRaw is num ? typeRaw.toInt() : 0,
-          ));
+        _exams.add((
+          name: name,
+          cost: _formatCost((e['cost'] ?? '').toString()),
+          mark: markRaw is String && markRaw.isNotEmpty ? markRaw : null,
+          type: typeRaw is num ? typeRaw.toInt() : 0,
+          mediaUrl: _examMediaUrl(e),
+        ));
         }
       } catch (_) {}
     }
@@ -1753,6 +1771,18 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
             if (e.mark != null)
               AppChip(label: e.mark!, type: e.type == 2 ? ChipType.amber : ChipType.moss, fontSize: 10),
             const SizedBox(width: 4),
+            // 影像附件：已传显示缩略可预览，未传可点击补充（问诊时作为报告配图发给学生）
+            _ExamMediaThumb(
+              mediaUrl: e.mediaUrl,
+              onPick: () => _uploadExamMedia(e.name),
+              onRemove: e.mediaUrl == null ? null : () {
+                setState(() {
+                  _exams[_exams.indexWhere((x) => x.name == e.name)] =
+                      (name: e.name, cost: e.cost, mark: e.mark, type: e.type, mediaUrl: null);
+                });
+              },
+            ),
+            const SizedBox(width: 4),
             GestureDetector(
               onTap: () => _removeExam(e.name),
               child: Icon(Icons.close, size: 14, color: AppColors.text4Of(context)),
@@ -1768,7 +1798,153 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         dashed: true,
         onPressed: _addExam,
       ),
+      const SizedBox(height: 8),
+      AppGhostButton(
+        label: 'AI 建议材料清单',
+        icon: const Icon(Icons.auto_awesome_rounded, size: 14),
+        fullWidth: true,
+        small: true,
+        onPressed: _showMaterialAdvice,
+      ),
     ]);
+  }
+
+  /// 上传/替换检查项影像附件（X光片/CT/报告单照片等，问诊时随报告卡展示）
+  Future<void> _uploadExamMedia(String examName) async {
+    final idx = _exams.indexWhere((e) => e.name == examName);
+    if (idx < 0) return;
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+      if (picked == null) return;
+      final dismiss = AppFeedback.showLoading(context, label: '上传中…');
+      final resp = await TeacherService().uploadCaseMedia(picked.path);
+      dismiss();
+      if (!mounted) return;
+      if (resp == null || (resp['url'] as String?)?.isEmpty == true) {
+        AppFeedback.info(context, '上传失败，请重试');
+        return;
+      }
+      final e = _exams[idx];
+      setState(() {
+        _exams[idx] = (name: e.name, cost: e.cost, mark: e.mark, type: e.type, mediaUrl: resp['url'] as String);
+      });
+      AppFeedback.info(context, '附件已上传，问诊时将随报告卡展示');
+    } catch (_) {
+      if (mounted) AppFeedback.info(context, '上传失败，请重试');
+    }
+  }
+
+  /// AI 素材建议：该病例还应准备哪些多模态材料（防漏传）
+  Future<void> _showMaterialAdvice() async {
+    final caseId = _savedCaseId ?? widget.caseId;
+    if (caseId == null) {
+      AppFeedback.info(context, '请先保存病例草稿，再获取 AI 素材建议');
+      return;
+    }
+    final dismiss = AppFeedback.showLoading(context, label: 'AI 分析中…');
+    final resp = await TeacherService().caseMaterialAdvice(caseId);
+    dismiss();
+    if (!mounted) return;
+    final suggestions = ((resp?['suggestions'] as List?) ?? const [])
+        .whereType<Map<String, dynamic>>()
+        .toList();
+    if (suggestions.isEmpty) {
+      AppFeedback.info(context, 'AI 暂时没有建议，或素材已齐全');
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surfaceOf(context),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          shrinkWrap: true,
+          children: [
+            Row(children: [
+              Icon(Icons.auto_awesome_rounded, size: 16, color: AppColors.amberOf(context)),
+              const SizedBox(width: 6),
+              Text('AI 建议准备的材料',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600,
+                      color: AppColors.textOf(context))),
+            ]),
+            if ((resp?['summary'] as String?)?.isNotEmpty == true) ...[
+              const SizedBox(height: 6),
+              Text(resp!['summary'] as String,
+                  style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.text3Of(context))),
+            ],
+            const SizedBox(height: 10),
+            for (final s in suggestions) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.bgOf(context),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.ruleSoftOf(context)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(children: [
+                            Text(s['item'] as String? ?? '',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                                    color: AppColors.textOf(context))),
+                            const SizedBox(width: 6),
+                            Text((s['priority'] as num?)?.toInt() == 1 ? '必备'
+                                : (s['priority'] as num?)?.toInt() == 3 ? '可选' : '建议',
+                                style: TextStyle(fontSize: 10,
+                                    color: (s['priority'] as num?)?.toInt() == 1
+                                        ? AppColors.vermilionOf(context)
+                                        : AppColors.text3Of(context))),
+                          ]),
+                          const SizedBox(height: 3),
+                          Text(s['reason'] as String? ?? '',
+                              style: TextStyle(fontSize: 11.5, height: 1.5,
+                                  color: AppColors.text3Of(context))),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 已配置的检查项不可重复添加
+                    if (!_exams.any((e) => e.name == (s['item'] as String? ?? '')))
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _exams.add((
+                              name: s['item'] as String? ?? '',
+                              cost: '0',
+                              mark: null,
+                              type: 0,
+                              mediaUrl: null,
+                            ));
+                          });
+                          Navigator.of(ctx).pop();
+                          AppFeedback.info(context, '已加入检查项，记得补传影像附件');
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOf(context).withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text('加入', style: TextStyle(
+                              fontSize: 11.5, color: AppColors.primaryOf(context))),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   /// 删除检查项
@@ -1829,8 +2005,21 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
         cost: _formatCost(cost),
         mark: null,
         type: 0,
+        mediaUrl: null,
       ));
     });
+  }
+
+  /// 从检查项原始 JSON 提取已配置的影像附件 URL
+  String? _examMediaUrl(dynamic e) {
+    if (e is! Map) return null;
+    final r = e['result'];
+    if (r is! Map) return null;
+    final urls = r['imageUrls'];
+    if (urls is List && urls.isNotEmpty) return urls.first.toString();
+    final u = r['imageUrl'];
+    if (u is String && u.isNotEmpty) return u;
+    return null;
   }
 
   /// 把数字字符串格式化为“¥价格”显示
@@ -2091,5 +2280,90 @@ class _SpConfigScreenState extends State<SpConfigScreen> {
     setState(() {
       if (!items.contains(trimmed)) items.add(trimmed);
     });
+  }
+}
+
+/// 检查项影像附件缩略控件：未传 = 虚线"传图"按钮；已传 = 缩略图（点击替换，长按删除）
+class _ExamMediaThumb extends StatelessWidget {
+  const _ExamMediaThumb({
+    required this.mediaUrl,
+    required this.onPick,
+    this.onRemove,
+  });
+
+  final String? mediaUrl;
+  final VoidCallback onPick;
+  final VoidCallback? onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    if (mediaUrl == null || mediaUrl!.isEmpty) {
+      return GestureDetector(
+        onTap: onPick,
+        child: Container(
+          width: 46,
+          height: 26,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: AppColors.primaryOf(context).withValues(alpha: 0.4),
+                width: 0.7),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.add_photo_alternate_outlined,
+                  size: 12, color: AppColors.primaryOf(context)),
+              const SizedBox(width: 3),
+              Text('传图',
+                  style: TextStyle(
+                      fontSize: 9.5, color: AppColors.primaryOf(context))),
+            ],
+          ),
+        ),
+      );
+    }
+    return GestureDetector(
+      onTap: onPick,
+      onLongPress: onRemove,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(6),
+        child: SizedBox(
+          width: 46,
+          height: 26,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.network(
+                resolveMediaUrl(mediaUrl),
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Container(
+                  color: AppColors.ruleSoftOf(context),
+                  child: Icon(Icons.broken_image_outlined,
+                      size: 12, color: AppColors.text4Of(context)),
+                ),
+              ),
+              Positioned(
+                right: 1,
+                top: 1,
+                child: GestureDetector(
+                  onTap: onRemove,
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: AppColors.textOf(context).withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.close,
+                        size: 8, color: AppColors.surfaceOf(context)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

@@ -13,6 +13,7 @@ import com.zhiyu.entity.AssignmentTargetClass;
 import com.zhiyu.entity.MedicalRecordReview;
 import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
@@ -23,6 +24,7 @@ import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.mapper.MedicalRecordReviewMapper;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.service.AuditLogService;
@@ -69,6 +71,11 @@ public class TeacherReviewServiceImpl implements TeacherReviewService {
     private final SysUserMapper userMapper;
     private final com.zhiyu.client.AiPlatformClient aiPlatformClient;
     private final PracticeQuestionMapper questionMapper;
+    private final StudentMistakesMapper mistakesMapper;
+    private final com.zhiyu.service.support.MistakeAnalysisTrigger mistakeAnalysisTrigger;
+
+    /** 主观题低于此分（百分制）收入错题本，走失分维度归因 */
+    private static final double ESSAY_MISTAKE_SCORE_THRESHOLD = 60.0;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -566,6 +573,105 @@ public class TeacherReviewServiceImpl implements TeacherReviewService {
     }
 
     /** 按总分分档给出评级文案 */
+    /**
+     * 主观题错题闭环：教师复核确认成绩（status=5）后，低于阈值的题目收入学生错题本。
+     *
+     * <p>错题类型固定为 essay，AI 归因走「失分维度」模式（区别于客观题的临床推理分叉）。
+     * 幂等：同一学生 + 同一题目只保留一条记录，重复批改只累加次数与刷新证据，不新增。
+     */
+    private void syncEssayMistake(AssignmentItemProgress progress, AssignmentItem item,
+                                  BigDecimal score, String mistakesJson, String reviewComment) {
+        if (progress == null || score == null) {
+            return;
+        }
+        Long studentId = progress.getStudentId();
+        if (studentId == null) {
+            return;
+        }
+        if (score.doubleValue() >= ESSAY_MISTAKE_SCORE_THRESHOLD) {
+            return;
+        }
+        Long questionId = firstQuestionId(item);
+        if (questionId == null) {
+            log.info("主观题错题跳过：任务项未关联题目 itemId={}", progress.getItemId());
+            return;
+        }
+        PracticeQuestion q = questionMapper.selectById(questionId);
+        String evidence = buildEssayEvidence(score, mistakesJson, reviewComment);
+        try {
+            StudentMistakes existing = mistakesMapper.selectOne(new LambdaQueryWrapper<StudentMistakes>()
+                    .eq(StudentMistakes::getStudentId, studentId)
+                    .eq(StudentMistakes::getQuestionId, questionId)
+                    .eq(StudentMistakes::getMistakeType, StudentMistakeServiceImpl.SUBJECTIVE_TYPE)
+                    .last("LIMIT 1"));
+            if (existing != null) {
+                StudentMistakes upd = new StudentMistakes();
+                upd.setId(existing.getId());
+                upd.setWrongCount((existing.getWrongCount() == null ? 0 : existing.getWrongCount()) + 1);
+                upd.setResolvedStatus(0);
+                upd.setConsecutiveCorrect(0);
+                upd.setEvidenceJson(evidence);
+                upd.setAiAnalysisJson(null);
+                mistakesMapper.updateById(upd);
+                return;
+            }
+            StudentMistakes m = new StudentMistakes();
+            m.setStudentId(studentId);
+            m.setQuestionId(questionId);
+            m.setCaseId(progress.getCaseId());
+            m.setMistakeType(StudentMistakeServiceImpl.SUBJECTIVE_TYPE);
+            m.setKnowledgeTag(q == null ? null : q.getKnowledgeTag());
+            m.setStudentAnswer(resolveAnswer(progress, questionId));
+            m.setStandardAnswer(q == null ? null : firstNonBlank(q.getAnswer(), q.getExplanation()));
+            m.setEvidenceJson(evidence);
+            m.setResolvedStatus(0);
+            m.setConsecutiveCorrect(0);
+            m.setWrongCount(1);
+            m.setFocusFlag(0);
+            mistakesMapper.insert(m);
+            mistakeAnalysisTrigger.triggerAfterCommit(m.getId(), studentId);
+        } catch (Exception e) {
+            log.warn("主观题收入错题本失败（不影响复核）: progressId={} err={}",
+                    progress.getId(), e.getMessage());
+        }
+    }
+
+    /** 取任务项关联的第一个题目 id（组合包多题场景取首题） */
+    private Long firstQuestionId(AssignmentItem item) {
+        if (item == null || item.getQuestionIds() == null || item.getQuestionIds().isBlank()) {
+            return null;
+        }
+        for (String s : item.getQuestionIds().split("[,，\\s]+")) {
+            String t = s.trim();
+            if (!t.isEmpty()) {
+                try {
+                    return Long.parseLong(t);
+                } catch (NumberFormatException ignore) {
+                    // 非数字片段跳过
+                }
+            }
+        }
+        return null;
+    }
+
+    /** 主观题证据：把得分与批阅明细拼成 AI 归因可读的文本（避免新增表字段） */
+    private String buildEssayEvidence(BigDecimal score, String mistakesJson, String reviewComment) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("得分：").append(score).append("/100");
+        if (mistakesJson != null && !mistakesJson.isBlank()) {
+            sb.append("\n批阅错误明细：")
+                    .append(mistakesJson.length() > 500 ? mistakesJson.substring(0, 500) : mistakesJson);
+        }
+        if (reviewComment != null && !reviewComment.isBlank()) {
+            sb.append("\n评语：").append(reviewComment);
+        }
+        return sb.toString();
+    }
+
+    private String firstNonBlank(String a, String b) {
+        return a != null && !a.isBlank() ? a : b;
+    }
+
     private void fillScoreLevel(TeacherReviewVO vo, BigDecimal score) {
         if (score == null) {
             return;
@@ -625,6 +731,9 @@ public class TeacherReviewServiceImpl implements TeacherReviewService {
             progress.setScore(dto.getTotalScore());
             progress.setCompletedAt(java.time.LocalDateTime.now());
             progressMapper.updateById(progress);
+            // 主观题闭环：教师复核确认成绩后，低分题收入错题本并异步预生成失分维度归因
+            syncEssayMistake(progress, itemMapper.selectById(progress.getItemId()),
+                    dto.getTotalScore(), dto.getMistakesJson(), dto.getReviewComment());
             refreshInstanceStatus(inst);
 
             auditLogService.record(

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../data/student_service.dart';
@@ -23,7 +24,11 @@ class MistakeBookScreen extends ConsumerStatefulWidget {
 }
 
 class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
-  String _selectedFilter = '全部';
+  /// 一级筛选：来源（全部 / 刷题 / 问诊 / 主观题）
+  String _selectedSource = '全部';
+
+  /// 二级筛选：问诊错因细分（仅来源=问诊时生效；'全部' = 不细分）
+  String _consultSub = '全部';
 
   List<MistakeEntry> _mistakes = const [];
   bool _isLoading = true;
@@ -37,7 +42,7 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
   Future<void> _load() async {
     final raw = await StudentService().getMistakes(pageNum: 1, pageSize: 100);
     if (!mounted) return;
-    final list = (raw?['records'] as List<dynamic>? ?? const [])
+    final list = (raw?['list'] as List<dynamic>? ?? const [])
         .whereType<Map>()
         .map((e) => MistakeEntry.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -50,10 +55,50 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
   Future<Map<String, dynamic>?> _analyze(int id) =>
       StudentService().analyzeMistake(id);
 
+  /// 练同类题：以错题知识点 + 归因标签生成巩固练习卷
+  Future<Map<String, dynamic>?> _drill(int id) =>
+      StudentService().generateMistakeDrill(id, count: 5);
+
+  /// 标记已掌握：持久化到服务端成功后，再把本地条目状态回填为已掌握(2)。
+  /// 失败时仅本地回显 + 提示，避免死锁（本地逻辑不再是假标记）。
+  Future<void> _markMastered(MistakeEntry e) async {
+    final ok = await StudentService().markMistakeStatus(e.id, 2);
+    if (!mounted) return;
+    setState(() => e.resolvedStatus = 2);
+    AppFeedback.info(
+      context,
+      ok ? '已标记为已掌握' : '已标记（需联网后才会同步）',
+    );
+  }
+
   List<MistakeEntry> get _filtered {
-    final kw = MistakeEntry.keywordOf(_selectedFilter);
-    if (kw == null) return _mistakes;
-    return _mistakes.where((m) => m.typeKey == kw).toList();
+    final sourceKey = MistakeEntry.sourceFilterLabels.contains(_selectedSource)
+        ? _sourceKeyOf(_selectedSource)
+        : null;
+    var list = sourceKey == null
+        ? _mistakes
+        : _mistakes.where((m) => m.sourceKey == sourceKey).toList();
+    // 问诊来源下可再按错因细分（诊断/病史/检查/文书/沟通）
+    if (_selectedSource == '问诊' && _consultSub != '全部') {
+      final sub = MistakeEntry.keywordOf(_consultSub);
+      if (sub != null) {
+        list = list.where((m) => m.typeKey == sub).toList();
+      }
+    }
+    return list;
+  }
+
+  String? _sourceKeyOf(String zh) {
+    switch (zh) {
+      case '刷题':
+        return 'practice';
+      case '问诊':
+        return 'consult';
+      case '主观题':
+        return 'essay';
+      default:
+        return null; // 全部
+    }
   }
 
   @override
@@ -87,8 +132,8 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
                 child: MistakeTile(
                   entry: m,
                   onAnalyze: _analyze,
-                  onMarkMastered: (e) =>
-                      setState(() => e.resolvedStatus = 2),
+                  onDrill: _drill,
+                  onMarkMastered: (e) => _markMastered(e),
                 ),
               ),
             ),
@@ -142,44 +187,97 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
   }
 
   Widget _buildFilterBar() {
-    return SizedBox(
-      height: 36,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: MistakeEntry.filterLabels.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final label = MistakeEntry.filterLabels[i];
-          final active = label == _selectedFilter;
-          return GestureDetector(
-            onTap: () => setState(() => _selectedFilter = label),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 15),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: active
-                    ? AppColors.primaryOf(context)
-                    : AppColors.surfaceOf(context),
-                border: Border.all(
-                  color: active
-                      ? AppColors.primaryOf(context)
-                      : AppColors.ruleOf(context),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 36,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: MistakeEntry.sourceFilterLabels.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) {
+              final label = MistakeEntry.sourceFilterLabels[i];
+              final active = label == _selectedSource;
+              return GestureDetector(
+                onTap: () => setState(() {
+                  _selectedSource = label;
+                  _consultSub = '全部'; // 切来源时重置二级细分
+                }),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? AppColors.primaryOf(context)
+                        : AppColors.surfaceOf(context),
+                    border: Border.all(
+                      color: active
+                          ? AppColors.primaryOf(context)
+                          : AppColors.ruleOf(context),
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                      color: active
+                          ? AppColors.onPrimaryOf(context)
+                          : AppColors.text2Of(context),
+                    ),
+                  ),
                 ),
-                borderRadius: BorderRadius.circular(AppRadius.full),
-              ),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: active
-                      ? AppColors.onPrimaryOf(context)
-                      : AppColors.text2Of(context),
-                ),
-              ),
+              );
+            },
+          ),
+        ),
+        // 来源=问诊时展开二级错因细分
+        if (_selectedSource == '问诊') ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 30,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: MistakeEntry.consultSubLabels.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (context, i) {
+                final label = MistakeEntry.consultSubLabels[i];
+                final active = label == _consultSub;
+                return GestureDetector(
+                  onTap: () => setState(() => _consultSub = label),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? AppColors.primaryOf(context).withValues(alpha: 0.12)
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: active
+                            ? AppColors.primaryOf(context)
+                            : AppColors.ruleOf(context),
+                        width: 0.8,
+                      ),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                    ),
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: active
+                            ? AppColors.primaryOf(context)
+                            : AppColors.text3Of(context),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
+          ),
+        ],
+      ],
     );
   }
 
@@ -193,12 +291,14 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
               size: 40, color: AppColors.text4Of(context)),
           const SizedBox(height: 12),
           Text(
-            _selectedFilter == '全部' ? '还没有错题，继续保持' : '该分类暂无错题',
+            _selectedSource == '全部' ? '还没有错题，继续保持' : '该分类暂无错题',
             style: TextStyle(fontSize: 14, color: AppColors.text3Of(context)),
           ),
           const SizedBox(height: 4),
-          MonoText('当前筛选：$_selectedFilter',
-              fontSize: 11, color: AppColors.text4Of(context)),
+          MonoText(
+              '当前筛选：$_selectedSource'
+              '${_selectedSource == '问诊' && _consultSub != '全部' ? ' · $_consultSub' : ''}',
+              fontSize: 11, color: AppColors.text4Of(context),),
         ],
       ),
     );

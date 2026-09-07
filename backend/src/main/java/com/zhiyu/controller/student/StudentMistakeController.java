@@ -41,4 +41,19 @@ public class StudentMistakeController {
     public R<Map<String, Object>> analyze(@PathVariable Long id) {
         return R.ok(studentMistakeService.analyzeMistake(id));
     }
+
+    @Operation(summary = "练同类题：以错题知识点+归因标签为焦点生成巩固练习")
+    @PostMapping("/{id}/drill")
+    public R<Map<String, Object>> drill(@PathVariable Long id,
+                                        @RequestParam(defaultValue = "5") Integer count) {
+        return R.ok(studentMistakeService.generateDrill(id, count == null ? 5 : count));
+    }
+
+    @Operation(summary = "回写错题复习状态（0未复习 1已复习 2已掌握）")
+    @PostMapping("/{id}/status")
+    public R<Void> markResolved(@PathVariable Long id,
+                                @RequestParam(required = false) Integer status) {
+        studentMistakeService.markResolved(id, status);
+        return R.ok();
+    }
 }

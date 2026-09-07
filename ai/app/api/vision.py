@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from openai import AsyncOpenAI, APIError
 
 from app.core.config import settings
-from app.core.logging import get_logger, log_event, set_context, reset_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
 from app.models.chat import VisionAnalyzeRequest, VisionAnalysisResult
 from app.prompts.templates import vision_agent_prompt
@@ -57,7 +57,7 @@ async def vision_analyze(
     req: VisionAnalyzeRequest,
     student_id: int = Depends(require_mobile_student),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id, session_id=str(req.session_id))
     try:
         context = await backend_client.session_context(

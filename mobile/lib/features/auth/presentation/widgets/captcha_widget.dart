@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'dart:convert';
+
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../data/auth_api.dart';
@@ -36,7 +38,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
   final AuthApi _api = AuthApi();
 
   String? _captchaId;
-  String? _imageUrl;
+  Uint8List? _imageBytes;
   bool _loading = true;
   bool _failed = false;
 
@@ -64,7 +66,19 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
         _loading = false;
         _failed = true;
         _captchaId = null;
-        _imageUrl = null;
+        _imageBytes = null;
+      });
+      _answerCtl.clear();
+      return;
+    }
+    final bytes = _decodeImage(data.imageBase64);
+    if (!mounted) return;
+    if (bytes == null) {
+      setState(() {
+        _loading = false;
+        _failed = true;
+        _captchaId = null;
+        _imageBytes = null;
       });
       _answerCtl.clear();
       return;
@@ -72,9 +86,18 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
     setState(() {
       _loading = false;
       _captchaId = data.captchaId;
-      _imageUrl = data.imageUrl;
+      _imageBytes = bytes;
     });
     _answerCtl.clear();
+  }
+
+  /// 将后端下发的 base64 PNG 解码为内存图片字节
+  static Uint8List? _decodeImage(String base64) {
+    try {
+      return base64Decode(base64);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// 重新获取验证题
@@ -146,7 +169,7 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
       );
     }
 
-    if (_failed || _imageUrl == null || _captchaId == null) {
+    if (_failed || _imageBytes == null || _captchaId == null) {
       return _frame(
         context,
         GestureDetector(
@@ -188,11 +211,11 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       child: Row(
         children: [
-          // 验证码图片
+          // 验证码图片（内存字节渲染，单一请求交付，无二次网络请求）
           ClipRRect(
             borderRadius: BorderRadius.circular(AppRadius.md),
-            child: Image.network(
-              _imageUrl!,
+            child: Image.memory(
+              _imageBytes!,
               width: 96,
               height: 40,
               fit: BoxFit.cover,
@@ -213,23 +236,6 @@ class CaptchaWidgetState extends State<CaptchaWidget> {
                   ),
                 ),
               ),
-              loadingBuilder: (context, child, progress) {
-                if (progress == null) return child;
-                return SizedBox(
-                  width: 96,
-                  height: 40,
-                  child: Center(
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: widget.accentColor,
-                      ),
-                    ),
-                  ),
-                );
-              },
             ),
           ),
           const SizedBox(width: 10),

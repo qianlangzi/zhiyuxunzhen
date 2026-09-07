@@ -15,6 +15,7 @@ import com.zhiyu.entity.AssignmentItemProgress;
 import com.zhiyu.entity.AssignmentTargetClass;
 import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.StudentClassMembership;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.TeacherClassAuthorization;
 import com.zhiyu.entity.TeachingClass;
@@ -26,6 +27,7 @@ import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.StudentClassMembershipMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
@@ -46,9 +48,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -73,6 +77,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final AssignmentTargetClassMapper targetClassMapper;
     private final PracticeQuestionMapper questionMapper;
     private final TextbookMapper textbookMapper;
+    private final StudentClassMembershipMapper membershipMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -142,11 +147,24 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         Db.saveBatch(items);
 
         // 6. 为所选班级每个学生批量生成实例 + 任务项进度
-        List<SysUser> students = userMapper.selectList(
-                new LambdaQueryWrapper<SysUser>()
+        // 学生归属以 student_class_membership 多对多表为准（邀请码加入只写该表），
+        // 并兜底并集 sys_user.class_id 遗留的旧数据，保证历史归属学生也能收到作业。
+        Set<Long> studentIds = new LinkedHashSet<>();
+        for (Long classId : req.getClassIds()) {
+            membershipMapper.selectList(new LambdaQueryWrapper<StudentClassMembership>()
+                            .eq(StudentClassMembership::getClassId, classId))
+                    .forEach(m -> studentIds.add(m.getStudentId()));
+        }
+        userMapper.selectList(new LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getRole, 0)
                         .eq(SysUser::getStatus, 0)
-                        .in(SysUser::getClassId, req.getClassIds()));
+                        .in(SysUser::getClassId, req.getClassIds()))
+                .forEach(u -> studentIds.add(u.getId()));
+        List<SysUser> students = studentIds.isEmpty() ? List.of()
+                : userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                        .in(SysUser::getId, studentIds)
+                        .eq(SysUser::getRole, 0)
+                        .eq(SysUser::getStatus, 0));
         if (!students.isEmpty()) {
             List<AssignmentInstance> instances = students.stream().map(s -> {
                 AssignmentInstance inst = new AssignmentInstance();
@@ -332,11 +350,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         if (ids.isEmpty()) return List.of();
         return classMapper.selectBatchIds(ids).stream()
                 .filter(item -> item.getStatus() != null && item.getStatus() == 0)
-                .map(item -> TeachingClassVO.builder().id(item.getId()).name(item.getName())
-                        .grade(item.getGrade()).studentCount(userMapper.selectCount(
-                                new LambdaQueryWrapper<SysUser>().eq(SysUser::getRole, 0)
-                                        .eq(SysUser::getClassId, item.getId()).eq(SysUser::getStatus, 0)))
-                        .build()).toList();
+                .map(item -> {
+                    Long count = membershipMapper.selectCount(
+                            new LambdaQueryWrapper<StudentClassMembership>()
+                                    .eq(StudentClassMembership::getClassId, item.getId()));
+                    return TeachingClassVO.builder().id(item.getId()).name(item.getName())
+                            .grade(item.getGrade()).studentCount(count)
+                            .build();
+                }).toList();
     }
 
     @Override

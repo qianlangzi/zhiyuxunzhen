@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../../common/data/drug_api.dart';
+import '../../common/guide/guide_anchor.dart';
 import '../data/student_service.dart';
 
 /// 学生端 Tab2 · 训练中心（枢纽）
@@ -54,9 +55,8 @@ class _StudentCaseMarketScreenState
 
   Future<void> _load() async {
     final results = await Future.wait([
-      Future.value(_dailyCaseData?.containsKey('inited') == true
-          ? _dailyCaseData
-          : StudentService().getTodayDailyCase()),
+      // 每日一例入口卡：走新版九段病历 today 接口（旧版 open-answer 接口已下线）
+      StudentService().getTodayDailyMr(),
       // 药品库快捷科室：动态去重后按内科高频顺序截取（失败静默降级为空）
       DrugApi().getFilters(),
     ]);
@@ -90,9 +90,16 @@ class _StudentCaseMarketScreenState
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
         children: [
-          _buildGrid(),
+          // 套 GuideTarget：新手指引会分别高亮训练宫格与每日一例
+          GuideTarget(
+            anchor: GuideAnchors.studentTrainingGrid,
+            child: _buildGrid(),
+          ),
           const SizedBox(height: 14),
-          _buildDailyCaseEntry(),
+          GuideTarget(
+            anchor: GuideAnchors.studentTrainingDaily,
+            child: _buildDailyCaseEntry(),
+          ),
           const SizedBox(height: 22),
           _buildDrugLibrary(),
         ],

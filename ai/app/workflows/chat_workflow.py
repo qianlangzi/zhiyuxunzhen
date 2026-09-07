@@ -16,7 +16,7 @@ import uuid
 from collections.abc import AsyncIterator
 from logging import INFO, WARNING
 
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.models.chat import ChatRequest
 from app.workflows.consultation_graph import (
     build_consultation_graph,
@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 class ChatWorkflow:
     async def run(self, req: ChatRequest, student_id: int) -> AsyncIterator[dict[str, str]]:
-        trace_id = str(uuid.uuid4())
+        trace_id = ensure_trace_id()
         set_context(trace_id=trace_id, session_id=str(req.session_id))
         log_event(logger, INFO, "chat_start", trace_id=trace_id, session_id=req.session_id, case_id=req.case_id)
 

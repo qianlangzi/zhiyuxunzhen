@@ -5,11 +5,15 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/profile_widgets.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/common/guide/guide_anchor.dart';
+import '../../../features/common/guide/guide_controller.dart';
 import '../../../routes/route_names.dart';
-import '../data/student_service.dart';
-import '../growth/growth_stats.dart';
 
 /// 学生"我的"页面
+///
+/// 这里只放「身份 + 入口」，不放统计数字：
+/// 累计训练 / 连续天数 / OSCE 均分这些已在「成长」Tab 有完整叙事，
+/// 重复展示会稀释成长页的焦点，故不再在本页铺数据条。
 class StudentProfileScreen extends ConsumerStatefulWidget {
   const StudentProfileScreen({super.key});
 
@@ -19,21 +23,6 @@ class StudentProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
-  /// 成长统计（复用 GrowthStats，与成长页 / 学习档案页同一口径）
-  GrowthStats _stats = GrowthStats.fromOverview(null);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadStats());
-  }
-
-  Future<void> _loadStats() async {
-    final overview = await StudentService().getReportOverview();
-    if (!mounted) return;
-    setState(() => _stats = GrowthStats.fromOverview(overview));
-  }
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authProvider).user;
@@ -63,44 +52,31 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     RiseIn(
-                      child: ProfileHero(
-                        initial: initial,
-                        displayName: displayName,
-                        subtitle: subtitle,
-                        avatarPath: user?.avatarPath,
-                        onEdit: () => context.pushNamed(RouteNames.profileEdit),
+                      child: GuideTarget(
+                        anchor: GuideAnchors.studentProfileHero,
+                        child: ProfileHero(
+                          initial: initial,
+                          displayName: displayName,
+                          subtitle: subtitle,
+                          avatarPath: user?.avatarPath,
+                          onEdit: () =>
+                              context.pushNamed(RouteNames.profileEdit),
+                        ),
                       ),
                     ),
                     RiseIn(
                       delay: const Duration(milliseconds: 80),
-                      child: ProfileStatsStrip(
-                        stats: [
-                          ProfileStat('${_stats.totalTrainings}', '累计训练',
-                              AppColors.primaryOf(context)),
-                          ProfileStat('${_stats.streakDays}', '连续天数',
-                              AppColors.amberOf(context)),
-                          ProfileStat(
-                              _stats.hasAbility
-                                  ? _stats.osceAvg.toStringAsFixed(1)
-                                  : '—',
-                              'OSCE 均分',
-                              AppColors.indigoOf(context)),
-                        ],
-                      ),
-                    ),
-                    RiseIn(
-                      delay: const Duration(milliseconds: 160),
                       child: _buildStudySection(context),
                     ),
                     RiseIn(
-                      delay: const Duration(milliseconds: 220),
+                      delay: const Duration(milliseconds: 140),
                       child: _buildGeneralSection(context),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 20),
                       child: RiseIn(
-                        delay: const Duration(milliseconds: 260),
-                        child: const MedicalDisclaimer(),
+                        delay: Duration(milliseconds: 180),
+                        child: MedicalDisclaimer(),
                       ),
                     ),
                   ],
@@ -173,6 +149,14 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   color: AppColors.text3Of(context),
                   title: '设置',
                   onTap: () => context.pushNamed(RouteNames.settings),
+                ),
+                ProfileMenuTile(
+                  icon: Icons.auto_awesome_outlined,
+                  color: AppColors.primaryOf(context),
+                  title: '新手指引',
+                  onTap: () => ref
+                      .read(guideControllerProvider.notifier)
+                      .replay(GuideRole.student, tabId: 'profile'),
                 ),
                 ProfileMenuTile(
                   icon: Icons.feedback_outlined,

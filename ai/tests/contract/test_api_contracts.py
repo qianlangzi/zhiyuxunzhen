@@ -101,7 +101,11 @@ class TestChatStream:
             assert isinstance(data["delta"], str)
 
     async def test_chat_stream_emits_tree_event(self, client, student_jwt_token):
-        """``tree`` event should contain ``nodes`` and ``edges`` arrays."""
+        """训练态默认不回传 实时``tree``事件（防剧透诊断，见 consultation_graph.mentor_update）。
+
+        依据：``settings.live_mentor_hint_enabled=False`` 时思维树/苏格拉底提示不实时进入
+        问诊流（复盘思维树由结束时 evaluator 一并产出），故应答事件里不应包含 ``tree``。
+        """
         headers = {"Authorization": student_jwt_token}
         body = {
             "case_id": 1,
@@ -113,13 +117,8 @@ class TestChatStream:
 
         events = parse_sse_events(resp.text)
         tree_events = [e for e in events if e["event"] == "tree"]
-        assert len(tree_events) > 0
-
-        tree_data = json.loads(tree_events[0]["data"])
-        assert "nodes" in tree_data
-        assert "edges" in tree_data
-        assert isinstance(tree_data["nodes"], list)
-        assert isinstance(tree_data["edges"], list)
+        # 默认训练态实时对话不应下发思维树事件（避免剧透采集点）
+        assert len(tree_events) == 0
 
     async def test_chat_stream_all_event_data_is_valid_json(
         self, client, student_jwt_token
@@ -231,8 +230,20 @@ class TestDailyCaseEvaluate:
         assert eval_data["correct"] is True
         assert eval_data["correctAnswer"] == "上呼吸道感染"
 
-    async def test_daily_case_rule_based_incorrect(self, client, internal_token_header):
-        """Rule-based judging should mark wrong answers as incorrect."""
+    async def test_daily_case_rule_based_incorrect(self, client, internal_token_header, monkeypatch):
+        """开放作答经 LLM 评审判错（显式 mock 判错结果，兼容 LLM 评审语义）。"""
+        from app.services.llm_client import llm_client
+
+        async def mark_wrong(*args, **kwargs) -> dict:
+            return {
+                "correct": False,
+                "correctAnswer": "上呼吸道感染",
+                "explanation": "症状更符合上呼吸道感染，而非肺炎。",
+                "textbookRef": "《内科学》感染篇",
+            }
+
+        monkeypatch.setattr(llm_client, "chat_json", mark_wrong)
+
         body = {
             "studentId": 1,
             "caseId": 1,
@@ -299,8 +310,9 @@ class TestLearningPathGenerate:
 
 
 # ---------------------------------------------------------------------------
-# POST /report/generate_review_pdf  (X-Internal-Token)
+# POST /report/generate_review_pdf  (X-Internal-Token) — 能力已移除
 # ---------------------------------------------------------------------------
+@pytest.mark.skip(reason="报告能力已改为移动端确定性渲染（SSE report 事件），generate_review_pdf 路由不再存在")
 class TestReportGenerate:
     """Review report generation — verifies R structure and report fields."""
 
@@ -416,6 +428,85 @@ class TestVisionAnalyze:
             "image_url": "http://example.com/image.jpg",
         }
         resp = await client.post("/v1/ai/vision/analyze", json=body)
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# POST /internal/agent/{code}  (统一 Agent 网关, X-Internal-Token)
+# ---------------------------------------------------------------------------
+class TestAgentGateway:
+    """统一 Agent 网关——6 分组收敛后的单入口，验证 R 结构与 SSE 契约。"""
+
+    async def test_mentor_update_tree_returns_r(self, client, internal_token_header):
+        body = {
+            "action": "update_tree",
+            "task": {"session_id": 1, "student_id": 1, "messages": []},
+        }
+        resp = await client.post(
+            "/internal/agent/mentor", json=body, headers=internal_token_header
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["code"] == 0
+        assert "nodes" in data["data"]
+        assert "edges" in data["data"]
+
+    async def test_evaluator_medical_record_returns_r(self, client, internal_token_header):
+        body = {
+            "action": "medical_record",
+            "task": {"instanceId": 1, "medicalRecordText": "患者主诉头痛3天..."},
+        }
+        resp = await client.post(
+            "/internal/agent/evaluator", json=body, headers=internal_token_header
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["code"] == 0
+        assert "totalScore" in data["data"]
+        assert isinstance(data["data"]["mistakes"], list)
+
+    async def test_coach_learning_path_returns_r(self, client, internal_token_header):
+        body = {"action": "learning_path", "task": {"studentId": 1}}
+        resp = await client.post(
+            "/internal/agent/coach", json=body, headers=internal_token_header
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["code"] == 0
+        assert "pathSteps" in data["data"] or "recommendedSteps" in data["data"]
+
+    async def test_teacher_recommend_cases_returns_r(self, client, internal_token_header):
+        body = {
+            "action": "recommend_cases",
+            "task": {"classId": 1, "weaknesses": [], "candidateCases": []},
+        }
+        resp = await client.post(
+            "/internal/agent/teacher", json=body, headers=internal_token_header
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["code"] == 0
+        assert "recommendations" in data["data"]
+
+    async def test_companion_stream_is_sse(self, client, internal_token_header):
+        body = {"action": "stream", "task": {"message": "最近学得有点累", "studentId": 1}}
+        resp = await client.post(
+            "/internal/agent/companion", json=body, headers=internal_token_header
+        )
+        assert resp.status_code == 200
+        assert resp.headers.get("content-type", "").startswith("text/event-stream")
+        events = parse_sse_events(resp.text)
+        types = {ev["event"] for ev in events}
+        assert "done" in types
+
+    async def test_unknown_group_returns_404(self, client, internal_token_header):
+        resp = await client.post(
+            "/internal/agent/nope", json={"task": {}}, headers=internal_token_header
+        )
+        assert resp.status_code == 404
+
+    async def test_rejects_missing_token(self, client):
+        resp = await client.post("/internal/agent/mentor", json={"task": {}})
         assert resp.status_code == 401
 
 

@@ -9,6 +9,16 @@ class TeacherApi {
 
   TeacherApi({Dio? dio}) : _dio = dio ?? ApiClient.instance;
 
+  /// AI 类接口统一超时覆盖：全局 [ApiClient] receiveTimeout 仅 8 秒，而教师端
+  /// AI 接口（学情洞察/复核辅助/推荐病例/质检/练习题）会同步调用 AI 中台 LLM，
+  /// 实际耗时 10~30 秒甚至更久。不覆盖时会稳定抛 receiveTimeout，表现为
+  /// 「点了没反应 / 提示 AI 暂不可用」，与 getCaseDraft 明确放宽 180s 保持同源一致。
+  static final Options _aiOptions = Options(
+    sendTimeout: const Duration(seconds: 180),
+    receiveTimeout: const Duration(seconds: 180),
+    connectTimeout: const Duration(seconds: 30),
+  );
+
   // ========= 病例管理 =========
 
   /// 获取病例列表（status: 0草稿 1已发布，null 不过滤）
@@ -497,6 +507,7 @@ class TeacherApi {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/ai/class-insight',
         queryParameters: classId == null ? null : {'classId': classId},
+        options: _aiOptions,
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -510,6 +521,7 @@ class TeacherApi {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/ai/review-assist/$instanceId',
+        options: _aiOptions,
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -524,6 +536,7 @@ class TeacherApi {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/ai/recommend-cases',
         queryParameters: {'classId': classId},
+        options: _aiOptions,
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -536,6 +549,7 @@ class TeacherApi {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/ai/quality-check/$caseId',
+        options: _aiOptions,
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -549,6 +563,7 @@ class TeacherApi {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/ai/practice-questions/$caseId',
+        options: _aiOptions,
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -1107,5 +1122,104 @@ class TeacherApi {
       DioExceptionType.badResponse => '服务器异常：${e.response?.statusCode}',
       _ => e.message ?? '请求失败',
     };
+  }
+
+  // ==================== 病例多模态素材 ====================
+
+  /// 上传病例素材（图片/PDF/音频/视频，≤20MB），返回 url + mediaType
+  Future<ApiResponse<Map<String, dynamic>>> uploadCaseMedia(String filePath) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/teacher/cases/media',
+        data: form,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// AI 素材建议（该病例应准备的多模态材料清单）
+  Future<ApiResponse<Map<String, dynamic>>> caseMaterialAdvice(int caseId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/ai/material-advice/$caseId',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  // ==================== 每日病历闭环 ====================
+
+  /// 最近期次列表
+  Future<ApiResponse<List<dynamic>>> getMrSchedules({int limit = 30}) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/daily-cases/mr/schedules',
+        queryParameters: {'limit': limit},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 批阅台：某期学生病历列表
+  Future<ApiResponse<List<dynamic>>> getMrRecords({
+    required int scheduleId,
+    int pageNum = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/daily-cases/mr/records',
+        queryParameters: {
+          'scheduleId': scheduleId,
+          'pageNum': pageNum,
+          'pageSize': pageSize,
+        },
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d['list'] as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 复核改分
+  Future<ApiResponse<Map<String, dynamic>>> reviewMrRecord({
+    required int recordId,
+    double? score,
+    String? comment,
+  }) async {
+    try {
+      final resp = await _dio.patch<Map<String, dynamic>>(
+        '/api/v1/teacher/daily-cases/mr/records/$recordId/review',
+        queryParameters: {
+          if (score != null) 'score': score,
+          if (comment != null && comment.isNotEmpty) 'comment': comment,
+        },
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 班级缺陷统计（scheduleId 可空=全部期次）
+  Future<ApiResponse<List<dynamic>>> getMrDefectStats({int? scheduleId}) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/daily-cases/mr/defect-stats',
+        queryParameters: {if (scheduleId != null) 'scheduleId': scheduleId},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
   }
 }

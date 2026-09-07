@@ -44,6 +44,11 @@ public interface TeacherAiService {
     Map<String, Object> practiceQuestions(Long caseId);
 
     /**
+     * 病例素材智能推荐：AI 建议教师应准备的多模态材料清单（问诊配套）。
+     */
+    Map<String, Object> materialAdvice(Long caseId);
+
+    /**
      * 7. 生成并持久化学情诊断报告（P1-1）
      * 基于真实聚合统计 + AI 归纳生成一份班级学情报告并落库；
      * classId 为空表示「全体学生」粒度；AI 不可用时降级为纯统计快照。

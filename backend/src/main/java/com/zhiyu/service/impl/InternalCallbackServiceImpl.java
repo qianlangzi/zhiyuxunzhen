@@ -63,6 +63,7 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
     private final ObjectMapper objectMapper;
     private final WeaknessAnalysisService weaknessAnalysisService;
     private final ModelEventLogMapper modelEventLogMapper;
+    private final com.zhiyu.service.support.MistakeAnalysisTrigger mistakeAnalysisTrigger;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -191,6 +192,8 @@ public class InternalCallbackServiceImpl implements InternalCallbackService {
             mistake.setEvidenceJson(item.getEvidenceJson());
             mistake.setResolvedStatus(0); // 未复习
             studentMistakesMapper.insert(mistake);
+            // 入库后异步预生成 AI 归因（问诊脱轨类错题走临床推理五阶段分叉定位）
+            mistakeAnalysisTrigger.triggerAfterCommit(mistake.getId(), item.getStudentId());
             if (item.getStudentId() != null) {
                 affectedStudents.add(item.getStudentId());
             }

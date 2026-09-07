@@ -2,9 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../routes/route_names.dart';
 import '../../../../shared/widgets/app_widgets.dart';
 import '../../../../shared/widgets/paper_surfaces.dart';
 import '../growth_stats.dart';
@@ -111,6 +113,7 @@ class AbilityRadarCard extends StatelessWidget {
                     name: weakest.label,
                     score: weakest.score,
                     color: stats.colorOf(context, weakest.score),
+                    onTap: () => context.pushNamed(RouteNames.recommendation),
                   ),
                 ),
             ],
@@ -128,6 +131,7 @@ class _ExtremeChip extends StatelessWidget {
     required this.name,
     required this.score,
     required this.color,
+    this.onTap,
   });
 
   final IconData icon;
@@ -136,9 +140,12 @@ class _ExtremeChip extends StatelessWidget {
   final double score;
   final Color color;
 
+  /// 非空时可点击下钻（当前用于「待加强」→ 薄弱点推荐页补练）
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.09),
@@ -182,8 +189,19 @@ class _ExtremeChip extends StatelessWidget {
               color: color,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 2),
+            Icon(Icons.chevron_right_rounded,
+                size: 15, color: AppColors.text4Of(context),),
+          ],
         ],
       ),
+    );
+    if (onTap == null) return chip;
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      onTap: onTap,
+      child: chip,
     );
   }
 }

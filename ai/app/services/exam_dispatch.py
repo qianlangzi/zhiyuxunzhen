@@ -98,6 +98,12 @@ def build_report(item: dict[str, Any]) -> dict[str, Any]:
         valid_keys = [k for k in keys if isinstance(k, str) and k]
         if valid_keys:
             payload["imageKeys"] = valid_keys
+    # imageUrls 透传：教师上传的自备素材（Java uploads 静态 URL，无需 AI 中台索引）
+    urls = result.get("imageUrls") or []
+    if isinstance(urls, list):
+        valid_urls = [u for u in urls if isinstance(u, str) and u]
+        if valid_urls:
+            payload["imageUrls"] = valid_urls
     return payload
 
 

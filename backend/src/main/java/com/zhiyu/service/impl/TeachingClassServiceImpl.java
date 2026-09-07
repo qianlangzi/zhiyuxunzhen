@@ -11,6 +11,7 @@ import com.zhiyu.entity.AssignmentTargetClass;
 import com.zhiyu.entity.LessonMaterial;
 import com.zhiyu.entity.LessonPlan;
 import com.zhiyu.entity.LessonPublish;
+import com.zhiyu.entity.LessonTaskProgress;
 import com.zhiyu.entity.StudentClassMembership;
 import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.TeacherClassAuthorization;
@@ -21,6 +22,7 @@ import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.mapper.LessonMaterialMapper;
 import com.zhiyu.mapper.LessonPlanMapper;
 import com.zhiyu.mapper.LessonPublishMapper;
+import com.zhiyu.mapper.LessonTaskProgressMapper;
 import com.zhiyu.mapper.StudentClassMembershipMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
@@ -65,6 +67,7 @@ public class TeachingClassServiceImpl implements TeachingClassService {
     private final AssignmentMapper assignmentMapper;
     private final AssignmentTargetClassMapper assignmentTargetClassMapper;
     private final AssignmentInstanceMapper assignmentInstanceMapper;
+    private final LessonTaskProgressMapper lessonTaskProgressMapper;
 
     @Override
     public List<TeachingClassVO> myClasses() {
@@ -279,6 +282,35 @@ public class TeachingClassServiceImpl implements TeachingClassService {
             userMapper.selectBatchIds(teacherIds).forEach(t -> teacherById.put(t.getId(), t));
         }
 
+        // —— 待办聚合（与待办页口径一致）：作业待办 + 资料任务待办 ——
+        // 1) 我所有未完成的作业实例（0未开始/1问诊中/2格式打回）
+        Set<Long> openAssignmentIds = new HashSet<>();
+        assignmentInstanceMapper.selectList(new LambdaQueryWrapper<AssignmentInstance>()
+                        .eq(AssignmentInstance::getStudentId, uid)
+                        .in(AssignmentInstance::getStatus, 0, 1, 2))
+                .forEach(i -> openAssignmentIds.add(i.getAssignmentId()));
+        // 2) 班级 → 指向该班的作业 ID 集合
+        Map<Long, Set<Long>> assignmentIdsByClass = new HashMap<>();
+        assignmentTargetClassMapper.selectList(new LambdaQueryWrapper<AssignmentTargetClass>()
+                        .in(AssignmentTargetClass::getClassId, classIds))
+                .forEach(t -> assignmentIdsByClass
+                        .computeIfAbsent(t.getClassId(), k -> new HashSet<>())
+                        .add(t.getAssignmentId()));
+        // 3) 班级 → 未完成资料任务数（materialOnly=1 且发布中 且我未标记完成）
+        Set<Long> donePublishIds = new HashSet<>();
+        lessonTaskProgressMapper.selectList(new LambdaQueryWrapper<LessonTaskProgress>()
+                        .eq(LessonTaskProgress::getStudentId, uid)
+                        .eq(LessonTaskProgress::getStatus, 1))
+                .forEach(p -> donePublishIds.add(p.getPublishId()));
+        Map<Long, Long> pendingLessonsByClass = new HashMap<>();
+        for (LessonPublish lp : publishMapper.selectList(new LambdaQueryWrapper<LessonPublish>()
+                .in(LessonPublish::getClassId, classIds)
+                .eq(LessonPublish::getStatus, 0)
+                .eq(LessonPublish::getMaterialOnly, 1))) {
+            if (donePublishIds.contains(lp.getId())) continue;
+            pendingLessonsByClass.merge(lp.getClassId(), 1L, Long::sum);
+        }
+
         List<MyClassVO> result = new ArrayList<>();
         for (Long classId : classIds) {
             TeachingClass tc = classById.get(classId);
@@ -286,6 +318,11 @@ public class TeachingClassServiceImpl implements TeachingClassService {
             SysUser teacher = teacherById.get(tc.getTeacherId());
             Long count = membershipMapper.selectCount(new LambdaQueryWrapper<StudentClassMembership>()
                     .eq(StudentClassMembership::getClassId, classId));
+            long pendingAssign = 0;
+            for (Long aid : assignmentIdsByClass.getOrDefault(classId, Set.of())) {
+                if (openAssignmentIds.contains(aid)) pendingAssign++;
+            }
+            long pendingLessons = pendingLessonsByClass.getOrDefault(classId, 0L);
             result.add(MyClassVO.builder()
                     .id(tc.getId())
                     .name(tc.getName())
@@ -295,6 +332,8 @@ public class TeachingClassServiceImpl implements TeachingClassService {
                     .teacherName(teacher == null ? "未知教师" : teacher.getRealName())
                     .studentCount(count)
                     .joinedAt(joinedByClass.get(classId))
+                    .pendingAssignmentCount(pendingAssign)
+                    .pendingLessonCount(pendingLessons)
                     .build());
         }
         return result;
@@ -320,6 +359,12 @@ public class TeachingClassServiceImpl implements TeachingClassService {
                 .eq(StudentClassMembership::getStudentId, uid)
                 .eq(StudentClassMembership::getClassId, classId));
         List<Map<String, Object>> materials = new ArrayList<>();
+        // 我已标记完成的资料发布（待办联动：completed=true 的资料不再计入待办）
+        Set<Long> donePublishIds = new HashSet<>();
+        lessonTaskProgressMapper.selectList(new LambdaQueryWrapper<LessonTaskProgress>()
+                        .eq(LessonTaskProgress::getStudentId, uid)
+                        .eq(LessonTaskProgress::getStatus, 1))
+                .forEach(p -> donePublishIds.add(p.getPublishId()));
         List<LessonPublish> pubs = publishMapper.selectList(new LambdaQueryWrapper<LessonPublish>()
                 .eq(LessonPublish::getClassId, classId)
                 .eq(LessonPublish::getStatus, 0)
@@ -339,6 +384,7 @@ public class TeachingClassServiceImpl implements TeachingClassService {
             m.put("deadline", lp.getDeadline());
             m.put("assignmentId", lp.getAssignmentId());
             m.put("caseId", plan.getCaseId());
+            m.put("completed", donePublishIds.contains(lp.getId()));
             List<Map<String, Object>> matList = new ArrayList<>();
             for (LessonMaterial mat : mats) {
                 Map<String, Object> mm = new HashMap<>();
@@ -373,6 +419,8 @@ public class TeachingClassServiceImpl implements TeachingClassService {
             am.put("requireMedicalRecord", a.getRequireMedicalRecord());
             am.put("myStatus", mine == null ? 0 : mine.getStatus());
             am.put("myScore", mine == null ? null : mine.getScore());
+            // 学生端跳转既有作业详情页需要实例ID（无 mine 时无实例，前端置灰）
+            am.put("instanceId", mine == null ? null : mine.getId());
             am.put("submitTime", mine == null ? null : mine.getSubmitTime());
             assignments.add(am);
         }

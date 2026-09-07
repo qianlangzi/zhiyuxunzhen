@@ -2,6 +2,7 @@
 Java 业务中台负责候选组装+规则兜底+题目解析；AI 中台负责异步调度+LLM 选题组卷。
 """
 import uuid
+from app.core.logging import ensure_trace_id
 from typing import Any
 
 from app.domain.enums import TaskStatus, TaskType
@@ -31,7 +32,7 @@ def _degraded() -> dict[str, Any]:
 
 
 async def paper_handler(payload: dict[str, Any]) -> dict[str, Any]:
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     messages = [
         {"role": "system", "content": "请作为医学组卷助手，从给定候选中挑选最贴合学生薄弱点的题目。"},
         {"role": "user", "content": _to_user_msg(payload)},

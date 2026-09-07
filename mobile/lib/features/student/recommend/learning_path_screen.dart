@@ -36,14 +36,17 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
     });
     final data = await StudentService().generateLearningPath();
     if (!mounted) return;
-    // 试用埋点（P2-3）：记录路径生成动作
-    StudentService().track('learning_path_generate',
-        detail: data == null ? 'failed' : 'steps=${_steps.length}');
+    // 先算真实步数（不能依赖 _steps：_path 此刻还没更新，会永远埋成 0）
+    final stepCount =
+        ((data?['pathSteps'] as List<dynamic>?) ?? const []).length;
     setState(() {
       _path = data;
       _isLoading = false;
       if (data == null) _error = 'AI 暂不可用，无法生成学习路径';
     });
+    // 试用埋点（P2-3）：记录路径生成动作
+    StudentService().track('learning_path_generate',
+        detail: data == null ? 'failed' : 'steps=$stepCount');
   }
 
   List<dynamic> get _steps =>

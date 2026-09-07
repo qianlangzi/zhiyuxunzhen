@@ -7,7 +7,7 @@ import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.MedicalRecordReview;
 import com.zhiyu.entity.SpCaseConfig;
-import com.zhiyu.entity.SysUser;
+import com.zhiyu.entity.StudentClassMembership;
 import com.zhiyu.entity.TeacherClassAuthorization;
 import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
@@ -15,8 +15,8 @@ import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.MedicalRecordReviewMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.StudentClassMembershipMapper;
 import com.zhiyu.mapper.StudentMistakesMapper;
-import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeacherClassAuthorizationMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.service.TeacherDashboardService;
@@ -53,7 +53,7 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     private final SpCaseConfigMapper caseMapper;
     private final TeachingClassMapper classMapper;
     private final TeacherClassAuthorizationMapper classAuthMapper;
-    private final SysUserMapper sysUserMapper;
+    private final StudentClassMembershipMapper membershipMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -141,13 +141,15 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 new LambdaQueryWrapper<AssignmentInstance>().in(AssignmentInstance::getAssignmentId, assignmentIds));
     }
 
-    /** 指定班级的学生 id 集合（按 sys_user.class_id 关联） */
+    /** 指定班级的学生 id 集合（以 student_class_membership 多对多表为准） */
     private Set<Long> classStudentIds(Long classId) {
-        List<SysUser> students = sysUserMapper.selectList(
-                new LambdaQueryWrapper<SysUser>()
-                        .eq(SysUser::getClassId, classId)
-                        .eq(SysUser::getRole, 0));
-        return students.stream().map(SysUser::getId).collect(Collectors.toSet());
+        return membershipMapper.selectList(
+                        new LambdaQueryWrapper<StudentClassMembership>()
+                                .eq(StudentClassMembership::getClassId, classId))
+                .stream()
+                .map(StudentClassMembership::getStudentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     /** 从 student_mistakes 聚合共性错题（通过公共组件聚合，映射为看板 VO，取前 5） */

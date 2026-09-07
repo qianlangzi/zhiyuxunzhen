@@ -8,6 +8,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/common/guide/guide_controller.dart';
 import '../../../features/common/settings/settings_provider.dart';
 import '../../../features/student/companion/ai_companion_prefs_provider.dart';
 import '../../../routes/route_names.dart';
@@ -67,6 +68,24 @@ const   SettingsScreen({super.key});
                         value: settings.textScale,
                         onChanged: (scale) =>
                             notifier.update(settings.copyWith(textScale: scale)),
+                      ),
+                    ],
+                  ),
+
+                  // ========== 新手指引 ==========
+                  _Section(
+                    title: '上手引导',
+                    children: [
+                      _ActionRow(
+                        icon: Icons.auto_awesome_outlined,
+                        color: AppColors.primaryOf(context),
+                        label: '重新观看新手指引',
+                        subtitle: '重播隐藏手势教学与各页功能说明',
+                        onTap: () => ref
+                            .read(guideControllerProvider.notifier)
+                            .replay(
+                              isStudent ? GuideRole.student : GuideRole.teacher,
+                            ),
                       ),
                     ],
                   ),

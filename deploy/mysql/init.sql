@@ -173,7 +173,8 @@ CREATE TABLE IF NOT EXISTS student_mistakes (
     student_id       BIGINT      NOT NULL,
     session_id       BIGINT,
     case_id          BIGINT,
-    mistake_type     VARCHAR(50) NOT NULL  COMMENT 'diagnosis/history/exam/record/communication',
+    question_id      BIGINT       COMMENT '关联基础题库题目（刷题错题时非空）',
+    mistake_type     VARCHAR(50) NOT NULL  COMMENT 'diagnosis/history/exam/record/communication/practice',
     knowledge_tag    VARCHAR(100),
     student_answer   TEXT,
     standard_answer  TEXT,
@@ -184,7 +185,8 @@ CREATE TABLE IF NOT EXISTS student_mistakes (
     PRIMARY KEY (id),
     KEY idx_student (student_id),
     KEY idx_type (mistake_type),
-    KEY idx_resolved (resolved_status)
+    KEY idx_resolved (resolved_status),
+    KEY idx_question (question_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生错题本表';
 
 -- ---------- 9. student_weakness 薄弱知识点表（PRD 8.9） ----------

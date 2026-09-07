@@ -14,15 +14,19 @@ import com.zhiyu.entity.Assignment;
 import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.AssignmentItem;
 import com.zhiyu.entity.AssignmentItemProgress;
+import com.zhiyu.entity.AssignmentTargetClass;
 import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
+import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.entity.Textbook;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentItemMapper;
 import com.zhiyu.mapper.AssignmentItemProgressMapper;
 import com.zhiyu.mapper.AssignmentMapper;
+import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.FormatCheckService;
 import com.zhiyu.service.StudentAssignmentService;
@@ -69,6 +73,8 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
 
     private final AssignmentInstanceMapper instanceMapper;
     private final AssignmentMapper assignmentMapper;
+    private final AssignmentTargetClassMapper targetClassMapper;
+    private final TeachingClassMapper teachingClassMapper;
     private final AssignmentItemMapper itemMapper;
     private final AssignmentItemProgressMapper progressMapper;
     private final SpCaseConfigMapper caseMapper;
@@ -112,6 +118,8 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
         Map<Long, SpCaseConfig> cMap = batchCaseMap(caseIds);
         // 组合包任务项进度
         Map<Long, List<StudentItemVO>> itemMap = loadItemSummary(assignmentIds, records);
+        // 作业→班级名（支持学生端按课程分组汇总待办）
+        Map<Long, String> classNameByAssignment = loadClassNameMap(assignmentIds);
 
         return records.stream().map(inst -> {
             Assignment a = aMap.get(inst.getAssignmentId());
@@ -122,6 +130,7 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                     .assignmentTitle(a == null ? null : a.getTitle())
                     .caseId(inst.getCaseId())
                     .caseTitle(c == null ? null : c.getTitle())
+                    .className(classNameByAssignment.get(inst.getAssignmentId()))
                     .deadline(a == null ? null : a.getDeadline())
                     .status(inst.getStatus())
                     .score(inst.getScore())
@@ -600,6 +609,28 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
         for (Assignment a : assignmentMapper.selectList(
                 new LambdaQueryWrapper<Assignment>().in(Assignment::getId, ids))) {
             map.put(a.getId(), a);
+        }
+        return map;
+    }
+
+    /** 作业→班级名（首个目标班级；支持学生端按课程分组待办） */
+    private Map<Long, String> loadClassNameMap(List<Long> assignmentIds) {
+        Map<Long, String> map = new HashMap<>();
+        if (assignmentIds.isEmpty()) return map;
+        List<AssignmentTargetClass> targets = targetClassMapper.selectList(
+                new LambdaQueryWrapper<AssignmentTargetClass>()
+                        .in(AssignmentTargetClass::getAssignmentId, assignmentIds));
+        if (targets.isEmpty()) return map;
+        Map<Long, Long> firstClassByAssignment = new HashMap<>();
+        targets.forEach(t -> firstClassByAssignment.putIfAbsent(t.getAssignmentId(), t.getClassId()));
+        List<Long> classIds = targets.stream().map(AssignmentTargetClass::getClassId)
+                .filter(Objects::nonNull).distinct().toList();
+        if (!classIds.isEmpty()) {
+            Map<Long, String> nameById = new HashMap<>();
+            for (TeachingClass c : teachingClassMapper.selectBatchIds(classIds)) {
+                if (c != null && c.getId() != null) nameById.put(c.getId(), c.getName());
+            }
+            firstClassByAssignment.forEach((aid, cid) -> map.put(aid, nameById.get(cid)));
         }
         return map;
     }

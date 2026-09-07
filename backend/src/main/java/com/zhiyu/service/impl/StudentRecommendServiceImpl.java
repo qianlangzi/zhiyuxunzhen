@@ -596,8 +596,7 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
             if (!StringUtils.hasText(tag)) {
                 continue;
             }
-            String note = StringUtils.hasText(m.getEvidenceJson()) ? m.getEvidenceJson()
-                    : (StringUtils.hasText(m.getStudentAnswer()) ? "学生作答：" + m.getStudentAnswer() : null);
+            String note = buildMistakeNote(m);
             if (note == null) {
                 continue;
             }
@@ -607,6 +606,58 @@ public class StudentRecommendServiceImpl implements StudentRecommendService {
             }
         }
         return map;
+    }
+
+    /**
+     * 错题要点：优先消费 AI 归因结论（分叉阶段 / 认知偏差 / 分叉点 / 根因），
+     * 让错题本里花 token 算出的归因回流到「学情诊断」与「个性化推荐」；
+     * 无归因结果（未分析或降级）时退回原始证据，保证链路不因 AI 缺失而断。
+     */
+    private String buildMistakeNote(StudentMistakes m) {
+        String ai = m.getAiAnalysisJson();
+        if (StringUtils.hasText(ai) && objectMapper != null) {
+            try {
+                Map<?, ?> map = objectMapper.readValue(ai, Map.class);
+                if ("SUCCESS".equals(String.valueOf(map.get("status")))) {
+                    String stage = text(map.get("stage"));
+                    String bias = text(map.get("biasType"));
+                    String fork = text(map.get("forkPoint"));
+                    String root = text(map.get("rootCause"));
+                    StringBuilder sb = new StringBuilder();
+                    if (stage != null || bias != null) {
+                        sb.append("【")
+                                .append(stage == null ? "未定位分叉" : stage)
+                                .append(bias == null ? "" : " · " + bias)
+                                .append("】");
+                    }
+                    if (fork != null) {
+                        sb.append(fork);
+                    }
+                    if (root != null) {
+                        if (sb.length() > 0) {
+                            sb.append("；");
+                        }
+                        sb.append("根因：").append(root);
+                    }
+                    if (sb.length() > 0) {
+                        return sb.toString();
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("错题归因JSON解析失败，退回原始证据: mistakeId={} err={}", m.getId(), e.getMessage());
+            }
+        }
+        return StringUtils.hasText(m.getEvidenceJson()) ? m.getEvidenceJson()
+                : (StringUtils.hasText(m.getStudentAnswer()) ? "学生作答：" + m.getStudentAnswer() : null);
+    }
+
+    /** 归因字段取值：空白一律归一为 null，避免拼出空标签 */
+    private String text(Object v) {
+        if (v == null) {
+            return null;
+        }
+        String s = String.valueOf(v).trim();
+        return s.isEmpty() || "null".equals(s) ? null : s;
     }
 
     private List<String> loadMistakesByTag(Long studentId, String tag) {

@@ -10,6 +10,85 @@ class TeacherService {
 
   bool get _isMock => ApiConfig.useMockAuth;
 
+  // ==================== 病例多模态素材 ====================
+
+  /// 上传病例素材（图片/PDF/音频/视频）
+  Future<Map<String, dynamic>?> uploadCaseMedia(String filePath) async {
+    if (_isMock) return null;
+    final resp = await _api.uploadCaseMedia(filePath);
+    if (!resp.isSuccess) {
+      log('uploadCaseMedia failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// AI 素材建议
+  Future<Map<String, dynamic>?> caseMaterialAdvice(int caseId) async {
+    if (_isMock) return null;
+    final resp = await _api.caseMaterialAdvice(caseId);
+    if (!resp.isSuccess) {
+      log('caseMaterialAdvice failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  // ==================== 每日病历闭环 ====================
+
+  /// 最近期次列表
+  Future<List<dynamic>> getMrSchedules({int limit = 30}) async {
+    if (_isMock) return const [];
+    final resp = await _api.getMrSchedules(limit: limit);
+    if (!resp.isSuccess) {
+      log('getMrSchedules failed: ${resp.message}', name: 'teacher_service');
+      return const [];
+    }
+    return resp.data ?? const [];
+  }
+
+  /// 批阅台：某期学生病历列表
+  Future<List<dynamic>> getMrRecords({
+    required int scheduleId,
+    int pageNum = 1,
+    int pageSize = 20,
+  }) async {
+    if (_isMock) return const [];
+    final resp = await _api.getMrRecords(
+        scheduleId: scheduleId, pageNum: pageNum, pageSize: pageSize);
+    if (!resp.isSuccess) {
+      log('getMrRecords failed: ${resp.message}', name: 'teacher_service');
+      return const [];
+    }
+    return resp.data ?? const [];
+  }
+
+  /// 复核改分
+  Future<Map<String, dynamic>?> reviewMrRecord({
+    required int recordId,
+    double? score,
+    String? comment,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.reviewMrRecord(recordId: recordId, score: score, comment: comment);
+    if (!resp.isSuccess) {
+      log('reviewMrRecord failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 班级缺陷统计
+  Future<List<dynamic>> getMrDefectStats({int? scheduleId}) async {
+    if (_isMock) return const [];
+    final resp = await _api.getMrDefectStats(scheduleId: scheduleId);
+    if (!resp.isSuccess) {
+      log('getMrDefectStats failed: ${resp.message}', name: 'teacher_service');
+      return const [];
+    }
+    return resp.data ?? const [];
+  }
+
   /// 获取病例列表（status: 0草稿 1已发布，null 不过滤）
   Future<Map<String, dynamic>?> getCaseList({int? status}) async {
     if (_isMock) return null;

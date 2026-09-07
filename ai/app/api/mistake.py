@@ -12,7 +12,7 @@ from typing import Any
 from fastapi import APIRouter, Depends
 from logging import INFO, WARNING
 
-from app.core.logging import get_logger, log_event, set_context, reset_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from app.core.security import require_internal_token
 from app.models.common import R
 from app.models.mistake import MistakeAnalyzeRequest, MistakeAnalysisResult
@@ -25,9 +25,11 @@ router = APIRouter()
 
 def _to_user_msg(req: MistakeAnalyzeRequest) -> str:
     """把单条错题组装成给 LLM 的用户消息"""
+    subjective = req.questionType == "subjective"
     lines = [
         f"错题 ID：{req.mistakeId}",
         f"错误类型：{req.mistakeType}",
+        f"归因模式：{'B 主观题失分维度' if subjective else 'A 临床推理五阶段分叉'}",
     ]
     if req.caseTitle:
         lines.append(f"病例/场景：{req.caseTitle}")
@@ -39,8 +41,35 @@ def _to_user_msg(req: MistakeAnalyzeRequest) -> str:
     lines.append(f"标准答案：{req.standardAnswer or '（无）'}")
     if req.evidence:
         lines.append(f"关键证据/脱轨节点：{req.evidence}")
+    if subjective:
+        if req.score is not None:
+            lines.append(f"本题得分：{req.score}")
+        if req.essayMistakes:
+            brief = "；".join(
+                str(m.get("comment") or m.get("location") or "")[:80]
+                for m in req.essayMistakes[:5]
+                if isinstance(m, dict)
+            )
+            if brief:
+                lines.append(f"批阅错误明细：{brief}")
     lines.append("请基于以上信息，输出结构化错题归因 JSON。")
     return "\n".join(lines)
+
+
+# 阶段 / 偏差枚举白名单：LLM 输出不在集合内时归一为空，避免脏值污染前端渲染
+_ALLOWED_STAGES = {
+    "information", "hypothesis", "differential", "workup", "conclusion",
+    "completeness", "logic", "professionalism", "expression",
+}
+_ALLOWED_BIAS = {
+    "anchoring", "premature_closure", "availability", "confirmation", "framing",
+    "incomplete", "unordered", "unsupported", "none",
+}
+
+
+def _norm_enum(value: Any, allowed: set[str]) -> str:
+    v = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return v if v in allowed else ""
 
 
 def _degraded(req: MistakeAnalyzeRequest) -> MistakeAnalysisResult:
@@ -61,7 +90,7 @@ async def analyze_mistake(
     req: MistakeAnalyzeRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         messages = [
@@ -82,6 +111,9 @@ async def analyze_mistake(
 
         analysis = MistakeAnalysisResult(
             mistakeId=req.mistakeId,
+            stage=_norm_enum(result.get("stage"), _ALLOWED_STAGES),
+            forkPoint=str(result.get("forkPoint") or "").strip(),
+            biasType=_norm_enum(result.get("biasType"), _ALLOWED_BIAS),
             rootCause=str(result.get("rootCause") or ""),
             explanation=str(result.get("explanation") or ""),
             recommendedTags=[str(t) for t in (result.get("recommendedTags") or [])

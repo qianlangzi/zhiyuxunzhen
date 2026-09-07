@@ -138,11 +138,13 @@ class CompanionHistoryDrawer extends ConsumerWidget {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (list.isEmpty)
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: Text(
                     '暂无历史会话',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.text4Of(context),),
                   ),
                 ),
               )

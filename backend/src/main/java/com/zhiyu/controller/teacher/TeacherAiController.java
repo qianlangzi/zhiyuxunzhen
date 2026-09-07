@@ -92,6 +92,16 @@ public class TeacherAiController {
         return R.ok(data);
     }
 
+    @Operation(summary = "病例素材智能推荐（AI 建议应准备的多模态材料清单）")
+    @GetMapping("/material-advice/{caseId}")
+    public R<Map<String, Object>> materialAdvice(@PathVariable Long caseId) {
+        Map<String, Object> data = teacherAiService.materialAdvice(caseId);
+        if (data == null) {
+            return R.fail(500, "AI 暂不可用，无法推荐素材");
+        }
+        return R.ok(data);
+    }
+
     @Operation(summary = "生成并持久化学情诊断报告（classId 为空=全体学生）")
     @PostMapping("/report/class")
     public R<Map<String, Object>> generateClassReport(

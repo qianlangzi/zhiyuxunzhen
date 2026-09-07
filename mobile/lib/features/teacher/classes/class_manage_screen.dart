@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../common/guide/guide_anchor.dart';
 import '../data/teacher_service.dart';
 
 /// 班级管理 · 我的教学班
@@ -407,22 +408,26 @@ class _ClassManageScreenState extends ConsumerState<ClassManageScreen> {
               AppTitleAppBar(
                 tag: '教师端 · 班级管理',
                 title: '我的教学班',
-                action: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    AppPrimaryButton(
-                      label: '新建班级',
-                      small: true,
-                      onPressed: _createClass,
-                    ),
-                    const SizedBox(width: 8),
-                    AppPrimaryButton(
-                      label: '发放作业',
-                      small: true,
-                      onPressed: () =>
-                          context.pushNamed(RouteNames.assignmentCreate),
-                    ),
-                  ],
+                // 套 GuideTarget：新手指引会高亮「新建班级 / 发放作业」
+                action: GuideTarget(
+                  anchor: GuideAnchors.teacherClassesCreate,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AppPrimaryButton(
+                        label: '新建班级',
+                        small: true,
+                        onPressed: _createClass,
+                      ),
+                      const SizedBox(width: 8),
+                      AppPrimaryButton(
+                        label: '发放作业',
+                        small: true,
+                        onPressed: () =>
+                            context.pushNamed(RouteNames.assignmentCreate),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             Expanded(
@@ -454,8 +459,13 @@ class _ClassManageScreenState extends ConsumerState<ClassManageScreen> {
                               itemCount: _classes.length,
                               separatorBuilder: (_, __) =>
                                   const SizedBox(height: 12),
-                              itemBuilder: (context, i) =>
-                                  _classCard(_classes[i]),
+                              itemBuilder: (context, i) => i == 0
+                                  // 首张班级卡挂引导锚点：教用户「长按唤出管理菜单」
+                                  ? GuideTarget(
+                                      anchor: GuideAnchors.teacherClassesCard,
+                                      child: _classCard(_classes[i]),
+                                    )
+                                  : _classCard(_classes[i]),
                             ),
             ),
             if (_multiSelect) _buildMultiSelectTools(),

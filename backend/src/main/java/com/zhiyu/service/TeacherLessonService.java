@@ -81,4 +81,7 @@ public interface TeacherLessonService {
 
     /** 学生端：单个学习任务详情 */
     Map<String, Object> studentTaskDetail(Long publishId);
+
+    /** 学生端：标记资料任务完成（幂等，仅班级成员可操作；完成后从待办/课程角标清除） */
+    void completeLessonTask(Long publishId);
 }

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/config/api_config.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/common/guide/guide_controller.dart';
 import 'features/common/settings/settings_provider.dart';
 
 /// 全局渲染异常兜底页：任何 widget 在 build 期间抛异常时，
@@ -73,6 +74,8 @@ void main() async {
   final container = ProviderContainer();
   await container.read(authProvider.notifier).ensureInitialized();
   await container.read(settingsProvider.notifier).ensureLoaded();
+  // 预热新手指引的「已完成」记录，避免首屏引导读盘竞态导致重复播放
+  await container.read(guideControllerProvider.notifier).ensureLoaded();
 
   runApp(
     UncontrolledProviderScope(

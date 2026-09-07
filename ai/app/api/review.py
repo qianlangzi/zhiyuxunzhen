@@ -10,7 +10,7 @@ import uuid
 from fastapi import APIRouter, Depends, Request
 
 from app.agents.reviewer_agent import review as do_review
-from app.core.logging import get_logger, log_event, set_context, reset_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
 from app.core.security import require_internal_token
 from app.models.common import R
@@ -49,7 +49,7 @@ async def review_medical_record(
     req: ReviewRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         result = await do_review(

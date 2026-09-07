@@ -12,7 +12,7 @@ from logging import INFO, WARNING
 from fastapi import APIRouter, Depends
 
 from app.core.errors import ApiError, ModelUnavailableError, OutputSchemaInvalidError, RetrievalUnavailableError
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.domain.policies.safety_policy import safety_policy
 from app.models.common import R
@@ -31,7 +31,7 @@ async def review_essay(
     req: EssayReviewRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # 以题目检索教材，作为评分依据锚点（可选增强）

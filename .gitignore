@@ -117,6 +117,7 @@ docs/main.pdf
 
 # ===== 构建产物 / 日志 / 缓存（勿提交） =====
 backend/*.jar.bak
+backend/*.jar.bak-*
 backend/mvn_out.txt
 *emb_cache.json
 ai/data/bm25_cache/
@@ -128,5 +129,10 @@ _screenshots/
 # ===== Android 图标备份（勿提交） =====
 mobile/android/app/src/main/launcher-icon-backup/
 
-# Flutter tool 运行时产物
+# Flutter tool 运行时产物（勿提交）
 .flutter_tool_state
+mobile/.flutter
+mobile/errors.txt
+
+# ===== TRAE 本地工具配置（勿提交） =====
+.trae/

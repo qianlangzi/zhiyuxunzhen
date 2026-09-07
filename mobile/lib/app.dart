@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme/app_theme.dart';
+import 'features/common/guide/guide_overlay.dart';
 import 'features/common/settings/settings_provider.dart';
 import 'routes/app_router.dart';
 
@@ -94,11 +95,21 @@ class _ZhiyuAppState extends ConsumerState<ZhiyuApp> with WidgetsBindingObserver
       themeAnimationCurve: Curves.easeInOutCubic,
       routerConfig: ref.watch(routerProvider),
       // 在此用 MediaQuery 覆盖全局 textScaler，实现「文字大小」设置。
+      // 新手指引遮罩层挂在最外层：这样 push 出去的二级页也会被覆盖，
+      // 高亮定位不会受页面层级影响。
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(settings.textScale),
         ),
-        child: child ?? const SizedBox.shrink(),
+        // Stack 默认给非定位子组件「松约束」，导航器拿不到紧约束会塌缩，
+        // 因此显式用 SizedBox.expand 把路由页撑满；引导层静止时是 zero-size，
+        // 不会拦截任何点击。
+        child: Stack(
+          children: [
+            SizedBox.expand(child: child),
+            const GuideOverlay(),
+          ],
+        ),
       ),
     );
   }

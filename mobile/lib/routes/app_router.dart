@@ -10,6 +10,7 @@ import '../data/models/models.dart';
 import '../features/student/home/student_home_screen.dart';
 import '../features/student/market/student_case_market_screen.dart';
 import '../features/student/chat/chat_room_screen.dart';
+import '../features/student/result/osce_history_screen.dart';
 import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
 import '../features/student/recommend/recommendation_screen.dart';
@@ -27,11 +28,16 @@ import '../features/student/companion/memory_manage_screen.dart';
 import '../features/student/archive/learning_archive_screen.dart';
 import '../features/student/feedback/feedback_screen.dart';
 import '../features/student/daily_case/daily_case_screen.dart';
+import '../features/student/daily_case/mr_bank_screen.dart';
+import '../features/student/daily_case/mr_calendar_screen.dart';
+import '../features/student/daily_case/mr_report_screen.dart';
+import '../features/student/daily_case/mr_workshop_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
 import '../features/student/growth/growth_screen.dart';
 import '../features/student/assignments/todo_assignments_screen.dart';
 import '../features/student/assignments/todo_assignment_detail_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
+import '../features/teacher/daily_mr/teacher_mr_console_screen.dart';
 import '../features/teacher/home/teacher_home_screen.dart';
 import '../features/teacher/case_config/sp_config_screen.dart';
 import '../features/teacher/case_config/my_cases_screen.dart';
@@ -42,6 +48,8 @@ import '../features/teacher/classes/class_members_screen.dart';
 import '../features/teacher/classes/class_invite_screen.dart';
 import '../features/student/courses/my_courses_screen.dart';
 import '../features/student/courses/my_course_detail_screen.dart';
+import '../features/student/courses/course_material_detail_screen.dart';
+import '../features/student/courses/course_material_preview_screen.dart';
 import '../features/student/join/student_join_class_screen.dart';
 import '../features/teacher/assignments/assignment_manage_screen.dart';
 import '../features/teacher/assignments/assignment_detail_screen.dart';
@@ -246,6 +254,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => OsceResultScreen(),
       ),
       GoRoute(
+        name: RouteNames.osceHistory,
+        path: '/student/osce-history',
+        builder: (context, state) => const OsceHistoryScreen(),
+      ),
+      GoRoute(
         name: RouteNames.recommendation,
         path: '/student/recommend',
         builder: (context, state) => RecommendationScreen(),
@@ -343,6 +356,30 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.dailyCase,
         path: '/student/daily',
         builder: (context, state) => DailyCaseScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.mrBank,
+        path: '/student/daily/bank',
+        builder: (context, state) => const MrBankScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.mrWorkshop,
+        path: '/student/daily/workshop/:scheduleId',
+        builder: (context, state) => MrWorkshopScreen(
+          scheduleId: int.tryParse(state.pathParameters['scheduleId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        name: RouteNames.mrReport,
+        path: '/student/daily/report/:scheduleId',
+        builder: (context, state) => MrReportScreen(
+          scheduleId: int.tryParse(state.pathParameters['scheduleId'] ?? '') ?? 0,
+        ),
+      ),
+      GoRoute(
+        name: RouteNames.mrCalendar,
+        path: '/student/daily/calendar',
+        builder: (context, state) => const MrCalendarScreen(),
       ),
       GoRoute(
         name: RouteNames.profileEdit,
@@ -455,6 +492,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        name: RouteNames.courseMaterialDetail,
+        path: '/student/course-material/:publishId',
+        builder: (context, state) => CourseMaterialDetailScreen(
+          publishId: int.tryParse(state.pathParameters['publishId'] ?? '') ?? 0,
+          classId: state.extra is Map
+              ? ((state.extra! as Map)['classId'] as num?)?.toInt() ?? 0
+              : 0,
+          title: state.extra is Map
+              ? (state.extra! as Map)['title'] as String? ?? '学习资料'
+              : state.uri.queryParameters['title'] ?? '学习资料',
+          material: state.extra is Map
+              ? (state.extra! as Map)['material'] as Map<String, dynamic>?
+              : null,
+        ),
+      ),
+      GoRoute(
+        name: RouteNames.courseMaterialPreview,
+        path: '/student/course-material/preview/:type',
+        builder: (context, state) => CourseMaterialPreviewScreen(
+          type: state.pathParameters['type'] ?? '',
+          title: state.extra is Map
+              ? (state.extra! as Map)['title'] as String? ?? '资料预览'
+              : state.uri.queryParameters['title'] ?? '资料预览',
+          url: state.extra is Map
+              ? (state.extra! as Map)['url'] as String? ?? ''
+              : state.uri.queryParameters['url'] ?? '',
+        ),
+      ),
+      GoRoute(
         name: RouteNames.spConfig,
         path: '/teacher/sp-config',
         builder: (context, state) => SpConfigScreen(
@@ -526,6 +592,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.teacherTextbook,
         path: '/teacher/textbooks',
         builder: (context, state) => TeacherTextbookScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.teacherMrConsole,
+        path: '/teacher/daily-mr',
+        builder: (context, state) => const TeacherMrConsoleScreen(),
       ),
       GoRoute(
         name: RouteNames.teacherQuestions,

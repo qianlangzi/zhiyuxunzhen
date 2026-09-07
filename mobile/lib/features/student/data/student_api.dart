@@ -41,27 +41,95 @@ class StudentApi {
     sendTimeout: const Duration(seconds: 15),
   );
 
-  /// 获取今日每日一例
-  Future<ApiResponse<Map<String, dynamic>>> getTodayDailyCase() async {
+  // ==================== 每日病历（每日一例升级版） ====================
+
+  /// 今日病历卡（排期 + 我的记录 + 连续打卡）
+  Future<ApiResponse<Map<String, dynamic>>> getTodayDailyMr() async {
     try {
-      final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/daily-cases/today');
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/student/daily-cases/mr/today');
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
     }
   }
 
-  /// 提交每日一例答案
-  Future<ApiResponse<Map<String, dynamic>>> submitDailyCase({
+  /// 病历题库（往期列表）
+  Future<ApiResponse<List<dynamic>>> getDailyMrBank({
+    int pageNum = 1,
+    int pageSize = 20,
+    int? done,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/student/daily-cases/mr/bank',
+          queryParameters: {
+            'pageNum': pageNum,
+            'pageSize': pageSize,
+            if (done != null) 'done': done,
+          });
+      return ApiResponse.fromJson(resp.data!, (d) => d['list'] as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 题目详情（病例材料 + 九段定义 + 我的提交记录）
+  Future<ApiResponse<Map<String, dynamic>>> getDailyMrDetail(int scheduleId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/student/daily-cases/mr/$scheduleId');
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 段落教练（AI 三级提示）
+  Future<ApiResponse<Map<String, dynamic>>> dailyMrHint({
     required int scheduleId,
-    required String answer,
+    required String segmentKey,
+    int hintLevel = 1,
   }) async {
     try {
       final resp = await _dio.post<Map<String, dynamic>>(
-        '/api/v1/student/daily-cases/submit',
-        data: {'scheduleId': scheduleId, 'answer': answer},
+        '/api/v1/student/daily-cases/mr/hint',
+        data: {
+          'scheduleId': scheduleId,
+          'segmentKey': segmentKey,
+          'hintLevel': hintLevel,
+        },
         options: _aiOptions,
       );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 提交病历（九段内容 → AI 结构化批阅）
+  Future<ApiResponse<Map<String, dynamic>>> submitDailyMr({
+    required int scheduleId,
+    required Map<String, String> segments,
+  }) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/daily-cases/mr/submit',
+        data: {'scheduleId': scheduleId, 'segments': segments},
+        options: _aiOptions,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 打卡日历
+  Future<ApiResponse<Map<String, dynamic>>> dailyMrCalendar({int? year}) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/student/daily-cases/mr/calendar',
+          queryParameters: {if (year != null) 'year': year});
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
@@ -246,6 +314,34 @@ class StudentApi {
       final resp = await _dio.post<Map<String, dynamic>>(
         '/api/v1/student/mistakes/$id/analyze',
         options: _aiOptions,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 练同类题：以该错题的知识点 + AI 归因标签为焦点生成巩固练习
+  Future<ApiResponse<Map<String, dynamic>>> drillMistake(int id,
+      {int count = 5}) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/mistakes/$id/drill',
+        queryParameters: {'count': count},
+        options: _aiOptions,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 回写错题复习状态（0未复习 1已复习 2已掌握）· 闭环出口，持久化到服务端
+  Future<ApiResponse<Map<String, dynamic>>> markMistakeStatus(int id, int status) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/mistakes/$id/status',
+        queryParameters: {'status': status},
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -1094,6 +1190,18 @@ class StudentApi {
     try {
       final resp = await _dio.get<Map<String, dynamic>>('/api/v1/student/tasks');
       return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 标记资料任务完成（幂等；完成后从待办与课程角标清除）
+  Future<ApiResponse<bool>> completeLessonTask(int publishId) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/student/tasks/lesson-tasks/$publishId/complete',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => true);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
     }

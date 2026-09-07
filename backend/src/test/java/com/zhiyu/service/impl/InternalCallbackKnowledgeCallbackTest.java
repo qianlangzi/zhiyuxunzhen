@@ -57,13 +57,15 @@ class InternalCallbackKnowledgeCallbackTest {
     private StudentWeaknessMapper studentWeaknessMapper;
     @Mock
     private ModelEventLogMapper modelEventLogMapper;
+    @Mock
+    private com.zhiyu.service.support.MistakeAnalysisTrigger mistakeAnalysisTrigger;
 
     private InternalCallbackServiceImpl newService() {
         return new InternalCallbackServiceImpl(
                 chatSessionMapper, medicalRecordReviewMapper, assignmentInstanceMapper,
                 assignmentItemProgressMapper, studentMistakesMapper, studentWeaknessMapper,
                 textbookMapper, auditLogService, new ObjectMapper(), weaknessAnalysisService,
-                modelEventLogMapper);
+                modelEventLogMapper, mistakeAnalysisTrigger);
     }
 
     @Test

@@ -48,6 +48,7 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
     private final StudentAlertMapper alertMapper;
     private final SysNotificationMapper notificationMapper;
     private final SysUserMapper userMapper;
+    private final StudentClassMembershipMapper membershipMapper;
     private final TeachingClassMapper classMapper;
     private final TeacherClassAuthorizationMapper authorizationMapper;
     private final AiPlatformClient aiPlatformClient;
@@ -72,11 +73,23 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
                 .stream().map(TeacherClassAuthorization::getClassId).toList();
         if (classIds.isEmpty()) return;
 
-        List<SysUser> students = userMapper.selectList(
-                new LambdaQueryWrapper<SysUser>()
+        Set<Long> studentIds = new LinkedHashSet<>();
+        for (Long classId : classIds) {
+            membershipMapper.selectList(new LambdaQueryWrapper<StudentClassMembership>()
+                            .eq(StudentClassMembership::getClassId, classId))
+                    .forEach(m -> studentIds.add(m.getStudentId()));
+        }
+        // 兜底并集 sys_user.class_id 遗留学生
+        userMapper.selectList(new LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getRole, 0)
                         .eq(SysUser::getStatus, 0)
-                        .in(SysUser::getClassId, classIds));
+                        .in(SysUser::getClassId, classIds))
+                .forEach(u -> studentIds.add(u.getId()));
+        List<SysUser> students = studentIds.isEmpty() ? List.of()
+                : userMapper.selectList(new LambdaQueryWrapper<SysUser>()
+                        .in(SysUser::getId, studentIds)
+                        .eq(SysUser::getRole, 0)
+                        .eq(SysUser::getStatus, 0));
 
         for (SysUser student : students) {
             scanStudent(student, teacherId, classIds);

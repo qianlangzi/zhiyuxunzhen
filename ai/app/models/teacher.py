@@ -251,3 +251,32 @@ class PracticeQuestionsResult(BaseModel):
     """AI 生成的练习题"""
 
     questions: list[PracticeQuestion] = Field(default_factory=list)
+
+# ---------- 7. 病例素材智能推荐（多模态问诊配套） ----------
+
+class MaterialAdviceRequest(BaseModel):
+    """对应 Java TeacherAiService.materialAdvice"""
+
+    caseId: int = Field(default=0)
+    title: str = Field(default="", description="病例标题")
+    department: str = Field(default="", description="科室")
+    complaint: str = Field(default="", description="主诉")
+    hiddenDisease: str = Field(default="", description="隐藏疾病/真实诊断")
+    presentIllness: str = Field(default="", description="现病史摘要")
+    existingExams: list[str] = Field(default_factory=list, description="已配置的检查项名称")
+
+
+class MaterialAdviceItem(BaseModel):
+    """单条素材建议"""
+
+    item: str = Field(description="材料名称，如 胸部X光片")
+    kind: str = Field(default="image", description="建议形式：image|pdf|audio|video|text")
+    reason: str = Field(default="", description="为什么要这份材料（结合病例一句话）")
+    priority: int = Field(default=2, description="1必备 2建议 3可选")
+
+
+class MaterialAdviceResult(BaseModel):
+    """病例素材建议清单"""
+
+    suggestions: list[MaterialAdviceItem] = Field(default_factory=list)
+    summary: str = Field(default="", description="一句话总体建议")

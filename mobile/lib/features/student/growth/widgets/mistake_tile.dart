@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/app_widgets.dart';
 import '../../../../shared/widgets/paper_surfaces.dart';
 import '../../../../shared/widgets/typewriter_text.dart';
+import '../../training/question_practice_screen.dart';
 
 /// 单条错题的数据模型
 ///
@@ -15,6 +16,9 @@ class MistakeEntry {
         typeKey = m['mistakeType'] as String? ?? '',
         resolvedStatus = (m['resolvedStatus'] as num?)?.toInt() ?? 0,
         date = m['createdAt'] as String? ?? '',
+        consecutiveCorrect = (m['consecutiveCorrect'] as num?)?.toInt(),
+        wrongCount = (m['wrongCount'] as num?)?.toInt(),
+        focusFlag = (m['focusFlag'] as num?)?.toInt(),
         // 病例错题用 caseTitle；刷题错题用 questionTitle（题干）
         title = (m['caseTitle'] as String?) ?? (m['questionTitle'] as String?) ?? '',
         evidence = m['evidenceJson'] as String? ?? '',
@@ -39,8 +43,114 @@ class MistakeEntry {
   final List<String> tags;
   Map<String, dynamic>? aiAnalysis;
 
+  /// 进入错题本后连续答对次数 / 累计答错次数（刷题错题闭环）
+  final int? consecutiveCorrect;
+  final int? wrongCount;
+
+  /// 0普通 1需加强（连续答错>=2）
+  final int? focusFlag;
+
   bool get mastered => resolvedStatus == 2;
   bool get reviewed => resolvedStatus == 1;
+  bool get needFocus => focusFlag == 1;
+
+  /// 是否主观题（简答/论述）：走失分维度归因，不展示临床推理五阶段
+  bool get isSubjective => typeKey == 'essay';
+
+  /// 来源分组：刷题 / 问诊(SP) / 主观题。错题本筛选条按来源一级分类，
+  /// 卡片角标仍展示细分类型（诊断错误 / 漏问病史 …）。
+  static const _consultTypes = {
+    'diagnosis', 'history', 'exam', 'record', 'communication',
+  };
+
+  String get sourceKey {
+    if (typeKey == 'practice') return 'practice';
+    if (typeKey == 'essay') return 'essay';
+    if (_consultTypes.contains(typeKey)) return 'consult';
+    return typeKey; // 未知类型自成分组，保证不丢
+  }
+
+  /// 来源分组的中文标签
+  static String labelOfSource(String sourceKey) {
+    switch (sourceKey) {
+      case 'practice':
+        return '刷题';
+      case 'consult':
+        return '问诊';
+      case 'essay':
+        return '主观题';
+      default:
+        return sourceKey;
+    }
+  }
+
+  /// 归因：临床推理分叉阶段（客观题）/ 失分维度（主观题）
+  String get aiStage => (aiAnalysis?['stage'] as String?) ?? '';
+
+  /// 归因：分叉点对照（学生怎么想的 → 正确路径该怎么走）
+  String get aiForkPoint => (aiAnalysis?['forkPoint'] as String?) ?? '';
+
+  /// 归因：认知偏差类型
+  String get aiBiasType => (aiAnalysis?['biasType'] as String?) ?? '';
+
+  /// 分叉阶段/失分维度的中文标签
+  static String labelOfStage(String? stage) {
+    switch (stage) {
+      case 'information':
+        return '信息采集';
+      case 'hypothesis':
+        return '假设形成';
+      case 'differential':
+        return '鉴别诊断';
+      case 'workup':
+        return '检查选择';
+      case 'conclusion':
+        return '确诊处置';
+      case 'completeness':
+        return '要点缺失';
+      case 'logic':
+        return '逻辑链断裂';
+      case 'professionalism':
+        return '专业性不足';
+      case 'expression':
+        return '表达不清';
+      default:
+        return '';
+    }
+  }
+
+  /// 认知偏差的中文标签
+  static String labelOfBias(String? bias) {
+    switch (bias) {
+      case 'anchoring':
+        return '锚定偏差';
+      case 'premature_closure':
+        return '过早闭合';
+      case 'availability':
+        return '可得性偏差';
+      case 'confirmation':
+        return '确认偏误';
+      case 'framing':
+        return '框定效应';
+      case 'incomplete':
+        return '覆盖不全';
+      case 'unordered':
+        return '结构混乱';
+      case 'unsupported':
+        return '论断缺依据';
+      default:
+        return '';
+    }
+  }
+
+  /// 临床推理五阶段（客观题归因用）
+  static const List<String> reasoningStages = [
+    'information',
+    'hypothesis',
+    'differential',
+    'workup',
+    'conclusion',
+  ];
 
   String get typeLabel => labelOfType(typeKey);
 
@@ -59,12 +169,14 @@ class MistakeEntry {
         return '沟通';
       case 'practice':
         return '刷题错题';
+      case 'essay':
+        return '主观题';
       default:
         return type ?? '未知';
     }
   }
 
-  /// 筛选中文标签 -> API 类型 key
+  /// 问诊细分筛选中文标签 -> 错题类型 key（仅在来源=问诊时的二级筛选）
   static String? keywordOf(String zh) {
     switch (zh) {
       case '诊断':
@@ -73,19 +185,20 @@ class MistakeEntry {
         return 'history';
       case '检查':
         return 'exam';
-      case '病历':
+      case '文书':
         return 'record';
       case '沟通':
         return 'communication';
-      case '刷题':
-        return 'practice';
       default:
         return null;
     }
   }
 
-  /// 全部筛选标签
-  static const List<String> filterLabels = ['全部', '诊断', '病史', '检查', '病历', '沟通', '刷题'];
+  /// 一级来源筛选标签（错题本筛选条）
+  static const List<String> sourceFilterLabels = ['全部', '刷题', '问诊', '主观题'];
+
+  /// 问诊来源下的二级细分标签（首个为「全部」，null = 不细分）
+  static const List<String> consultSubLabels = ['全部', '诊断', '病史', '检查', '文书', '沟通'];
 }
 
 /// 错题卡片 —— 成长页与错题本二级页共用
@@ -98,6 +211,7 @@ class MistakeTile extends StatefulWidget {
     required this.entry,
     required this.onAnalyze,
     this.onMarkMastered,
+    this.onDrill,
     this.compact = false,
   });
 
@@ -109,6 +223,10 @@ class MistakeTile extends StatefulWidget {
   /// 标记已掌握回调
   final ValueChanged<MistakeEntry>? onMarkMastered;
 
+  /// 练同类题：以该错题知识点 + AI 归因标签生成巩固练习。
+  /// 为 null（如成长页简略模式）时不渲染入口。
+  final Future<Map<String, dynamic>?> Function(int id)? onDrill;
+
   /// 紧凑模式：卡片内边距更小，用于成长页的前几条
   final bool compact;
 
@@ -119,6 +237,8 @@ class MistakeTile extends StatefulWidget {
 class _MistakeTileState extends State<MistakeTile> {
   bool _expanded = false;
   bool _analyzing = false;
+  bool _drilling = false;
+  Map<String, dynamic>? _drill;
 
   Future<void> _analyze() async {
     setState(() => _analyzing = true);
@@ -131,6 +251,18 @@ class _MistakeTileState extends State<MistakeTile> {
             'status': 'DEGRADED',
             'explanation': 'AI 归因服务暂时不可用，请稍后重试。',
           };
+    });
+  }
+
+  /// 练同类题：拉巩固练习卷；失败时静默（保留归因内容可用）
+  Future<void> _drillPractice() async {
+    if (widget.onDrill == null) return;
+    setState(() => _drilling = true);
+    final data = await widget.onDrill!(widget.entry.id);
+    if (!mounted) return;
+    setState(() {
+      _drilling = false;
+      _drill = data;
     });
   }
 
@@ -195,6 +327,27 @@ class _MistakeTileState extends State<MistakeTile> {
                                 fontSize: 10, color: AppColors.primaryOf(context),),
                           ),
                         ),
+                      if (e.needFocus && !mastered)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2,),
+                            decoration: BoxDecoration(
+                              color: AppColors.vermilionOf(context)
+                                  .withValues(alpha: 0.12),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Text(
+                              '需加强',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.vermilionOf(context),),
+                            ),
+                          ),
+                        ),
                       const Spacer(),
                       MonoText(
                         e.date.length >= 10 ? e.date.substring(0, 10) : e.date,
@@ -228,9 +381,13 @@ class _MistakeTileState extends State<MistakeTile> {
                     ],
                     const SizedBox(height: 10),
                     _AiAnalysisBlock(
+                      entry: e,
                       analysis: e.aiAnalysis,
                       analyzing: _analyzing,
                       onRetry: _analyze,
+                      onDrill: widget.onDrill == null ? null : _drillPractice,
+                      drilling: _drilling,
+                      drill: _drill,
                     ),
                     if (e.tags.isNotEmpty) ...[
                       const SizedBox(height: 10),
@@ -302,14 +459,27 @@ class _EvidenceBlock extends StatelessWidget {
 /// AI 归因区块（未分析 / 分析中 / 成功 / 降级）
 class _AiAnalysisBlock extends StatelessWidget {
   const _AiAnalysisBlock({
+    required this.entry,
     required this.analysis,
     required this.analyzing,
     required this.onRetry,
+    this.onDrill,
+    this.drilling = false,
+    this.drill,
   });
 
+  final MistakeEntry entry;
   final Map<String, dynamic>? analysis;
   final bool analyzing;
   final VoidCallback onRetry;
+
+  /// 练同类题回调（为 null 时不渲染入口）
+  final VoidCallback? onDrill;
+  final bool drilling;
+  final Map<String, dynamic>? drill;
+
+  String get _stageLabel => MistakeEntry.labelOfStage(entry.aiStage);
+  String get _biasLabel => MistakeEntry.labelOfBias(entry.aiBiasType);
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +574,37 @@ class _AiAnalysisBlock extends StatelessWidget {
                   letterSpacing: 0.06,),
             ],
           ),
+          // 客观题：临床推理五阶段进度条，高亮思维分叉点
+          if (!entry.isSubjective && entry.aiStage.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _ForkStageBar(currentStage: entry.aiStage),
+          ],
+          if (_stageLabel.isNotEmpty || _biasLabel.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 5,
+              runSpacing: 5,
+              children: [
+                if (_stageLabel.isNotEmpty)
+                  _AttributionChip(
+                    label: entry.isSubjective
+                        ? '失分维度 · $_stageLabel'
+                        : '分叉阶段 · $_stageLabel',
+                    color: AppColors.vermilionOf(context),
+                  ),
+                if (_biasLabel.isNotEmpty)
+                  _AttributionChip(
+                    label: _biasLabel,
+                    color: AppColors.amberOf(context),
+                  ),
+              ],
+            ),
+          ],
+          // 分叉点对照：学生怎么想的 → 正确路径该怎么走
+          if (entry.aiForkPoint.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _aiLine(context, '思维分叉点', entry.aiForkPoint),
+          ],
           if (rootCause.isNotEmpty) ...[
             const SizedBox(height: 8),
             _aiLine(context, '为什么错', rootCause),
@@ -425,6 +626,36 @@ class _AiAnalysisBlock extends StatelessWidget {
                   .map((t) => AppChip(label: t, type: ChipType.moss))
                   .toList(),
             ),
+          ],
+          // 练同类题：把归因结论变成下一次练习
+          if (onDrill != null) ...[
+            const SizedBox(height: 11),
+            if (drilling)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primaryOf(context),),
+                    ),
+                    const SizedBox(width: 9),
+                    MonoText('正在生成巩固练习…',
+                        fontSize: 11, color: AppColors.text3Of(context),),
+                  ],
+                ),
+              )
+            else if (drill == null)
+              AppGhostButton(
+                label: '练同类题',
+                small: true,
+                icon: const Icon(Icons.fitness_center_rounded, size: 13),
+                onPressed: onDrill,
+              )
+            else
+              _DrillBlock(drill: drill!, knowledgeTag: tags.isNotEmpty ? tags.first : null),
           ],
         ],
       ),
@@ -454,6 +685,159 @@ class _AiAnalysisBlock extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 临床推理五阶段进度条：高亮思维分叉点
+///
+/// 分叉点之前的阶段视为「已走过」（中性色），分叉点高亮（朱红），之后为未达（灰）。
+class _ForkStageBar extends StatelessWidget {
+  const _ForkStageBar({required this.currentStage});
+
+  final String currentStage;
+
+  @override
+  Widget build(BuildContext context) {
+    final stages = MistakeEntry.reasoningStages;
+    final forkIndex = stages.indexOf(currentStage);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: List.generate(stages.length, (i) {
+        final isFork = i == forkIndex;
+        final passed = forkIndex >= 0 && i < forkIndex;
+        final color = isFork
+            ? AppColors.vermilionOf(context)
+            : (passed ? AppColors.moss : AppColors.text4Of(context));
+        return Expanded(
+          child: Column(
+            children: [
+              Container(
+                height: 3,
+                margin: EdgeInsets.only(right: i == stages.length - 1 ? 0 : 3),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: isFork ? 1 : 0.5),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                MistakeEntry.labelOfStage(stages[i]),
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.2,
+                  fontWeight: isFork ? FontWeight.w600 : FontWeight.w400,
+                  color: isFork ? color : AppColors.text4Of(context),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+}
+
+/// 归因标签（分叉阶段 / 认知偏差）
+class _AttributionChip extends StatelessWidget {
+  const _AttributionChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+            fontSize: 10.5, fontWeight: FontWeight.w600, color: color,),
+      ),
+    );
+  }
+}
+
+/// 巩固练习结果：题目列表 + 去练习入口
+class _DrillBlock extends StatelessWidget {
+  const _DrillBlock({required this.drill, this.knowledgeTag});
+
+  final Map<String, dynamic> drill;
+  final String? knowledgeTag;
+
+  @override
+  Widget build(BuildContext context) {
+    final questions = (drill['questions'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+    if (questions.isEmpty) {
+      return MonoText('暂无匹配的巩固题',
+          fontSize: 11, color: AppColors.text3Of(context),);
+    }
+    final firstId = (questions.first['id'] as num?)?.toInt();
+    final shown = questions.length > 5 ? 5 : questions.length;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(11, 10, 11, 8),
+      decoration: BoxDecoration(
+        color: AppColors.paper2Of(context).withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          MonoText(
+            (drill['paperTitle'] as String?) ?? '巩固练习',
+            fontSize: 11,
+            color: AppColors.primaryOf(context),
+          ),
+          const SizedBox(height: 7),
+          ...List.generate(shown, (i) {
+            final raw = (questions[i]['title'] as String? ?? '').trim();
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  MonoText('${i + 1}.',
+                      fontSize: 11, color: AppColors.text4Of(context),),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      raw.isEmpty ? '（题干缺失）' : raw,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.5,
+                          color: AppColors.text2Of(context),),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 4),
+          AppGhostButton(
+            label: '去练习',
+            small: true,
+            icon: const Icon(Icons.play_arrow_rounded, size: 13),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => QuestionPracticeScreen(
+                  title: '错题巩固练习',
+                  knowledgeTag: knowledgeTag,
+                  initialQuestionId: firstId,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

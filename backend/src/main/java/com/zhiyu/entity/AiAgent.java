@@ -42,6 +42,15 @@ public class AiAgent extends BaseEntity {
     /** 启用工具（rag/vision/...，逗号分隔） */
     private String toolsConfig;
 
+    /** 执行策略（可选 CODE/TOOL/LOOP，空=内置默认 CODE） */
+    private String strategy;
+
+    /** 指定模型（空用全局默认） */
+    private String model;
+
+    /** TOOL/LOOP 策略最大循环轮数（空用默认） */
+    private Integer maxIterations;
+
     /** 当前激活(1)/备用(0)，同 code 至多一个激活 */
     private Boolean isActive;
 

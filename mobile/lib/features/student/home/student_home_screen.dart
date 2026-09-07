@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/common/guide/guide_anchor.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../student/data/student_service.dart';
@@ -26,6 +28,8 @@ class StudentHomeScreen extends ConsumerStatefulWidget {
 
 class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   Map<String, dynamic>? _assignmentsData;
+  /// 资料任务待办数（教师发布 materialOnly=1 的备课资料，未标记完成的）
+  int _lessonTodoCount = 0;
   bool _isLoadingAssignments = true;
   DateTime _now = DateTime.now();
   Timer? _clockTimer;
@@ -47,10 +51,23 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
   }
 
   Future<void> _loadAssignments() async {
-    final data = await StudentService().getTodoAssignments();
+    // 并行拉取：作业待办 + 资料任务（与待办页同口径）
+    final results = await Future.wait<Object?>([
+      StudentService().getTodoAssignments(),
+      StudentService().getStudentTasks(),
+    ]);
     if (mounted) {
+      final tasks = results[1] as List<dynamic>?;
+      final lessonTodo = tasks
+              ?.map((e) => (e as Map).cast<String, dynamic>())
+              .where((m) =>
+                  (m['materialOnly'] as num?)?.toInt() == 1 &&
+                  m['completed'] != true)
+              .length ??
+          0;
       setState(() {
-        _assignmentsData = data;
+        _assignmentsData = results[0] as Map<String, dynamic>?;
+        _lessonTodoCount = lessonTodo;
         _isLoadingAssignments = false;
       });
     }
@@ -65,6 +82,9 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
     if (_isLoadingAssignments) return 0;
     return (_assignmentsData?['total'] as int? ?? 0);
   }
+
+  /// 「我的课程」侧待办总数 = 作业待办 + 资料任务待办（与待办页顶部汇总一致）
+  int get _coursePendingCount => _todoCount + _lessonTodoCount;
 
   /// 进入深页后返回首页时刷新待办，保证「任务完成 → 待办消失」。
   Future<void> _pushThenRefresh(Future<void> Function() nav) async {
@@ -319,15 +339,19 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               ),
 
               // ---- 功能卡片区（紧贴底部导航上方） ----
+              // 套 GuideTarget：新手指引会高亮这一排卡片
               Positioned(
                 left: 16,
                 right: 16,
                 bottom: cardsBottom,
-                child: _buildCards(
-                  cardH: cardH,
-                  charH: charH,
-                  charBottom: charBottom,
-                  isNight: isNight,
+                child: GuideTarget(
+                  anchor: GuideAnchors.studentHomeCards,
+                  child: _buildCards(
+                    cardH: cardH,
+                    charH: charH,
+                    charBottom: charBottom,
+                    isNight: isNight,
+                  ),
                 ),
               ),
             ],
@@ -398,16 +422,18 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       ),
       _CardData(
         title: '我的课程',
-        desc: '看进度',
+        desc: _coursePendingCount > 0 ? '$_coursePendingCount 项待办' : '暂无待办',
         asset: 'assets/images/student_course.png',
         shift: 0.08, // 朝右 · 身体偏左 → 右移对准卡片中心
-        onTap: _openMyCourses,
+        badge: _coursePendingCount,
+        onTap: () => _pushThenRefresh(_openMyCourses),
       ),
       _CardData(
         title: '作业待办',
         desc: _todoCount > 0 ? '$_todoCount 项待完成' : '今日无待办',
         asset: 'assets/images/student_assignment.png',
         shift: -0.10,
+        badge: _todoCount,
         onTap: () => _pushThenRefresh(
           () => context.pushNamed(RouteNames.todoAssignments),
         ),
@@ -485,6 +511,38 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           // 人物全高落入卡片内部（charBottom>0），不外溢
           clipBehavior: Clip.hardEdge,
           children: [
+            // 微信式红点角标：课程右上角显示待办数
+            if (d.badge > 0)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5484D),
+                      borderRadius: BorderRadius.circular(AppRadius.full),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFE5484D).withValues(alpha: 0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      d.badge > 99 ? '99+' : '${d.badge}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             // 人物：全高站立，脚部落在卡片内，气球随材质等比缩小
             Positioned(
               left: 0,
@@ -590,6 +648,7 @@ class _CardData {
     required this.asset,
     required this.shift,
     required this.onTap,
+    this.badge = 0,
   });
 
   final String title;
@@ -597,4 +656,7 @@ class _CardData {
   final String asset;
   final double shift; // 人物水平偏移（占图片宽度比例），实现左右交错
   final VoidCallback onTap;
+
+  /// 徽标数字（>0 时在卡片右上角显示，作业待办待办数用）
+  final int badge;
 }

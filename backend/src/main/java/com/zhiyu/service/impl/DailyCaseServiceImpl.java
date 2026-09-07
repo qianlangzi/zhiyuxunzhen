@@ -4,27 +4,20 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.zhiyu.client.AiPlatformClient;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.entity.ChatSession;
 import com.zhiyu.entity.DailyCaseSchedule;
-import com.zhiyu.entity.DailyCaseSubmission;
 import com.zhiyu.entity.SpCaseConfig;
-import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.mapper.ChatSessionMapper;
 import com.zhiyu.mapper.DailyCaseScheduleMapper;
-import com.zhiyu.mapper.DailyCaseSubmissionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
-import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.DailyCaseService;
-import com.zhiyu.service.dto.DailyCaseAnswerDTO;
 import com.zhiyu.service.dto.DailyCaseScheduleDTO;
 import com.zhiyu.vo.DailyCaseVO;
-import com.zhiyu.vo.DailyCaseResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -35,11 +28,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 /**
  * 每日一例服务实现（PRD 4.10 / 4.16 / 8.10）
+ *
+ * <p>负责排期管理 + 「今日排期」解析（Redis 缓存 + 日期兜底 + 自动轮转排期）。
+ * 旧版开放作答提交链路（submitAnswer / AI 判题 / 错题入库）已随移动端切换到
+ * 九段病历版（DailyMrService）下线。
  */
 @Slf4j
 @Service
@@ -58,11 +54,8 @@ public class DailyCaseServiceImpl implements DailyCaseService {
     }
 
     private final DailyCaseScheduleMapper scheduleMapper;
-    private final DailyCaseSubmissionMapper submissionMapper;
     private final SpCaseConfigMapper caseMapper;
     private final ChatSessionMapper chatSessionMapper;
-    private final StudentMistakesMapper mistakeMapper;
-    private final AiPlatformClient aiPlatformClient;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
@@ -271,7 +264,11 @@ public class DailyCaseServiceImpl implements DailyCaseService {
             StringBuilder sb = new StringBuilder();
             for (JsonNode it : arr) {
                 String name = it.path("name").asText("");
-                String result = it.path("result").asText("");
+                // result 兼容两种形态：纯文本（旧数据）或对象 {kind, conclusion, imageUrls}（多模态）
+                JsonNode resultNode = it.path("result");
+                String result = resultNode.isObject()
+                        ? resultNode.path("conclusion").asText("")
+                        : resultNode.asText("");
                 if (name.isBlank() && result.isBlank()) {
                     continue;
                 }
@@ -332,112 +329,5 @@ public class DailyCaseServiceImpl implements DailyCaseService {
         }
         String s = node.asText("");
         return s.isEmpty() ? null : s;
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public DailyCaseResultVO submitAnswer(DailyCaseAnswerDTO dto) {
-        Long studentId = UserContext.requireUserId();
-        DailyCaseSchedule s = scheduleMapper.selectById(dto.getScheduleId());
-        if (s == null || s.getStatus() == null || s.getStatus() != 2) {
-            throw new BizException(ResultCode.NOT_FOUND, "排期不存在");
-        }
-        Long submitted = submissionMapper.selectCount(
-                new LambdaQueryWrapper<DailyCaseSubmission>()
-                        .eq(DailyCaseSubmission::getScheduleId, s.getId())
-                        .eq(DailyCaseSubmission::getStudentId, studentId));
-        if (submitted != null && submitted > 0) {
-            throw new BizException(ResultCode.DUPLICATE_SUBMIT, "今日病例已经提交过");
-        }
-
-        DailyCaseResultVO result = evaluateWithAi(studentId, s, dto.getAnswer());
-        String evaluationJson = toJson(result);
-
-        DailyCaseSubmission submission = new DailyCaseSubmission();
-        submission.setScheduleId(s.getId());
-        submission.setStudentId(studentId);
-        submission.setAnswer(dto.getAnswer());
-        submission.setIsCorrect(result.getCorrect());
-        submission.setEvaluationJson(evaluationJson);
-        submission.setSubmittedAt(LocalDateTime.now());
-        submissionMapper.insert(submission);
-
-        // 答错且非降级（确已评审）→ 自动收进错题本，供复习
-        if (Boolean.FALSE.equals(result.getCorrect()) && !Boolean.TRUE.equals(result.getDegraded())) {
-            addToMistakes(studentId, s, dto.getAnswer(), result.getCorrectAnswer());
-        }
-        return result;
-    }
-
-    /** 将每日一例错答写入错题本（caseId 关联；course 类型为空，仅病例错题） */
-    private void addToMistakes(Long studentId, DailyCaseSchedule schedule, String answer, String correctAnswer) {
-        try {
-            StudentMistakes m = new StudentMistakes();
-            m.setStudentId(studentId);
-            m.setCaseId(schedule.getCaseId());
-            m.setMistakeType("practice");
-            m.setStudentAnswer(answer);
-            m.setStandardAnswer(correctAnswer == null ? null : correctAnswer);
-            m.setKnowledgeTag(null);
-            m.setResolvedStatus(0);
-            mistakeMapper.insert(m);
-            log.info("每日一例错答入错题本: studentId={} caseId={} scheduleId={}", studentId, schedule.getCaseId(), schedule.getId());
-        } catch (Exception e) {
-            log.warn("每日一例错答入错题本失败: {}", e.getMessage());
-        }
-    }
-
-    private DailyCaseResultVO evaluateWithAi(Long studentId, DailyCaseSchedule schedule, String answer) {
-        try {
-            // 获取病例配置，构建完整 AI 判题上下文；开放作答一律走 AI 对照标准诊断评审
-            SpCaseConfig caseConfig = schedule.getCaseId() == null ? null : caseMapper.selectById(schedule.getCaseId());
-            String caseSummary = null;
-            String keyFindings = null;
-            String standardAnswer = schedule.getStandardAnswer();
-            if (caseConfig != null) {
-                caseSummary = caseConfig.getPatientProfile();
-                keyFindings = extractKeyFindings(caseConfig.getPresetExams());
-                // 评分金标准优先取病例参考诊断；排期未配置时以此兜底
-                if (caseConfig.getReferenceAnswer() != null && !caseConfig.getReferenceAnswer().isBlank()) {
-                    standardAnswer = caseConfig.getReferenceAnswer();
-                }
-            }
-            String raw = aiPlatformClient.evaluateDailyCase(studentId, schedule.getCaseId(), answer,
-                    caseSummary, keyFindings, standardAnswer);
-            JsonNode data = objectMapper.readTree(raw).path("data");
-            if (!data.has("correct")) {
-                throw new IllegalStateException("AI 返回缺少 correct 字段");
-            }
-            String correctAnswer = data.path("correctAnswer").asText("");
-            return DailyCaseResultVO.builder()
-                    .scheduleId(schedule.getId())
-                    .evaluated(true)
-                    .correct(data.path("correct").asBoolean(false))
-                    .correctAnswer(correctAnswer)
-                    .explanation(data.path("explanation").asText(""))
-                    .textbookRef(data.path("textbookRef").isNull()
-                            ? null : data.path("textbookRef").asText())
-                    .degraded(correctAnswer.contains("降级模式"))
-                    .build();
-        } catch (Exception e) {
-            log.warn("每日一例 AI 判题不可用: scheduleId={} error={}", schedule.getId(), e.getMessage());
-            return DailyCaseResultVO.builder()
-                    .scheduleId(schedule.getId())
-                    .evaluated(false)
-                    .correct(null)
-                    .correctAnswer(null)
-                    .explanation("当前题目没有标准答案，且 AI 服务不可用，答案已保存。")
-                    .textbookRef(schedule.getTextbookRef())
-                    .degraded(true)
-                    .build();
-        }
-    }
-
-    private String toJson(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (Exception e) {
-            throw new BizException(ResultCode.INTERNAL_ERROR, "判题结果保存失败");
-        }
     }
 }

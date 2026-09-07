@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.agents.evaluator_agent import evaluate as evaluator_evaluate
 from app.core.errors import ApiError
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.models.common import R
 from app.services.backend_client import backend_client
@@ -34,7 +34,7 @@ async def evaluate_and_archive(
     req: EvaluateArchiveRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # 1. 获取会话上下文

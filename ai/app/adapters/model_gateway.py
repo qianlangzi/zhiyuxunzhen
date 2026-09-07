@@ -2,10 +2,16 @@
 
 业务工作流只依赖这个稳定接口，不直接依赖 OpenAI SDK 或具体供应商。
 """
+import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.services.config_center import config_center
+from app.services.config_center import (
+    STRATEGY_LOOP,
+    STRATEGY_TOOL,
+    AgentSpec,
+    config_center,
+)
 from app.services.llm_client import LlmClient, llm_client
 
 
@@ -97,6 +103,45 @@ class ModelGateway:
                 for tag in tags
             )
         ]
+
+    async def maybe_ground_tools(
+        self,
+        messages: list[dict[str, Any]],
+        agent_code: str,
+        tools: list[Any],
+        *,
+        trace_id: str = "-",
+        stream: bool = False,
+    ) -> list[dict[str, Any]]:
+        """配置驱动的检索增强预置（best-effort，时间盒约束）。
+
+        仅当该 Agent 被管理端配置为 ``TOOL``/``LOOP`` 策略 **且** 其 toolsConfig 开启
+        ``rag``（即 search_textbook 真正可用）时，才会在生成前先跑一轮工具调用，把教材
+        检索结果回填进消息上下文。否则原样返回 ``messages``——与现状完全一致，默认零行为变更。
+
+        硬时间盒：``stream=True``（学伴流式，首字延迟敏感）预算更短；超时/异常一律返回
+        原始消息，不阻塞、不报错，保证用户等待时间可控。
+        """
+        spec = config_center.resolve_agent_spec(agent_code, AgentSpec(code=agent_code))
+        if spec.strategy not in (STRATEGY_TOOL, STRATEGY_LOOP):
+            return messages
+        if not self._filter_tools_by_config(agent_code, list(tools)):
+            # 管理端未在 toolsConfig 开启 rag，不引入额外的 LLM 决策轮次
+            return messages
+        budget = 2.5 if stream else 6.0
+        try:
+            return await asyncio.wait_for(
+                self.resolve_tools(
+                    messages,
+                    list(tools),
+                    agent_code=agent_code,
+                    trace_id=trace_id,
+                    max_steps=spec.max_iterations or 1,
+                ),
+                timeout=budget,
+            )
+        except Exception:  # noqa: BLE001 - 检索增强失败不影响主链路
+            return list(messages)
 
     def _apply_agent_sampling(
         self,

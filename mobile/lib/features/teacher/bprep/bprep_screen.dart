@@ -6,6 +6,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../common/guide/guide_anchor.dart';
 import '../data/teacher_service.dart';
 
 /// 教师端智能备课列表（Tab2 主页面）
@@ -526,10 +527,14 @@ class _BprepScreenState extends ConsumerState<BprepScreen> {
               AppTitleAppBar(
                 tag: '智能备课',
                 title: '我的教案',
-                action: AppPrimaryButton(
-                  label: '+ 新建备课',
-                  small: true,
-                  onPressed: _createLesson,
+                // 套 GuideTarget：新手指引会高亮「+ 新建备课」
+                action: GuideTarget(
+                  anchor: GuideAnchors.teacherBprepCreate,
+                  child: AppPrimaryButton(
+                    label: '+ 新建备课',
+                    small: true,
+                    onPressed: _createLesson,
+                  ),
                 ),
               ),
             Expanded(
@@ -563,8 +568,13 @@ class _BprepScreenState extends ConsumerState<BprepScreen> {
                                     itemCount: _lessons.length,
                                     separatorBuilder: (_, __) =>
                                         const SizedBox(height: 10),
-                                    itemBuilder: (_, i) =>
-                                        _lessonCard(_lessons[i]),
+                                    itemBuilder: (_, i) => i == 0
+                                        // 首张教案卡挂引导锚点：教用户「长按唤出管理菜单」
+                                        ? GuideTarget(
+                                            anchor: GuideAnchors.teacherBprepCard,
+                                            child: _lessonCard(_lessons[i]),
+                                          )
+                                        : _lessonCard(_lessons[i]),
                                   ),
                                 ),
                                 if (_multiSelect) _buildMultiSelectTools(),

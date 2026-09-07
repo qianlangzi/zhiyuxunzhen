@@ -690,6 +690,28 @@ class _QuestionPracticeScreenState extends ConsumerState<QuestionPracticeScreen>
             '参考答案：${_formatCorrectAnswer(_result?['correctAnswer'] ?? '')}',
             style: TextStyle(fontSize: 12, height: 1.5, color: AppColors.textOf(context)),
           ),
+          if (!isCorrect && !selfAssess) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.library_books_outlined, size: 14, color: accent),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '已加入错题本 · 连续做对 2 次将自动标记为已掌握',
+                      style: TextStyle(fontSize: 11.5, color: accent),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 6),
           if (explanation.isNotEmpty)
             TypewriterText(

@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
+import com.zhiyu.entity.StudentClassMembership;
 import com.zhiyu.entity.SysUser;
+import com.zhiyu.mapper.StudentClassMembershipMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.UserImportService;
@@ -57,6 +59,7 @@ public class UserImportServiceImpl implements UserImportService {
     private static final int MAX_FAILURES = 100;
 
     private final SysUserMapper userMapper;
+    private final StudentClassMembershipMapper membershipMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
@@ -162,6 +165,13 @@ public class UserImportServiceImpl implements UserImportService {
                         }
                     }
                     userMapper.insert(user);
+                    // 与班级关联：同步写入 student_class_membership（多对多），保证教师发作业/看板/预警可见
+                    if (StringUtils.hasText(classIdStr)) {
+                        StudentClassMembership membership = new StudentClassMembership();
+                        membership.setStudentId(user.getId());
+                        membership.setClassId(Long.parseLong(classIdStr.trim()));
+                        membershipMapper.insert(membership);
+                    }
                     successCount++;
                     successes.add(ImportResultVO.ImportSuccess.builder()
                             .row(i + 1).username(username.trim()).tempPassword(tempPassword)

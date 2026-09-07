@@ -329,6 +329,16 @@ class _LearningArchiveScreenState extends ConsumerState<LearningArchiveScreen> {
                 onTap: () => context.pushNamed(RouteNames.mistakeBook),
               ),
             ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _shortcutCard(
+                context,
+                icon: Icons.medical_services_outlined,
+                color: AppColors.vermilionOf(context),
+                label: '考核记录',
+                onTap: () => context.pushNamed(RouteNames.osceHistory),
+              ),
+            ),
           ],
         ),
       ],

@@ -284,7 +284,9 @@ public class AiConfigServiceImpl implements AiConfigService {
                     .id(a.getId()).code(a.getCode()).name(a.getName())
                     .promptName(a.getPromptName()).promptOverride(a.getPromptOverride())
                     .temperature(a.getTemperature()).maxTokens(a.getMaxTokens())
-                    .toolsConfig(a.getToolsConfig()).build());
+                    .toolsConfig(a.getToolsConfig())
+                    .strategy(a.getStrategy()).model(a.getModel()).maxIterations(a.getMaxIterations())
+                    .enabled(a.getStatus() != null && a.getStatus() == 1).build());
         }
         return map;
     }
@@ -467,6 +469,11 @@ public class AiConfigServiceImpl implements AiConfigService {
             Object tokens = cfg.get("max_tokens");
             a.setMaxTokens(tokens != null ? Integer.valueOf(tokens.toString()) : null);
             a.setToolsConfig(str(cfg.get("tools_config")));
+            Object strategy = cfg.get("strategy");
+            a.setStrategy(strategy != null ? strategy.toString() : null);
+            a.setModel(str(cfg.get("model")));
+            Object maxIter = cfg.get("max_iterations");
+            a.setMaxIterations(maxIter != null ? Integer.valueOf(maxIter.toString()) : null);
             a.setStatus(1);
             a.setIsActive(false);
             aiAgentMapper.insert(a);
@@ -580,6 +587,9 @@ public class AiConfigServiceImpl implements AiConfigService {
         a.setTemperature(dto.getTemperature());
         a.setMaxTokens(dto.getMaxTokens());
         a.setToolsConfig(dto.getToolsConfig());
+        a.setStrategy(dto.getStrategy());
+        a.setModel(dto.getModel());
+        a.setMaxIterations(dto.getMaxIterations());
         a.setStatus(dto.getStatus());
     }
 
@@ -615,6 +625,7 @@ public class AiConfigServiceImpl implements AiConfigService {
                 .promptName(a.getPromptName()).promptOverride(a.getPromptOverride())
                 .temperature(a.getTemperature()).maxTokens(a.getMaxTokens())
                 .toolsConfig(a.getToolsConfig())
+                .strategy(a.getStrategy()).model(a.getModel()).maxIterations(a.getMaxIterations())
                 .isActive(Boolean.TRUE.equals(a.getIsActive())).status(a.getStatus())
                 .createdAt(a.getCreatedAt()).updatedAt(a.getUpdatedAt()).build();
     }

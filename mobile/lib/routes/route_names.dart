@@ -16,9 +16,14 @@ class RouteNames {
   static const studentCaseMarket = 'studentCaseMarket';
   static const chat = 'chat';
   static const osceResult = 'osceResult';
+  static const osceHistory = 'osceHistory';
   static const mistakes = 'mistakes';
   static const mistakeBook = 'mistakeBook';
   static const dailyCase = 'dailyCase';
+  static const mrBank = 'mrBank';
+  static const mrWorkshop = 'mrWorkshop';
+  static const mrReport = 'mrReport';
+  static const mrCalendar = 'mrCalendar';
   static const studentProfile = 'studentProfile';
   static const profileEdit = 'profileEdit';
   static const recommendation = 'recommendation';
@@ -39,6 +44,8 @@ class RouteNames {
   static const studentAppeals = 'studentAppeals';
   static const myCourses = 'myCourses';
   static const myCourseDetail = 'myCourseDetail';
+  static const courseMaterialDetail = 'courseMaterialDetail';
+  static const courseMaterialPreview = 'courseMaterialPreview';
 
   // Teacher
   static const teacherHome = 'teacherHome';
@@ -55,6 +62,7 @@ class RouteNames {
   static const teacherProfile = 'teacherProfile';
   static const profileEditTeacher = 'profileEditTeacher';
   static const teacherTextbook = 'teacherTextbook';
+  static const teacherMrConsole = 'teacherMrConsole';
   static const teacherQuestions = 'teacherQuestions';
   static const teacherQuestionEdit = 'teacherQuestionEdit';
   static const bprep = 'bprep';

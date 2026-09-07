@@ -17,7 +17,7 @@ from typing import Any
 from openai import APIError, APITimeoutError, AsyncOpenAI, RateLimitError
 
 from app.core.config import settings
-from app.core.logging import get_logger, log_event
+from app.core.logging import get_agent_sampling, get_logger, log_event
 from app.services.structured_output import structured_output
 
 logger = get_logger(__name__)
@@ -83,20 +83,32 @@ class LlmClient:
         if not self.available:
             return await self._fallback_chat(messages, trace_id)
 
+        # 经网关下发的调用会带有 Agent 采样上下文：优先显式参数，
+        # 其次 AgentSpec 热配值，最后回退全局 settings 默认。
+        agent_temp, agent_max_tokens, agent_model = get_agent_sampling()
+        model = model or agent_model or settings.llm_model
+        temperature = (
+            temperature if temperature is not None
+            else (agent_temp if agent_temp is not None else settings.llm_temperature)
+        )
+        max_tokens = max_tokens or agent_max_tokens or settings.llm_max_tokens
+
         _chat_start = time.time()
         try:
             resp = await self._client.chat.completions.create(
-                model=model or settings.llm_model,
+                model=model,
                 messages=messages,
-                temperature=temperature if temperature is not None else settings.llm_temperature,
-                max_tokens=max_tokens or settings.llm_max_tokens,
+                temperature=temperature,
+                max_tokens=max_tokens,
             )
             text = (resp.choices[0].message.content or "").strip()
             latency_ms = int((time.time() - _chat_start) * 1000)
             log_event(
                 logger, _INFO, "llm_chat_ok",
                 trace_id=trace_id,
-                model=model or settings.llm_model,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
                 tokens=getattr(resp.usage, "total_tokens", 0),
                 latency_ms=latency_ms,
             )
@@ -199,6 +211,15 @@ class LlmClient:
             "max_tokens": max_tokens or settings.llm_max_tokens,
             "stream": True,
         }
+        # 经网关下发时带 Agent 采样上下文（热配温度/长度/模型）
+        if not model and not temperature and not max_tokens:
+            a_temp, a_max, a_model = get_agent_sampling()
+            if a_model:
+                kwargs["model"] = a_model
+            if a_temp is not None:
+                kwargs["temperature"] = a_temp
+            if a_max is not None:
+                kwargs["max_tokens"] = a_max
         try:
             return await self._client.chat.completions.create(
                 **kwargs, stream_options={"include_usage": True}

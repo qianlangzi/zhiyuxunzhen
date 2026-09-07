@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.core.errors import ApiError
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.models.common import R
 from app.prompts.templates import recommendation_prompt
@@ -35,7 +35,7 @@ async def recommend_weakness(
     req: RecommendRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         tags = req.knowledgeTags or ["内科基础"]

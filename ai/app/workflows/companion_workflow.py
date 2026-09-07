@@ -22,13 +22,24 @@ from logging import INFO, WARNING
 from typing import Any
 
 from app.adapters.model_gateway import model_gateway
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.domain.policies.safety_policy import safety_policy
 from app.models.companion import CompanionChatRequest
 from app.prompts.templates import companion_agent_prompt
 from app.services.backend_client import backend_client
 
 logger = get_logger(__name__)
+
+# ===== 流式响应看门狗（防"发消息没反应 / 无限转圈"） =====
+# 链路：移动端 → Spring Boot SseEmitter(0 = 不超时) → AI workflow → LLM。
+# 一旦 LLM 连接被接受却迟迟不产出（或后端代理没把事件转发回来），任何一个环节
+# 都没有超时，移动端就会一直转圈。这里用 asyncio.timeout 给 LLM 流加两层护栏：
+#   - idle：两次 delta 之间（含首个 token）的最大静默时长
+#   - total：整条流最大时长
+# 超时即抛 TimeoutError，收敛成 error + done，保证 SSE 流一定收尾（SSE 客户端收到
+# done 才断开；不收敛则 SseEmitter 永不超时，前端无限挂起）。
+_STREAM_IDLE_TIMEOUT_SECONDS = 40.0   # 首个/相邻 token 静默超时
+_STREAM_TOTAL_TIMEOUT_SECONDS = 300.0 # 整条流总时长护栏
 
 # 记忆注入上限：单次最多展示条数。
 # 与后端 CompanionMemoryService.RECALL_LIMIT 对齐（展示上限 = 召回上限），
@@ -68,6 +79,37 @@ def _memory_enabled(context: dict[str, object]) -> bool:
 
 def sse(event: str, data: dict[str, Any]) -> dict[str, str]:
     return {"event": event, "data": json.dumps(data, ensure_ascii=False)}
+
+
+async def _iter_guarded(
+    stream: Any,
+    *,
+    idle: float,
+    total: float,
+) -> AsyncIterator[str]:
+    """消费 LLM 增量流并附加空闲/总时长护栏。
+
+    - 相邻两次 delta（含首个 token）静默超过 [idle] 秒 → 抛 asyncio.TimeoutError
+    - 整条流超过 [total] 秒 → 抛 asyncio.TimeoutError
+    需要 Python 3.11+（使用 asyncio.timeout）。超时由上层收敛为 error+done。
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + total
+    while True:
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError("companion stream total timeout")
+        try:
+            async with asyncio.timeout(min(idle, remaining)):
+                try:
+                    delta = await stream.__anext__()
+                except StopAsyncIteration:
+                    return
+        except asyncio.TimeoutError:
+            # 收到 done 之后流正常结束 via StopAsyncIteration；这里仅在最内层
+            # timeout 触发时抛出，交由上层处理
+            raise
+        yield delta
 
 
 def format_student_context(context: dict[str, object]) -> str:
@@ -263,7 +305,7 @@ async def _extract_and_store_memory(
 
 
 async def companion_workflow(req: CompanionChatRequest) -> AsyncIterator[dict[str, str]]:
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id, session_id=str(req.session_id))
     log_event(logger, INFO, "companion_start", trace_id=trace_id,
               session_id=req.session_id, student_id=req.student_id)
@@ -313,12 +355,38 @@ async def companion_workflow(req: CompanionChatRequest) -> AsyncIterator[dict[st
     # 3. 学伴流式回复（同时拼接全文，供结束后抽取记忆）
     reply_parts: list[str] = []
     try:
-        async for delta in model_gateway.stream(
+        # 配置驱动的检索增强预置：仅当该 Agent 被管理端设为 TOOL/LOOP 且 toolsConfig
+        # 含 rag 时，才在生成前检索教材回填上下文（时间盒 ~2.5s，超时不阻塞首字）。
+        if not degraded:
+            try:
+                from app.agents.toolkit import SearchTextbookTool
+                messages = await model_gateway.maybe_ground_tools(
+                    messages, "companion", [SearchTextbookTool()],
+                    trace_id=trace_id, stream=True,
+                )
+            except Exception:  # noqa: BLE001 - 检索增强失败不影响主流程
+                pass
+        # 用看门狗包裹 LLM 流：LLM 卡住/首个 token 迟迟不产出时按时抛出，
+        # 避免整条链路 0 超时挂死、移动端无限转圈（SseEmitter 0 = 不超时）。
+        stream = model_gateway.stream(
             messages, agent_code="companion", trace_id=trace_id
+        )
+        async for delta in _iter_guarded(
+            stream,
+            idle=_STREAM_IDLE_TIMEOUT_SECONDS,
+            total=_STREAM_TOTAL_TIMEOUT_SECONDS,
         ):
             await asyncio.sleep(0)
             reply_parts.append(delta)
             yield sse("message", {"delta": delta})
+    except (asyncio.TimeoutError, asyncio.CancelledError):
+        log_event(logger, WARNING, "companion_stream_timeout", trace_id=trace_id,
+                  error="timeout",
+                  idle=_STREAM_IDLE_TIMEOUT_SECONDS,
+                  total=_STREAM_TOTAL_TIMEOUT_SECONDS,
+                  produced=len(reply_parts))
+        yield sse("error", {"code": "STREAM_TIMEOUT",
+                            "message": "学伴回复超时，请稍后重试"})
     except Exception as exc:  # noqa: BLE001 - 流式异常也收尾，保证 done
         log_event(logger, WARNING, "companion_graph_error", trace_id=trace_id,
                   error=type(exc).__name__, msg=str(exc)[:300])

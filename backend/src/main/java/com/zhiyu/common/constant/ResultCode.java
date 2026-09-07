@@ -62,7 +62,8 @@ public enum ResultCode {
     INTERNAL_ERROR(5000, "系统内部错误"),
     AI_SERVICE_ERROR(5001, "AI服务调用异常"),
     DB_ERROR(5002, "数据库异常"),
-    FILE_UPLOAD_ERROR(5003, "文件上传失败");
+    FILE_UPLOAD_ERROR(5003, "文件上传失败"),
+    AI_OUTPUT_INVALID(5004, "AI输出格式不符合预期，请重试");
 
     private final int code;
     private final String message;

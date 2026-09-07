@@ -10,20 +10,21 @@ import '../../../data/models/models.dart';
 
 /// 图形验证码数据（字母+数字图片，防盗刷）
 ///
-/// 由 `GET /api/v1/auth/captcha` 返回，用户需从 [imageUrl] 处读取验证码图片
-/// 并输入识别出的字符，供短信验证码接口防刷校验。
+/// 由 `GET /api/v1/auth/captcha` 单次请求返回：携带 [imageBase64]（渲染好的
+/// 验证码 PNG 图片），前端用 `Image.memory` 从内存解码渲染，无需再发一次
+/// 图片网络请求。用户需从图片中读取字符并输入，供短信验证码接口防刷校验。
 class CaptchaData {
   const CaptchaData({
     required this.captchaId,
-    required this.imageUrl,
+    required this.imageBase64,
     required this.expiresIn,
   });
 
   /// 验证码唯一标识，提交短信接口时回传给后端
   final String captchaId;
 
-  /// 验证码图片地址（`GET /api/v1/auth/captcha/{id}/image`）
-  final String imageUrl;
+  /// 验证码图片（PNG，base64 编码），与 captchaId 同一次请求下发
+  final String imageBase64;
 
   /// 有效期（秒）
   final int expiresIn;
@@ -190,8 +191,10 @@ class AuthApi {
 
   /// 获取图形验证码（字母+数字图片，防盗刷）
   ///
-  /// `GET /api/v1/auth/captcha` → `{code:0, data:{captchaId, expiresIn}}`
-  /// 失败返回 null，由调用方决定重试策略。
+  /// `GET /api/v1/auth/captcha` → `{code:0, data:{captchaId, expiresIn, imageBase64}}`
+  /// 单次请求同时返回验证码 ID 与渲染好的 PNG 图片（base64），
+  /// 避免「元数据 + 图片」两次独立请求导致的前端挂起 / 自动重发 / 重复限流。
+  /// 失败（含缺失 imageBase64）返回 null，由调用方决定重试策略。
   Future<CaptchaData?> getCaptcha() async {
     try {
       final resp =
@@ -204,9 +207,12 @@ class AuthApi {
       final payload = data['data'] as Map<String, dynamic>?;
       if (payload == null) return null;
       final captchaId = payload['captchaId'] as String;
+      final imageBase64 = payload['imageBase64'] as String;
+      // fail-closed：图片缺失视为失败，避免无图可用
+      if (captchaId.isEmpty || imageBase64.isEmpty) return null;
       return CaptchaData(
         captchaId: captchaId,
-        imageUrl: '${AuthApiConfig.baseUrl}/api/v1/auth/captcha/$captchaId/image',
+        imageBase64: imageBase64,
         expiresIn: payload['expiresIn'] as int? ?? 300,
       );
     } catch (_) {

@@ -18,6 +18,8 @@ public class StudentAssignmentVO {
     private String assignmentTitle;
     private Long caseId;
     private String caseTitle;
+    /** 归属班级（作业目标班级名，支持学生端按课程分组汇总待办） */
+    private String className;
     private LocalDateTime deadline;
     /** 0未开始 1问诊中 2格式打回 3AI批阅中 4待复核 5已完成 */
     private Integer status;

@@ -8,20 +8,42 @@
 """
 import uuid
 from contextlib import asynccontextmanager
+from logging import INFO, WARNING
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from app.api import alert, chat, companion, config, daily_case, diagnosis, embed, essay_review, health, knowledge, learning_path, lesson, mistake, paper, review, session, tasks, teacher, vision
+from app.api import (
+    agent_gateway,
+    alert,
+    chat,
+    companion,
+    config,
+    daily_case,
+    diagnosis,
+    embed,
+    essay_review,
+    health,
+    knowledge,
+    learning_path,
+    lesson,
+    mistake,
+    mr,
+    paper,
+    review,
+    session,
+    tasks,
+    teacher,
+    vision,
+)
 from app.core import lifecycle
 from app.core.config import settings
 from app.core.errors import ApiError
 from app.core.logging import configure_logging, get_logger, log_event, reset_context, set_context
-from logging import INFO, WARNING
 
 
 class RequestContextMiddleware(BaseHTTPMiddleware):
@@ -105,7 +127,9 @@ app.include_router(companion.router, tags=["companion"])
 app.include_router(lesson.router, tags=["lesson"])
 app.include_router(alert.router, tags=["alert"])
 app.include_router(essay_review.router, tags=["essay_review"])
+app.include_router(mr.router, tags=["mr"])
 app.include_router(config.router, tags=["config"])
+app.include_router(agent_gateway.router, tags=["agent_gateway"])
 
 
 @app.get("/")

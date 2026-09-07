@@ -14,6 +14,7 @@ import '../../student/data/student_service.dart';
 import '../../student/training/question_practice_screen.dart';
 import 'ebook_reader_screen.dart';
 import 'ebook_cache.dart';
+import 'image_search_screen.dart';
 
 /// 教材中心
 ///
@@ -418,11 +419,42 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-      child: AppSearchField(
-        controller: _searchCtl,
-        hintText: '搜索教材 · 书名 / 作者 / 科室 / 知识点',
-        onChanged: _onQueryChanged,
-        onClear: _clearSearch,
+      child: Row(
+        children: [
+          Expanded(
+            child: AppSearchField(
+              controller: _searchCtl,
+              hintText: '搜索教材 · 书名 / 作者 / 科室 / 知识点',
+              onChanged: _onQueryChanged,
+              onClear: _clearSearch,
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 以图搜图入口：多模态影像检索（上传检查图片 → 匹配教材/知识点）
+          // 功能链路（前端页 + 后端 search-image）早已就绪，此前缺的只是这个入口。
+          PressableScale(
+            child: Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context),
+                border: Border.all(color: AppColors.ruleOf(context)),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const ImageSearchScreen()),
+                ),
+                child: Icon(
+                  Icons.image_search_rounded,
+                  size: 21,
+                  color: AppColors.text2Of(context),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

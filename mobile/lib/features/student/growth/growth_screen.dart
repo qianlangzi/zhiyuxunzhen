@@ -9,6 +9,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../../../shared/widgets/study_heatmap.dart';
+import '../../common/guide/guide_anchor.dart';
 import '../data/student_service.dart';
 import 'growth_stats.dart';
 import 'widgets/ability_radar.dart';
@@ -60,7 +61,7 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
     setState(() {
       _stats = GrowthStats.fromOverview(results[0]);
       final raw = results[1];
-      _mistakes = (raw?['records'] as List<dynamic>? ?? const [])
+      _mistakes = (raw?['list'] as List<dynamic>? ?? const [])
           .whereType<Map>()
           .map((e) => MistakeEntry.fromJson(Map<String, dynamic>.from(e)))
           .toList();
@@ -115,14 +116,17 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
           // 1 · 情感锚点：一株会生长的植物
           RiseIn(child: GrowthGardenCard(stats: _stats)),
           const SizedBox(height: 16),
-          // 2 · 坚持的痕迹
+          // 2 · 坚持的痕迹（套 GuideTarget：新手指引会高亮热力图）
           RiseIn(
             delay: const Duration(milliseconds: 60),
-            child: StudyHeatmapCard(
-              activityDays: _stats.activityDays,
-              stats: _stats,
-              dense: true,
-              onDetail: () => context.pushNamed(RouteNames.learningArchive),
+            child: GuideTarget(
+              anchor: GuideAnchors.studentGrowthHeatmap,
+              child: StudyHeatmapCard(
+                activityDays: _stats.activityDays,
+                stats: _stats,
+                dense: true,
+                onDetail: () => context.pushNamed(RouteNames.learningArchive),
+              ),
             ),
           ),
           // 3 · 能力形状

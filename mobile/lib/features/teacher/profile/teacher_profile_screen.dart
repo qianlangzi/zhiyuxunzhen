@@ -5,6 +5,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/profile_widgets.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/common/guide/guide_anchor.dart';
+import '../../../features/common/guide/guide_controller.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../data/teacher_service.dart';
@@ -84,12 +86,16 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ProfileHero(
-                      initial: initial,
-                      displayName: displayName,
-                      badge: _auditBadge,
-                      avatarPath: user?.avatarPath,
-                      onEdit: () => context.pushNamed(RouteNames.profileEditTeacher),
+                    GuideTarget(
+                      anchor: GuideAnchors.teacherProfileHero,
+                      child: ProfileHero(
+                        initial: initial,
+                        displayName: displayName,
+                        badge: _auditBadge,
+                        avatarPath: user?.avatarPath,
+                        onEdit: () =>
+                            context.pushNamed(RouteNames.profileEditTeacher),
+                      ),
                     ),
                     ProfileStatsStrip(
                       stats: [
@@ -190,6 +196,14 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                   color: AppColors.text3Of(context),
                   title: '设置',
                   onTap: () => context.pushNamed(RouteNames.settings),
+                ),
+                ProfileMenuTile(
+                  icon: Icons.auto_awesome_outlined,
+                  color: AppColors.primaryOf(context),
+                  title: '新手指引',
+                  onTap: () => ref
+                      .read(guideControllerProvider.notifier)
+                      .replay(GuideRole.teacher, tabId: 'profile'),
                 ),
                 ProfileMenuTile(
                   icon: Icons.info_outline,

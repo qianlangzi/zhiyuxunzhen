@@ -9,9 +9,11 @@ import com.zhiyu.common.context.UserContext;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.common.result.PageResult;
 import com.zhiyu.entity.PracticeQuestion;
+import com.zhiyu.entity.StudentMistakes;
 import com.zhiyu.entity.StudentPracticeRecord;
 import com.zhiyu.entity.Textbook;
 import com.zhiyu.mapper.PracticeQuestionMapper;
+import com.zhiyu.mapper.StudentMistakesMapper;
 import com.zhiyu.mapper.StudentPracticeRecordMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.PracticeQuestionService;
@@ -49,6 +51,8 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
 
     private final PracticeQuestionMapper questionMapper;
     private final StudentPracticeRecordMapper recordMapper;
+    private final StudentMistakesMapper mistakesMapper;
+    private final com.zhiyu.service.support.MistakeAnalysisTrigger mistakeAnalysisTrigger;
     private final TextbookMapper textbookMapper;
     private final ObjectMapper objectMapper;
     private final WeaknessAnalysisService weaknessAnalysisService;
@@ -74,6 +78,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         List<PracticeQuestionVO> list = page.getRecords().stream()
                 .map(q -> toVO(q, tbTitleMap))
                 .collect(Collectors.toList());
+        applyUserStatus(page.getRecords(), list);
         return PageResult.of(page, list);
     }
 
@@ -94,6 +99,7 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         List<PracticeQuestionVO> list = page.getRecords().stream()
                 .map(q -> toVO(q, tbTitleMap))
                 .collect(Collectors.toList());
+        applyUserStatus(page.getRecords(), list);
         return PageResult.of(page, list);
     }
 
@@ -134,7 +140,49 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 || q.getAdminAuditStatus() != 2) {
             throw new BizException(ResultCode.NOT_FOUND, "题目不存在或未通过审核");
         }
-        return toVO(q, loadTextbookTitles(Collections.singletonList(q)));
+        PracticeQuestionVO vo = toVO(q, loadTextbookTitles(Collections.singletonList(q)));
+        applyUserStatus(Collections.singletonList(q), Collections.singletonList(vo));
+        return vo;
+    }
+
+    /**
+     * 账户级作答状态：把当前学生对该批题目的「最近一次」作答结果（是否已做 / 所选答案 /
+     * 是否答对）回填到 VO。只有已登录的学生才会填充；未登录则保持 null。
+     */
+    private void applyUserStatus(List<PracticeQuestion> questions, List<PracticeQuestionVO> vos) {
+        if (questions == null || questions.isEmpty() || vos == null || vos.isEmpty()) {
+            return;
+        }
+        UserContext.LoginUser user = UserContext.get();
+        if (user == null || user.getUserId() == null) {
+            return;
+        }
+        List<Long> qids = questions.stream()
+                .map(PracticeQuestion::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        if (qids.isEmpty()) {
+            return;
+        }
+        // 最近一次作答记录（按题目分组取 answered_at 最新的一条）
+        Map<Long, StudentPracticeRecord> latest = new HashMap<>();
+        recordMapper.selectList(new LambdaQueryWrapper<StudentPracticeRecord>()
+                        .eq(StudentPracticeRecord::getStudentId, user.getUserId())
+                        .in(StudentPracticeRecord::getQuestionId, qids)
+                        .orderByDesc(StudentPracticeRecord::getAnsweredAt))
+                .forEach(r -> latest.putIfAbsent(r.getQuestionId(), r));
+        if (latest.isEmpty()) {
+            return;
+        }
+        for (PracticeQuestionVO vo : vos) {
+            StudentPracticeRecord r = latest.get(vo.getId());
+            if (r == null) {
+                continue;
+            }
+            vo.setAnswered(true);
+            vo.setMyAnswer(r.getSelectedAnswer());
+            vo.setCorrect(r.getIsCorrect());
+        }
     }
 
     @Override
@@ -145,7 +193,9 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 || q.getAdminAuditStatus() != 2) {
             throw new BizException(ResultCode.NOT_FOUND, "题目不存在或未通过审核");
         }
-        boolean correct = judgeAnswer(q, dto.getSelectedAnswer());
+        // 简答 / 论述等主观题无法机器判分：isCorrect 置 null，交由学生对照参考答案自评
+        boolean manual = isManualType(q.getQuestionType());
+        Boolean correct = manual ? null : judgeAnswer(q, dto.getSelectedAnswer());
 
         StudentPracticeRecord record = new StudentPracticeRecord();
         record.setStudentId(studentId);
@@ -154,6 +204,10 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
         record.setIsCorrect(correct);
         record.setAnsweredAt(LocalDateTime.now());
         recordMapper.insert(record);
+
+        // 训练→错题本闭环：答错收入错题本；已有错题后答对推进连续答对计数并判掌握；
+        // 再答错则降级回未复习并累计（连续错>=2 标需加强）。
+        syncMistakeForPractice(studentId, q, dto.getSelectedAnswer(), correct);
 
         // 刷题作答入库后立即重算该学生的薄弱知识点掌握度（薄弱度推算闭环）
         try {
@@ -169,6 +223,79 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .correctAnswer(q.getAnswer())
                 .explanation(q.getExplanation())
                 .build();
+    }
+
+    /** 简答 / 论述等主观题型（需人工对照参考答案自评，不自动判分） */
+    private boolean isManualType(String type) {
+        return "short_answer".equalsIgnoreCase(type) || "essay".equalsIgnoreCase(type);
+    }
+
+    /** 连续答对几次判定「已掌握」（已掌握错题仍保留，仅状态置 2） */
+    public static final int MISTAKE_MASTER_THRESHOLD = 2;
+
+    /**
+     * 训练→错题本闭环状态机（仅客观/可自动判题题型触发，主观题 correct==null 不参与）。
+     *
+     * <ul>
+     *   <li>无错题记录 & 答错：收入错题本（未复习，连续对=0，累计错=1）</li>
+     *   <li>已有记录 & 答对：连续答对 +1；达标阈值 → 已掌握(2)；未达标 → 至少置已复习(1)</li>
+     *   <li>已有记录 & 答错：连续答对归零，累计错 +1；累计错≥2 置「需加强」；状态回到未复习(0)
+     *       （已掌握后再度答错视为遗忘，降级处理）</li>
+     * </ul>
+     */
+    private void syncMistakeForPractice(Long studentId, PracticeQuestion q, String selected, Boolean correct) {
+        if (correct == null) {
+            return;
+        }
+        StudentMistakes existing = mistakesMapper.selectOne(new LambdaQueryWrapper<StudentMistakes>()
+                .eq(StudentMistakes::getStudentId, studentId)
+                .eq(StudentMistakes::getQuestionId, q.getId())
+                .eq(StudentMistakes::getMistakeType, "practice")
+                .last("LIMIT 1"));
+        if (existing == null) {
+            // 首次答错才收入；首次答对不产生错题记录
+            if (Boolean.FALSE.equals(correct)) {
+                StudentMistakes m = new StudentMistakes();
+                m.setStudentId(studentId);
+                m.setQuestionId(q.getId());
+                m.setMistakeType("practice");
+                m.setKnowledgeTag(q.getKnowledgeTag());
+                m.setStudentAnswer(selected);
+                m.setStandardAnswer(q.getAnswer());
+                m.setResolvedStatus(0);
+                m.setConsecutiveCorrect(0);
+                m.setWrongCount(1);
+                m.setFocusFlag(0);
+                mistakesMapper.insert(m);
+                // 入库后异步预生成 AI 归因，学生打开错题本即可看到分叉定位，无需手动点击
+                mistakeAnalysisTrigger.triggerAfterCommit(m.getId(), studentId);
+            }
+            return;
+        }
+
+        int consecutive = existing.getConsecutiveCorrect() == null ? 0 : existing.getConsecutiveCorrect();
+        int wrong = existing.getWrongCount() == null ? 0 : existing.getWrongCount();
+        int status = existing.getResolvedStatus() == null ? 0 : existing.getResolvedStatus();
+
+        StudentMistakes upd = new StudentMistakes();
+        upd.setId(existing.getId());
+        if (Boolean.TRUE.equals(correct)) {
+            int newConsecutive = consecutive + 1;
+            upd.setConsecutiveCorrect(newConsecutive);
+            if (status != 2 && newConsecutive >= MISTAKE_MASTER_THRESHOLD) {
+                upd.setResolvedStatus(2); // 连续做对满阈值 -> 已掌握
+            } else if (status != 2) {
+                upd.setResolvedStatus(1); // 未达标 -> 至少视为已复习
+            }
+            // status 已为 2：保持已掌握，仅刷新连续答对数
+            // 答对不清“需加强”标记：是否掌握由连对次数独立判定，focusFlag 单独服务薄弱题提示
+        } else {
+            upd.setConsecutiveCorrect(0);
+            upd.setWrongCount(wrong + 1);
+            upd.setResolvedStatus(0);      // 再答错：回到未复习（含已掌握后的遗忘降级）
+            upd.setFocusFlag(wrong + 1 >= 2 ? 1 : 0); // 连续答错>=2 需加强
+        }
+        mistakesMapper.updateById(upd);
     }
 
     /**

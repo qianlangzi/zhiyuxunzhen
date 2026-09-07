@@ -118,6 +118,7 @@ def mock_backend_client(monkeypatch):
         return True
 
     async def fake_report_context(session_id, trace_id="-"):
+        # report_context 已并入 case_context/session_context；此桩保留以便各测试按需引用。
         return {
             "sessionId": session_id,
             "caseTitle": "测试病例",
@@ -148,11 +149,15 @@ def mock_backend_client(monkeypatch):
     ):
         return True
 
-    monkeypatch.setattr(backend_client, "session_context", fake_session_context)
+    monkeypatch.setattr(
+        backend_client, "session_context", fake_session_context
+    )
+    # 注意：backend_client 已无 report_context（并入 case_context/session_context），
+    # 不再对其 setattr，否则 fixture 会因 patch 不存在的属性而失败。fake_report_context
+    # 桩保留给报告 worker 测试引用。
     monkeypatch.setattr(
         backend_client, "append_session_messages", fake_append_session_messages
     )
-    monkeypatch.setattr(backend_client, "report_context", fake_report_context)
     monkeypatch.setattr(backend_client, "review_callback", fake_review_callback)
     monkeypatch.setattr(backend_client, "archive_session", fake_archive_session)
     monkeypatch.setattr(backend_client, "sync_mistakes", fake_sync_mistakes)
@@ -215,6 +220,12 @@ def mock_llm_client(monkeypatch):
             "standardPath": ["主诉", "现病史", "既往史", "查体", "诊断"],
             "textbookRefs": ["《诊断学》第1章"],
             "nextSteps": ["加强病史采集练习"],
+            # teacher case_draft (AI 生成 SP 病例草稿)
+            "patientProfile": "患者男性，35 岁，主诉胸痛 2 小时伴大汗",
+            "hiddenDisease": "急性心肌梗死",
+            "standardPathJson": "{\"主诉\":\"胸痛\"}",
+            "caseTitle": "急性心肌梗死",
+            "citations": [],
         }
 
     async def fake_report_model_event(

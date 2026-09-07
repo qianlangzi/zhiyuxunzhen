@@ -11,7 +11,7 @@ from logging import INFO, WARNING
 from fastapi import APIRouter, Depends
 
 from app.core.errors import ApiError, ModelUnavailableError, OutputSchemaInvalidError
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.domain.policies.safety_policy import safety_policy
 from app.models.alert import AlertInterventionRequest, AlertInterventionResult
@@ -29,7 +29,7 @@ async def alert_intervention(
     req: AlertInterventionRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         risk_text = json.dumps(req.riskRules or [], ensure_ascii=False)

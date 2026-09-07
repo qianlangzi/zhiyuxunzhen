@@ -56,6 +56,8 @@ class InternalCallbackModelEventLogTest {
     private WeaknessAnalysisService weaknessAnalysisService;
     @Mock
     private ModelEventLogMapper modelEventLogMapper;
+    @Mock
+    private com.zhiyu.service.support.MistakeAnalysisTrigger mistakeAnalysisTrigger;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -64,7 +66,7 @@ class InternalCallbackModelEventLogTest {
                 chatSessionMapper, medicalRecordReviewMapper, assignmentInstanceMapper,
                 assignmentItemProgressMapper, studentMistakesMapper, studentWeaknessMapper,
                 textbookMapper, auditLogService, objectMapper, weaknessAnalysisService,
-                modelEventLogMapper);
+                modelEventLogMapper, mistakeAnalysisTrigger);
     }
 
     @Test

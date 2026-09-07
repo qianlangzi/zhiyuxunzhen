@@ -1,16 +1,16 @@
-"""每日一例判题（PRD 9.3）
+"""每日一例判题（PRD 9.3 · 开放作答）
 
 POST /daily_case/evaluate
-由于无业务中台病例数据访问权限，请求体扩展可选字段 caseSummary / keyFindings / standardAnswer，
-若 Spring Boot 未传递则使用降级规则判题。
+开放作答：学生未做选择题，而是直接书写「诊断 + 依据 + 初步诊疗方案」，
+由 LLM 对照病例的标准诊断要点（referenceAnswer / standardAnswer）评审。
+Java 侧将病例 referenceAnswer 作为评分金标准通过 standardAnswer 字段传入。
 """
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends
 from pydantic import Field
 
-from app.core.logging import get_logger, log_event, set_context, reset_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
 from app.core.security import require_internal_token
 from app.models.common import R
@@ -26,9 +26,9 @@ router = APIRouter()
 class DailyCaseFullRequest(DailyCaseEvaluateRequest):
     """扩展请求体：业务中台可附带病例原文供 LLM 判题"""
 
-    caseSummary: str | None = Field(default=None, description="病例摘要")
+    caseSummary: str | None = Field(default=None, description="病例摘要/患者画像")
     keyFindings: str | None = Field(default=None, description="关键检查结果")
-    standardAnswer: str | None = Field(default=None, description="标准答案，用于规则判题")
+    standardAnswer: str | None = Field(default=None, description="标准诊断要点（评分金标准，供 LLM 评审，不做字符串相等判断）")
 
 
 @router.post("/daily_case/evaluate", response_model=R)
@@ -36,35 +36,26 @@ async def evaluate_daily_case(
     req: DailyCaseFullRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
-        # 优先：业务中台已提供标准答案，走规则判题（最快、最稳）
-        if req.standardAnswer:
-            correct = req.answer.strip() == req.standardAnswer.strip()
-            result_dict: dict[str, Any] = {
-                "correct": correct,
-                "correctAnswer": req.standardAnswer,
-                "explanation": "基于业务中台标准答案的规则判题" if correct else "答案与标准答案不符，请检查要点",
-                "textbookRef": None,
-            }
-        else:
-            # 否则走 LLM 判题
-            user_msg = (
-                f"病例摘要：\n{req.caseSummary or '未提供'}\n\n"
-                f"关键检查结果：\n{req.keyFindings or '未提供'}\n\n"
-                f"学生答案：\n{req.answer}\n\n"
-                "请按 schema 输出判题 JSON。"
-            )
-            messages = [
-                {"role": "system", "content": daily_case_prompt()},
-                {"role": "user", "content": user_msg},
-            ]
-            result_dict = await llm_client.chat_json(messages, trace_id=trace_id)
-            if not isinstance(result_dict, dict) or "correct" not in result_dict:
-                log_event(logger, WARNING, "daily_case_invalid",
-                          trace_id=trace_id, raw=str(result_dict)[:200])
-                raise OutputSchemaInvalidError(trace_id=trace_id) from None
+        # 开放作答一律走 LLM 对照标准诊断要点评审，避免选择题式字符串严格相等误判
+        user_msg = (
+            f"患者画像/病例摘要：\n{req.caseSummary or '未提供'}\n\n"
+            f"关键检查结果：\n{req.keyFindings or '未提供'}\n\n"
+            f"标准诊断要点（评分依据）：\n{req.standardAnswer or '未提供'}\n\n"
+            f"学生开放作答（诊断/依据/诊疗方案）：\n{req.answer}\n\n"
+            "请按 schema 输出判题 JSON。"
+        )
+        messages = [
+            {"role": "system", "content": daily_case_prompt()},
+            {"role": "user", "content": user_msg},
+        ]
+        result_dict = await llm_client.chat_json(messages, trace_id=trace_id)
+        if not isinstance(result_dict, dict) or "correct" not in result_dict:
+            log_event(logger, WARNING, "daily_case_invalid",
+                      trace_id=trace_id, raw=str(result_dict)[:200])
+            raise OutputSchemaInvalidError(trace_id=trace_id) from None
 
         result = DailyCaseEvaluation(
             studentId=req.studentId,

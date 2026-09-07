@@ -65,6 +65,9 @@ const form = reactive<AgentPayload>({
   temperature: null,
   maxTokens: null,
   toolsConfig: '',
+  strategy: 'CODE',
+  model: '',
+  maxIterations: null,
   status: 1,
 })
 
@@ -79,6 +82,9 @@ const resetForm = () => {
     temperature: null,
     maxTokens: null,
     toolsConfig: '',
+    strategy: 'CODE',
+    model: '',
+    maxIterations: null,
     status: 1,
   })
 }
@@ -99,6 +105,9 @@ const openEdit = (item: AgentItem) => {
     temperature: item.temperature,
     maxTokens: item.maxTokens,
     toolsConfig: item.toolsConfig ?? '',
+    strategy: item.strategy ?? 'CODE',
+    model: item.model ?? '',
+    maxIterations: item.maxIterations,
     status: item.status,
   })
   dialogVisible.value = true
@@ -129,6 +138,9 @@ const handleSave = async () => {
           .map((s) => s.trim())
           .filter(Boolean)
           .join(',') || undefined,
+      strategy: form.strategy || undefined,
+      model: (form.model ?? '').trim() || undefined,
+      maxIterations: form.maxIterations ?? null,
     }
     if (editingId.value) {
       await updateAgent(editingId.value, payload)
@@ -336,6 +348,13 @@ const doImport = async () => {
             <span class="sub">{{ toolsText(row.toolsConfig) }}</span>
           </template>
         </el-table-column>
+        <el-table-column label="策略 / 模型" min-width="170">
+          <template #default="{ row }">
+            <span class="sub">{{ row.strategy || 'CODE' }}</span>
+            <span class="sub">{{ row.model ? ` / ${row.model}` : '' }}</span>
+            <span v-if="row.maxIterations" class="sub"> / ≤{{ row.maxIterations }}轮</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'info'" effect="plain">
@@ -432,6 +451,34 @@ const doImport = async () => {
           </el-form-item>
         </div>
 
+        <div class="form-grid">
+          <el-form-item label="执行策略">
+            <el-select v-model="form.strategy" style="width: 100%">
+              <el-option label="CODE · 一次性直出" value="CODE" />
+              <el-option label="TOOL · 带工具调用（需 toolsConfig 含 rag）" value="TOOL" />
+              <el-option label="LOOP · 自主循环（预留）" value="LOOP" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="指定模型（留空用全局）">
+            <el-input v-model="form.model" placeholder="如 qwen-plus / deepseek-chat（可选）" />
+          </el-form-item>
+        </div>
+
+        <div class="form-grid">
+          <el-form-item label="最大迭代轮数（TOOL/LOOP）">
+            <el-input-number
+              v-model="form.maxIterations"
+              :min="1"
+              :max="10"
+              controls-position="right"
+              style="width: 100%"
+            />
+          </el-form-item>
+          <el-form-item label="职责说明">
+            <el-input v-model="form.description" placeholder="此 Agent 的职责（可选）" />
+          </el-form-item>
+        </div>
+
         <el-form-item label="System Prompt 直接覆盖">
           <el-input
             v-model="form.promptOverride"
@@ -442,9 +489,6 @@ const doImport = async () => {
         </el-form-item>
 
         <div class="form-grid">
-          <el-form-item label="职责说明">
-            <el-input v-model="form.description" placeholder="此 Agent 的职责（可选）" />
-          </el-form-item>
           <el-form-item label="状态">
             <el-radio-group v-model="form.status">
               <el-radio :value="1">启用</el-radio>

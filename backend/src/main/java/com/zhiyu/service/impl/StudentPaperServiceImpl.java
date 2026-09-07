@@ -119,10 +119,11 @@ public class StudentPaperServiceImpl implements StudentPaperService {
         Integer difficulty = req.getDifficulty();
 
         // 1. 取薄弱知识点（指定优先，否则系统统计；越薄弱越靠前）
-        List<String> focusTags = resolveFocusTags(studentId, req.getFocusTags());
+        List<String> focusTags = resolveFocusTags(studentId, req);
 
-        // 2. 抽取审核通过 + 上架的题库候选（薄弱点优先，其余通用补齐）
-        List<PracticeQuestion> candidates = loadCandidates(focusTags, count);
+        // 2. 抽取审核通过 + 上架题库候选，并应用题型/科室/知识点硬过滤（薄弱点优先，其余通用补齐）
+        List<PracticeQuestion> pool = loadPool(req);
+        List<PracticeQuestion> candidates = loadCandidates(pool, focusTags, count);
 
         // 3. 组装 AI 候选（只给元数据，防幻觉）
         List<Map<String, Object>> aiCandidates = candidates.stream()
@@ -174,7 +175,11 @@ public class StudentPaperServiceImpl implements StudentPaperService {
 
     // ---------- 私有辅助 ----------
 
-    private List<String> resolveFocusTags(Long studentId, List<String> specified) {
+    private List<String> resolveFocusTags(Long studentId, PaperGenerateRequest req) {
+        // 优先把学生主动选定的知识点作为薄弱点权重；其次兼容旧 focusTags，最后取系统统计
+        List<String> specified = (req.getKnowledgeTags() != null && !req.getKnowledgeTags().isEmpty())
+                ? req.getKnowledgeTags()
+                : req.getFocusTags();
         if (specified != null && !specified.isEmpty()) {
             return specified.stream().filter(StringUtils::hasText).distinct()
                     .limit(5).collect(Collectors.toList());
@@ -192,21 +197,53 @@ public class StudentPaperServiceImpl implements StudentPaperService {
                 .collect(Collectors.toList());
     }
 
-    /** 抽取候选：薄弱点对应题优先，其余从通用池补齐；控制总量避免撑爆上下文 */
-    private List<PracticeQuestion> loadCandidates(List<String> focusTags, int count) {
-        List<PracticeQuestion> all = questionMapper.selectList(
+    /**
+     * 从审核通过 + 上架题库中按「题型 / 科室 / 知识点」硬过滤出候选池（空条件=不限）。
+     * 学生配置从此真正生效（2026-09-04：此前未过滤，仅按薄弱点组卷）。
+     */
+    private List<PracticeQuestion> loadPool(PaperGenerateRequest req) {
+        List<PracticeQuestion> list = questionMapper.selectList(
                 new LambdaQueryWrapper<PracticeQuestion>()
                         .eq(PracticeQuestion::getStatus, 1)
                         .eq(PracticeQuestion::getAdminAuditStatus, 2)
                         .orderByAsc(PracticeQuestion::getDifficulty)
                         .orderByAsc(PracticeQuestion::getId));
-        if (all.isEmpty()) {
-            return all;
+        if (list.isEmpty()) {
+            return list;
+        }
+        Set<String> types = norm(req.getQuestionTypes());
+        Set<String> depts = norm(req.getDepartments());
+        Set<String> tags = norm(req.getKnowledgeTags());
+        if (types.isEmpty() && depts.isEmpty() && tags.isEmpty()) {
+            return list;
+        }
+        return list.stream().filter(q ->
+                (types.isEmpty() || (q.getQuestionType() != null && types.contains(q.getQuestionType())))
+                    && (depts.isEmpty() || (q.getDepartment() != null && depts.contains(q.getDepartment())))
+                    && (tags.isEmpty() || (q.getKnowledgeTag() != null && tags.contains(q.getKnowledgeTag()))))
+                .collect(Collectors.toList());
+    }
+
+    /** 归一化为去空、去重的集合 */
+    private Set<String> norm(List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return Set.of();
+        }
+        return list.stream().filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.toSet());
+    }
+
+    /** 抽取候选：薄弱点对应题优先，其余从通用池补齐；控制总量避免撑爆上下文 */
+    private List<PracticeQuestion> loadCandidates(List<PracticeQuestion> pool,
+                                                  List<String> focusTags, int count) {
+        if (pool.isEmpty()) {
+            return pool;
         }
         List<PracticeQuestion> picked = new ArrayList<>();
         if (focusTags != null && !focusTags.isEmpty()) {
             Set<String> tags = new LinkedHashSet<>(focusTags);
-            for (PracticeQuestion q : all) {
+            for (PracticeQuestion q : pool) {
                 if (tags.contains(q.getKnowledgeTag())) {
                     picked.add(q);
                 }
@@ -215,7 +252,7 @@ public class StudentPaperServiceImpl implements StudentPaperService {
         }
         if (picked.size() < CANDIDATE_LIMIT) {
             Set<Long> used = picked.stream().map(PracticeQuestion::getId).collect(Collectors.toSet());
-            for (PracticeQuestion q : all) {
+            for (PracticeQuestion q : pool) {
                 if (used.contains(q.getId())) continue;
                 picked.add(q);
                 used.add(q.getId());

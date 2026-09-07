@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.UUID;
 
 /**
@@ -76,13 +77,19 @@ public class RedisCaptchaService implements CaptchaService {
                 "0",
                 CAPTCHA_TTL);
 
-        // 绝不在响应文本里返回 code，答案只经 generateImage 以图片形式下发
-        return new CaptchaResponse(captchaId, (int) CAPTCHA_TTL.toSeconds());
+        // 绝不在响应文本里返回 code；答案只以渲染后的图片（base64）下发
+        String imageBase64 = Base64.getEncoder().encodeToString(renderPng(code));
+        return new CaptchaResponse(captchaId, (int) CAPTCHA_TTL.toSeconds(), imageBase64);
     }
 
     @Override
     public byte[] generateImage(String captchaId) {
         String code = redisTemplate.opsForValue().get("auth:captcha:answer:" + captchaId);
+        return renderPng(code);
+    }
+
+    /** 将验证码字符渲染为 PNG 字节（code 缺失/过期时画占位字符，保证图片始终可解码） */
+    private byte[] renderPng(String code) {
         BufferedImage image = renderImage(code == null ? "????" : code);
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();

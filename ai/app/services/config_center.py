@@ -14,10 +14,12 @@
 安全：走内网信任边界（X-Internal-Token 鉴权），仅在 AI 中台内部读取。
 """
 import asyncio
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-import httpx
 from logging import INFO, WARNING
 from typing import Any
+
+import httpx
 
 from app.core.config import settings
 from app.core.logging import get_logger, log_event
@@ -27,6 +29,56 @@ logger = get_logger(__name__)
 _ACTIVE_PROMPT_URL = "/api/internal/prompt/active"
 _ACTIVE_AGENT_URL = "/api/internal/agent/active"
 _ACTIVE_RUNTIME_URL = "/api/internal/runtime/active"
+
+# Agent 策略类型：与 addApp 的 Agent 执行方式对应。
+# - CODE ：代码内进出门（BaseAgent.invoke），内置默认
+# - GRAPH：LangGraph 子图编排（如咨询图）
+# - TOOL ：带工具调用的生成（function calling）
+# - LOOP ：自主决策+循环（ReAct 类，规范扩展位，不强制启用）
+STRATEGY_CODE = "CODE"
+STRATEGY_GRAPH = "GRAPH"
+STRATEGY_TOOL = "TOOL"
+STRATEGY_LOOP = "LOOP"
+
+
+@dataclass(frozen=True)
+class AgentSpec:
+    """一份「Agent 定义」的运行时视图。
+
+    ``code`` 为注册键（对应业务中台 agent_config 的 code）；其余字段给出该 Agent 的
+    定义：策略类型、可用工具、模型、采样与循环终止条件。纯代码内置值作为默认，
+    由 ``config_center.resolve_agent_spec`` 用业务中台热配的字段覆盖生效。
+    """
+
+    code: str
+    name: str = ""
+    description: str = ""
+    version: str = "1.0"
+    strategy: str = STRATEGY_CODE
+    tools: tuple[str, ...] = ()
+    model: str | None = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    # LOOP 策略的终止条件
+    max_iterations: int = 3
+    stop_condition: str = "satisfied"
+    enabled: bool = True
+
+def _parse_tools_config(raw: Any) -> tuple[str, ...] | None:
+    """把业务中台热配的 toolsConfig 解析为启用工具名元组。
+
+    支持两种形态：
+      - dict   ：{name: enabled(bool)}，仅保留 enabled==True 的项
+      - list   ：[name, ...]，全部启用；空列表合法（返回空元组）
+    返回 ``None`` 表示无法识别（调用方沿用默认 tools）。
+    """
+    if isinstance(raw, dict):
+        enabled = [k for k, v in raw.items() if v is True]
+        return tuple(enabled)
+    if isinstance(raw, (list, tuple)):
+        return tuple(str(n) for n in raw if n)
+    return None
+
 
 # ---------------------------------------------------------------------------
 # 可被业务中台热覆盖的 RAG 运行参数（settings 属性名 == 数据库 config_key）
@@ -187,6 +239,51 @@ class ConfigCenter:
 
     def get_agent(self, code: str) -> dict[str, Any] | None:
         return self.agents.get(code)
+
+    def resolve_agent_spec(self, code: str, defaults: AgentSpec) -> AgentSpec:
+        """把业务中台热配的 Agent 元参数合入内置默认定义，得到运行时 AgentSpec。
+
+        覆盖规则（DB 有值则优先，缺失回退 ``defaults``）：
+          - outputPrompt / temperature / max_tokens / enabled 直接覆盖
+          - toolsConfig（dict: name->enabled / 列表）→ 解析为启用工具名元组
+          - strategy / maxIterations / stopCondition → 定义策略与终止条件
+        不可识别字段忽略，保证兼容既有 agent_config 结构。
+        """
+        cfg = self.agents.get(code) or {}
+        overrides: dict[str, Any] = {}
+
+        if isinstance(cfg.get("name"), str) and cfg["name"]:
+            overrides["name"] = cfg["name"]
+        if isinstance(cfg.get("description"), str) and cfg["description"]:
+            overrides["description"] = cfg["description"]
+        version = cfg.get("version")
+        if isinstance(version, (str, int)):
+            overrides["version"] = str(version)
+        strat = cfg.get("strategy")
+        if isinstance(strat, str) and strat:
+            overrides["strategy"] = strat.upper()
+        model = cfg.get("model")
+        if isinstance(model, str) and model:
+            overrides["model"] = model
+        temp = cfg.get("temperature")
+        if isinstance(temp, (int, float)):
+            overrides["temperature"] = float(temp)
+        tokens = cfg.get("max_tokens")
+        if isinstance(tokens, (int, float)):
+            overrides["max_tokens"] = int(tokens)
+        if isinstance(cfg.get("maxIterations"), int):
+            overrides["max_iterations"] = int(cfg["maxIterations"])
+        if isinstance(cfg.get("stopCondition"), str) and cfg["stopCondition"]:
+            overrides["stop_condition"] = cfg["stopCondition"]
+        enabled = cfg.get("enabled")
+        if isinstance(enabled, bool):
+            overrides["enabled"] = enabled
+
+        tools = _parse_tools_config(cfg.get("toolsConfig"))
+        if tools is not None:
+            overrides["tools"] = tools
+
+        return replace(defaults, **overrides)
 
     def resolve_system_prompt(
         self,

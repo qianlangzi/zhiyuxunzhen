@@ -18,7 +18,7 @@ from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.core.errors import ApiError, ModelUnavailableError, OutputSchemaInvalidError, RetrievalUnavailableError
-from app.core.logging import get_logger, log_event, reset_context, set_context
+from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
 from app.domain.policies.safety_policy import safety_policy
 from app.models.common import R
@@ -85,7 +85,7 @@ async def lesson_design(
     req: LessonDesignRequest,
     _token: None = Depends(require_internal_token),
 ):
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # RAG：以课程主题/知识点检索教材，作为教学设计的事实锚点
@@ -190,7 +190,7 @@ async def lesson_guide(
     _token: None = Depends(require_internal_token),
 ):
     """向导式备课对话：确定性地逐要素推进（不依赖模型状态记忆）"""
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         # 要素顺序固定的确定性状态机：字段推进、完成判定、需求单汇总都由代码完成，
@@ -300,7 +300,7 @@ async def lesson_merge(
 ):
     """AI 合并多份教案：以优先级最高教案为主体，用 LLM 消解各方冲突，
     产出单一连贯的医学教案（LessonDesignResult）。"""
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         if not req.designs or len(req.designs) < 2:
@@ -354,7 +354,7 @@ async def lesson_ppt(
     _token: None = Depends(require_internal_token),
 ):
     """基于已生成的教案设计生成分页 PPT 课件提纲（教师确认编辑后发布）。"""
-    trace_id = str(uuid.uuid4())
+    trace_id = ensure_trace_id()
     set_context(trace_id=trace_id)
     try:
         design_text = req.designJson or "{}"

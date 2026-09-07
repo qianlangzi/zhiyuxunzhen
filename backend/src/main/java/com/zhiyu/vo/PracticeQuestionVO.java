@@ -29,4 +29,10 @@ public class PracticeQuestionVO {
     private Integer difficulty;
     private Long sourceTextbookId;
     private String sourceTextbookTitle;
+    /** 当前学生是否已作答（账户级持久化） */
+    private Boolean answered;
+    /** 当前学生最近一次所选答案 */
+    private String myAnswer;
+    /** 当前学生最近一次是否答对（null 表示未作答/需自评题型） */
+    private Boolean correct;
 }

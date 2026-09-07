@@ -4,6 +4,7 @@ import com.zhiyu.interceptor.InternalApiInterceptor;
 import com.zhiyu.interceptor.JwtAuthInterceptor;
 import com.zhiyu.interceptor.MustChangePasswordInterceptor;
 import com.zhiyu.interceptor.PermissionInterceptor;
+import com.zhiyu.interceptor.TraceIdInterceptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
@@ -13,7 +14,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Web MVC 配置（PRD 16.3.1）：注册拦截器链
- * 顺序：InternalApiInterceptor(0) → JwtAuthInterceptor(10) → MustChangePasswordInterceptor(15) → PermissionInterceptor(20)
+ * 顺序：TraceIdInterceptor(0) → InternalApiInterceptor(1) → JwtAuthInterceptor(10) → MustChangePasswordInterceptor(15) → PermissionInterceptor(20)
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -29,6 +30,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Autowired
     private InternalApiInterceptor internalApiInterceptor;
+
+    @Autowired
+    private TraceIdInterceptor traceIdInterceptor;
 
     @Value("${zhiyu.upload.dir:./uploads}")
     private String uploadDir;
@@ -58,10 +62,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
+        // 0. 全链路 trace：为所有请求(含内部接口/静态放行)注入 MDC traceId，出站透传 X-Trace-Id
+        registry.addInterceptor(traceIdInterceptor)
+                .addPathPatterns("/**")
+                .excludePathPatterns("/uploads/**", "/actuator/**", "/error")
+                .order(0);
+
         // 1. 内部接口独立鉴权（不走 JWT）
         registry.addInterceptor(internalApiInterceptor)
                 .addPathPatterns(INTERNAL_PATHS)
-                .order(0);
+                .order(1);
 
         // 2. JWT 鉴权
         registry.addInterceptor(jwtAuthInterceptor)

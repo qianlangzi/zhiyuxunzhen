@@ -14,26 +14,77 @@ class StudentService {
 
   bool get _isMock => ApiConfig.useMockAuth;
 
-  /// 获取今日每日一例
-  Future<Map<String, dynamic>?> getTodayDailyCase() async {
-    if (_isMock) return null; // UI 层使用硬编码数据
-    final resp = await _api.getTodayDailyCase();
+  // ==================== 每日病历（每日一例升级版） ====================
+
+  /// 今日病历卡
+  Future<Map<String, dynamic>?> getTodayDailyMr() async {
+    if (_isMock) return null;
+    final resp = await _api.getTodayDailyMr();
     if (!resp.isSuccess) {
-      log('getTodayDailyCase failed: ${resp.message}', name: 'student_service');
+      log('getTodayDailyMr failed: ${resp.message}', name: 'student_service');
       return null;
     }
     return resp.data;
   }
 
-  /// 提交每日一例答案
-  Future<Map<String, dynamic>?> submitDailyCase({
+  /// 病历题库（往期列表）
+  Future<List<dynamic>> getDailyMrBank({int pageNum = 1, int pageSize = 20, int? done}) async {
+    if (_isMock) return const [];
+    final resp = await _api.getDailyMrBank(pageNum: pageNum, pageSize: pageSize, done: done);
+    if (!resp.isSuccess) {
+      log('getDailyMrBank failed: ${resp.message}', name: 'student_service');
+      return const [];
+    }
+    return resp.data ?? const [];
+  }
+
+  /// 题目详情
+  Future<Map<String, dynamic>?> getDailyMrDetail(int scheduleId) async {
+    if (_isMock) return null;
+    final resp = await _api.getDailyMrDetail(scheduleId);
+    if (!resp.isSuccess) {
+      log('getDailyMrDetail failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 段落教练
+  Future<Map<String, dynamic>?> dailyMrHint({
     required int scheduleId,
-    required String answer,
+    required String segmentKey,
+    int hintLevel = 1,
   }) async {
     if (_isMock) return null;
-    final resp = await _api.submitDailyCase(scheduleId: scheduleId, answer: answer);
+    final resp = await _api.dailyMrHint(
+        scheduleId: scheduleId, segmentKey: segmentKey, hintLevel: hintLevel);
     if (!resp.isSuccess) {
-      log('submitDailyCase failed: ${resp.message}', name: 'student_service');
+      log('dailyMrHint failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 提交病历（九段 → AI 批阅）
+  Future<Map<String, dynamic>?> submitDailyMr({
+    required int scheduleId,
+    required Map<String, String> segments,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.submitDailyMr(scheduleId: scheduleId, segments: segments);
+    if (!resp.isSuccess) {
+      log('submitDailyMr failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 打卡日历
+  Future<Map<String, dynamic>?> dailyMrCalendar({int? year}) async {
+    if (_isMock) return null;
+    final resp = await _api.dailyMrCalendar(year: year);
+    if (!resp.isSuccess) {
+      log('dailyMrCalendar failed: ${resp.message}', name: 'student_service');
       return null;
     }
     return resp.data;
@@ -218,6 +269,30 @@ class StudentService {
       return null;
     }
     return resp.data;
+  }
+
+  /// 练同类题：基于该错题的归因结论生成巩固练习（归因 → 巩固 → 再判掌握）
+  Future<Map<String, dynamic>?> generateMistakeDrill(int id,
+      {int count = 5}) async {
+    if (_isMock) return null;
+    final resp = await _api.drillMistake(id, count: count);
+    if (!resp.isSuccess) {
+      log('generateMistakeDrill failed: ${resp.message}',
+          name: 'student_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 回写错题复习状态（0未复习 1已复习 2已掌握），持久化到服务端
+  Future<bool> markMistakeStatus(int id, int status) async {
+    if (_isMock) return true;
+    final resp = await _api.markMistakeStatus(id, status);
+    if (!resp.isSuccess) {
+      log('markMistakeStatus failed: ${resp.message}', name: 'student_service');
+      return false;
+    }
+    return true;
   }
 
   /// 获取会话 OSCE 评估结果
@@ -533,6 +608,17 @@ class StudentService {
       return null;
     }
     return resp.data;
+  }
+
+  /// 标记资料任务完成（幂等；完成后从待办与课程角标清除）
+  Future<bool> completeLessonTask(int publishId) async {
+    if (_isMock) return false;
+    final resp = await _api.completeLessonTask(publishId);
+    if (!resp.isSuccess) {
+      log('completeLessonTask failed: ${resp.message}', name: 'student_service');
+      return false;
+    }
+    return true;
   }
 
   /// 影像 AI 读图分析，返回 {finding, safetyBlocked, ...}

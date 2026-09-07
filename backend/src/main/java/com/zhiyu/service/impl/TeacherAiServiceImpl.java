@@ -329,6 +329,42 @@ public class TeacherAiServiceImpl implements TeacherAiService {
                 parseStringList(c.getKnowledgeTags()));
     }
 
+    // ==================== 7. 病例素材智能推荐 ====================
+
+    @Override
+    public Map<String, Object> materialAdvice(Long caseId) {
+        Long teacherId = com.zhiyu.common.context.UserContext.requireUserId();
+        SpCaseConfig c = requireOwnCase(caseId, teacherId);
+        // 已配置的检查项名称列表（供 AI 去重）
+        List<String> existing = new java.util.ArrayList<>();
+        try {
+            for (java.util.Map<String, Object> exam : parseList(c.getPresetExams())) {
+                Object name = exam.get("name");
+                if (name != null && !String.valueOf(name).isBlank()) {
+                    existing.add(String.valueOf(name));
+                }
+            }
+        } catch (Exception ignored) {
+            // 解析失败按空处理
+        }
+        String complaint = "";
+        String presentIllness = "";
+        try {
+            com.fasterxml.jackson.databind.JsonNode profile =
+                    objectMapper.readTree(c.getPatientProfile() == null ? "{}" : c.getPatientProfile());
+            complaint = profile.path("complaint").asText("");
+            presentIllness = profile.path("presentIllness").asText("");
+            if (presentIllness.length() > 300) {
+                presentIllness = presentIllness.substring(0, 300);
+            }
+        } catch (Exception ignored) {
+            // 画像非 JSON 时按空处理
+        }
+        return aiPlatformClient.materialAdvice(
+                caseId, c.getTitle(), c.getDepartment(), complaint,
+                c.getHiddenDisease(), presentIllness, existing);
+    }
+
     // ==================== 7. 学情诊断报告（P1-1） ====================
 
     @Override

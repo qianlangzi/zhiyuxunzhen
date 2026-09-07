@@ -95,6 +95,9 @@ export interface AgentItem {
   temperature: number | null
   maxTokens: number | null
   toolsConfig: string | null
+  strategy: string | null
+  model: string | null
+  maxIterations: number | null
   isActive: boolean
   status: number
   createdAt: string
@@ -111,6 +114,9 @@ export interface AgentPayload {
   temperature?: number | null
   maxTokens?: number | null
   toolsConfig?: string
+  strategy?: string
+  model?: string
+  maxIterations?: number | null
   status?: number
 }
 
