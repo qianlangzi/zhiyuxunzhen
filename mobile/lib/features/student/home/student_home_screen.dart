@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../features/common/guide/guide_anchor.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../student/data/student_service.dart';
@@ -339,19 +338,15 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
               ),
 
               // ---- 功能卡片区（紧贴底部导航上方） ----
-              // 套 GuideTarget：新手指引会高亮这一排卡片
               Positioned(
                 left: 16,
                 right: 16,
                 bottom: cardsBottom,
-                child: GuideTarget(
-                  anchor: GuideAnchors.studentHomeCards,
-                  child: _buildCards(
-                    cardH: cardH,
-                    charH: charH,
-                    charBottom: charBottom,
-                    isNight: isNight,
-                  ),
+                child: _buildCards(
+                  cardH: cardH,
+                  charH: charH,
+                  charBottom: charBottom,
+                  isNight: isNight,
                 ),
               ),
             ],
@@ -422,10 +417,11 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
       ),
       _CardData(
         title: '我的课程',
-        desc: _coursePendingCount > 0 ? '$_coursePendingCount 项待办' : '暂无待办',
+        // 课程卡不再报待办数量：数量与时效提醒统一收口在「作业待办」
+        desc: '课程资料与班级',
         asset: 'assets/images/student_course.png',
         shift: 0.08, // 朝右 · 身体偏左 → 右移对准卡片中心
-        badge: _coursePendingCount,
+        dot: _coursePendingCount > 0,
         onTap: () => _pushThenRefresh(_openMyCourses),
       ),
       _CardData(
@@ -511,7 +507,16 @@ class _StudentHomeScreenState extends ConsumerState<StudentHomeScreen> {
           // 人物全高落入卡片内部（charBottom>0），不外溢
           clipBehavior: Clip.hardEdge,
           children: [
-            // 微信式红点角标：课程右上角显示待办数
+            // 无数字红点：课程卡只表达「有未完成事项」
+            if (d.badge <= 0 && d.dot)
+              const Positioned(
+                top: 13,
+                right: 13,
+                child: IgnorePointer(
+                  child: _TopDot(),
+                ),
+              ),
+            // 微信式数字角标：仅「作业待办」承载待办数量
             if (d.badge > 0)
               Positioned(
                 top: 10,
@@ -649,6 +654,7 @@ class _CardData {
     required this.shift,
     required this.onTap,
     this.badge = 0,
+    this.dot = false,
   });
 
   final String title;
@@ -657,6 +663,33 @@ class _CardData {
   final double shift; // 人物水平偏移（占图片宽度比例），实现左右交错
   final VoidCallback onTap;
 
-  /// 徽标数字（>0 时在卡片右上角显示，作业待办待办数用）
+  /// 徽标数字（>0 时在卡片右上角显示，仅「作业待办」用）
   final int badge;
+
+  /// 无数字红点（课程卡只表达「有未完成任务」，不报数量）
+  final bool dot;
+}
+
+/// 无数字待办红点（首页课程卡专用，与我的课程页 _PendingDot 同语义）
+class _TopDot extends StatelessWidget {
+  const _TopDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5484D),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE5484D).withValues(alpha: 0.45),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    );
+  }
 }

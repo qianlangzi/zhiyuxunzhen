@@ -3,6 +3,7 @@ package com.zhiyu.controller.teacher;
 import com.zhiyu.common.R;
 import com.zhiyu.service.TeacherAssignmentService;
 import com.zhiyu.service.dto.AssignmentCreateDTO;
+import com.zhiyu.service.dto.AssignmentSettingsDTO;
 import com.zhiyu.vo.AssignmentProgressVO;
 import com.zhiyu.vo.TeacherAssignmentListVO;
 import com.zhiyu.vo.TeachingClassVO;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,6 +47,14 @@ public class TeacherAssignmentController {
     @PostMapping
     public R<Long> create(@Valid @RequestBody AssignmentCreateDTO req) {
         return R.ok(teacherAssignmentService.create(req));
+    }
+
+    @Operation(summary = "修改作业设置（延期 / 补交窗口 / 公布策略等，null 字段表示不修改）")
+    @PutMapping("/{id}/settings")
+    public R<Void> updateSettings(@PathVariable Long id,
+                                  @RequestBody AssignmentSettingsDTO req) {
+        teacherAssignmentService.updateSettings(id, req);
+        return R.ok();
     }
 
     @Operation(summary = "作业进度统计及学生明细")

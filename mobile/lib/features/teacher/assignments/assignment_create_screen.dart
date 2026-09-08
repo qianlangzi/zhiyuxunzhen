@@ -72,6 +72,17 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
   final _descCtrl = TextEditingController();
   DateTime? _deadline;
   bool _allowLate = false;
+  // ---- 学习通式作业设置 ----
+  /// 开始时间（定时发布），null = 立即发布
+  DateTime? _startTime;
+  /// 补交截止时间（_allowLate 为 true 时必填）
+  DateTime? _lateDeadline;
+  final _scoreCtrl = TextEditingController();
+  String _scorePublishMode = 'IMMEDIATE';
+  String _answerPublishMode = 'AFTER_DEADLINE';
+  bool _shuffleQuestions = false;
+  int _maxAttempts = 1;
+  bool _plagiarismCheck = false;
   final List<_ItemDraft> _items = [];
   final Set<int> _classIds = {};
   List<Map<String, dynamic>> _classes = [];
@@ -88,6 +99,7 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
   void dispose() {
     _titleCtrl.dispose();
     _descCtrl.dispose();
+    _scoreCtrl.dispose();
     super.dispose();
   }
 
@@ -100,31 +112,53 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
     });
   }
 
-  // ========= 截止时间 =========
-  Future<void> _pickDeadline() async {
+  // ========= 时间选择（开始 / 截止 / 补交截止 共用） =========
+  Future<DateTime?> _pickDateTime(DateTime? initial, String help) async {
     final now = DateTime.now();
+    final base = initial ?? now.add(const Duration(days: 3));
     final date = await showDatePicker(
       context: context,
-      initialDate: _deadline ?? now.add(const Duration(days: 3)),
-      firstDate: now,
+      initialDate: base.isBefore(now) ? now : base,
+      firstDate: now.subtract(const Duration(days: 1)),
       lastDate: now.add(const Duration(days: 365)),
-      helpText: '选择截止日期',
+      helpText: help,
       cancelText: '取消',
       confirmText: '确定',
     );
-    if (date == null || !mounted) return;
+    if (date == null || !mounted) return null;
     final time = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_deadline ?? now.add(const Duration(hours: 23))),
-      helpText: '选择截止时间',
+      initialTime: TimeOfDay.fromDateTime(base),
+      helpText: help,
       cancelText: '取消',
       confirmText: '确定',
     );
-    if (time == null || !mounted) return;
-    setState(() {
-      _deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute);
-    });
+    if (time == null || !mounted) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
+
+  Future<void> _pickDeadline() async {
+    final picked = await _pickDateTime(_deadline, '选择截止时间');
+    if (picked == null) return;
+    setState(() => _deadline = picked);
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await _pickDateTime(_startTime, '选择开始时间');
+    if (picked == null) return;
+    setState(() => _startTime = picked);
+  }
+
+  Future<void> _pickLateDeadline() async {
+    final picked = await _pickDateTime(_lateDeadline ?? _deadline, '选择补交截止时间');
+    if (picked == null) return;
+    setState(() => _lateDeadline = picked);
+  }
+
+  String _fmt(DateTime? t) => t == null
+      ? ''
+      : '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')} '
+          '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   // ========= 添加任务项 =========
   void _showAddItemSheet() {
@@ -304,6 +338,20 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
       AppFeedback.info(context, '请选择截止时间');
       return;
     }
+    if (_startTime != null && !_startTime!.isBefore(_deadline!)) {
+      AppFeedback.info(context, '开始时间必须早于截止时间');
+      return;
+    }
+    if (_allowLate) {
+      if (_lateDeadline == null) {
+        AppFeedback.info(context, '允许补交时请选择补交截止时间');
+        return;
+      }
+      if (!_lateDeadline!.isAfter(_deadline!)) {
+        AppFeedback.info(context, '补交截止时间必须晚于截止时间');
+        return;
+      }
+    }
     if (_items.isEmpty) {
       AppFeedback.info(context, '请至少添加一个任务项');
       return;
@@ -318,8 +366,17 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
     final body = {
       'title': title,
       'description': _descCtrl.text.trim().isEmpty ? null : _descCtrl.text.trim(),
-      'deadline': _deadline!.toIso8601String().replaceFirst('T', 'T'),
+      'deadline': _deadline!.toIso8601String(),
       'allowLateSubmit': _allowLate,
+      // 学习通式设置：定时发布 / 补交窗口 / 总分 / 公布策略 / 提交次数 / 乱序 / 查重
+      'startTime': _startTime?.toIso8601String(),
+      'lateDeadline': _allowLate ? _lateDeadline?.toIso8601String() : null,
+      'totalScore': double.tryParse(_scoreCtrl.text.trim()),
+      'scorePublishMode': _scorePublishMode,
+      'answerPublishMode': _answerPublishMode,
+      'shuffleQuestions': _shuffleQuestions,
+      'maxAttempts': _maxAttempts,
+      'plagiarismCheck': _plagiarismCheck,
       'classIds': _classIds.toList(),
       'items': _items.map((it) {
         final base = {
@@ -439,23 +496,236 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
             decoration: _inputDeco('作业说明（选填）', '给学生的一句话说明'),
           ),
           const SizedBox(height: 10),
-          _deadlineRow(),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text('允许迟交',
-                    style: TextStyle(fontSize: 13.5, color: AppColors.text2Of(context))),
-              ),
-              Switch(
-                value: _allowLate,
-                activeThumbColor: AppColors.primaryOf(context),
-                onChanged: (v) => setState(() => _allowLate = v),
-              ),
-            ],
-          ),
+          _scheduleSection(),
         ],
       ),
+    );
+  }
+
+  /// 时间线与提交策略设置（仿学习通）
+  Widget _scheduleSection() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.bgOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: AppColors.ruleOf(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.schedule_rounded,
+                  size: 15, color: AppColors.amberOf(context)),
+              const SizedBox(width: 6),
+              Text('时间设置',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text2Of(context))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _timeRow(
+            icon: Icons.play_circle_outline_rounded,
+            label: _startTime == null ? '立即开始' : '开始 ${_fmt(_startTime)}',
+            onTap: _pickStartTime,
+            trailing: _startTime == null
+                ? null
+                : IconButton(
+                    icon: Icon(Icons.close_rounded,
+                        size: 16, color: AppColors.text4Of(context)),
+                    onPressed: () => setState(() => _startTime = null),
+                    tooltip: '改为立即开始',
+                  ),
+          ),
+          const SizedBox(height: 8),
+          _timeRow(
+            icon: Icons.event_available_outlined,
+            label: _deadline == null ? '选择截止时间' : '截止 ${_fmt(_deadline)}',
+            onTap: _pickDeadline,
+          ),
+          const SizedBox(height: 4),
+          _switchRow('允许补交（逾期后仍可提交）', _allowLate,
+              (v) => setState(() {
+                    _allowLate = v;
+                    if (!v) _lateDeadline = null;
+                  })),
+          if (_allowLate) ...[
+            const SizedBox(height: 8),
+            _timeRow(
+              icon: Icons.more_time_rounded,
+              label: _lateDeadline == null
+                  ? '选择补交截止时间'
+                  : '补交截止 ${_fmt(_lateDeadline)}',
+              onTap: _pickLateDeadline,
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Icon(Icons.rule_rounded, size: 15, color: AppColors.indigoOf(context)),
+              const SizedBox(width: 6),
+              Text('提交与公布',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.text2Of(context))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _scoreCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            style: const TextStyle(fontSize: 14),
+            decoration: _inputDeco('作业总分（选填）', '留空则由任务项自动汇总'),
+          ),
+          const SizedBox(height: 10),
+          _modeRow('成绩公布', _scorePublishMode, (v) => setState(() => _scorePublishMode = v)),
+          const SizedBox(height: 8),
+          _modeRow('答案/解析公布', _answerPublishMode,
+              (v) => setState(() => _answerPublishMode = v)),
+          const SizedBox(height: 4),
+          _switchRow('题目乱序（每位学生题序不同）', _shuffleQuestions,
+              (v) => setState(() => _shuffleQuestions = v)),
+          _switchRow('抄袭检测（提交时比对相似度）', _plagiarismCheck,
+              (v) => setState(() => _plagiarismCheck = v)),
+          const SizedBox(height: 4),
+          _attemptsRow(),
+        ],
+      ),
+    );
+  }
+
+  /// 时间选择行
+  Widget _timeRow({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Widget? trailing,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+          border: Border.all(color: AppColors.ruleOf(context)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: AppColors.amberOf(context)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      color: label.contains('选择')
+                          ? AppColors.text3Of(context)
+                          : AppColors.textOf(context),
+                      fontFamily: 'JetBrainsMono')),
+            ),
+            trailing ??
+                Icon(Icons.edit_calendar_outlined,
+                    size: 16, color: AppColors.text4Of(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 开关行
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 13.5, color: AppColors.text2Of(context))),
+        ),
+        Switch(
+          value: value,
+          activeThumbColor: AppColors.primaryOf(context),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  /// 公布方式三选一
+  Widget _modeRow(String label, String value, ValueChanged<String> onChanged) {
+    final opts = const [
+      ('IMMEDIATE', '提交后'),
+      ('AFTER_DEADLINE', '截止后'),
+      ('MANUAL', '手动'),
+    ];
+    return Row(
+      children: [
+        SizedBox(
+          width: 96,
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 13, color: AppColors.text2Of(context))),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            children: opts
+                .map((o) => ChoiceChip(
+                      label: Text(o.$2,
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: value == o.$1
+                                  ? AppColors.onPrimaryOf(context)
+                                  : AppColors.text2Of(context))),
+                      selected: value == o.$1,
+                      selectedColor: AppColors.primaryOf(context),
+                      backgroundColor: AppColors.surfaceOf(context),
+                      side: BorderSide(color: AppColors.ruleOf(context)),
+                      showCheckmark: false,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onSelected: (_) => onChanged(o.$1),
+                    ))
+                .toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 允许提交次数
+  Widget _attemptsRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: Text('允许提交次数',
+              style: TextStyle(
+                  fontSize: 13.5, color: AppColors.text2Of(context))),
+        ),
+        IconButton(
+          icon: Icon(Icons.remove_circle_outline_rounded,
+              size: 20, color: AppColors.text3Of(context)),
+          onPressed: _maxAttempts > 1
+              ? () => setState(() => _maxAttempts--)
+              : null,
+          tooltip: '减少',
+        ),
+        Text('$_maxAttempts',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textOf(context))),
+        IconButton(
+          icon: Icon(Icons.add_circle_outline_rounded,
+              size: 20, color: AppColors.text3Of(context)),
+          onPressed: _maxAttempts < 10
+              ? () => setState(() => _maxAttempts++)
+              : null,
+          tooltip: '增加',
+        ),
+      ],
     );
   }
 

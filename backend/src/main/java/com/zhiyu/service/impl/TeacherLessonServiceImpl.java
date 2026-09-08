@@ -940,6 +940,17 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
 
     // ---------------- 学生端学习任务聚合 ----------------
 
+    /** 教师姓名（查不到时降级为空串，前端自行兜底） */
+    private String resolveTeacherName(Long teacherId, Map<Long, String> cache) {
+        if (teacherId == null) return "";
+        return cache.computeIfAbsent(teacherId, id -> {
+            SysUser u = userMapper.selectById(id);
+            if (u == null) return "";
+            String n = u.getRealName();
+            return (n == null || n.isBlank()) ? (u.getUsername() == null ? "" : u.getUsername()) : n;
+        });
+    }
+
     @Override
     public List<Map<String, Object>> studentTasks() {
         Long studentId = UserContext.requireUserId();
@@ -969,6 +980,8 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
                         .in(LessonPublish::getClassId, classIds)
                         .eq(LessonPublish::getStatus, 0)
                         .orderByDesc(LessonPublish::getCreatedAt));
+        // 教师名（待办页需区分「哪位老师布置的」）
+        Map<Long, String> teacherNameById = new HashMap<>();
         for (LessonPublish lp : pubs) {
             LessonPlan plan = lessonPlanMapper.selectById(lp.getLessonId());
             if (plan == null) continue;
@@ -981,6 +994,7 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
             t.put("publishId", lp.getId());
             t.put("lessonId", plan.getId());
             t.put("lessonTitle", plan.getTitle());
+            t.put("teacherName", resolveTeacherName(plan.getTeacherId(), teacherNameById));
             t.put("department", plan.getDepartment());
             t.put("materialOnly", lp.getMaterialOnly());
             t.put("deadline", lp.getDeadline());

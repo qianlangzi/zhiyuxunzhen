@@ -15,6 +15,7 @@ import com.zhiyu.entity.AssignmentInstance;
 import com.zhiyu.entity.AssignmentItem;
 import com.zhiyu.entity.AssignmentItemProgress;
 import com.zhiyu.entity.AssignmentTargetClass;
+import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.entity.TeachingClass;
@@ -26,6 +27,7 @@ import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.AssignmentTargetClassMapper;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
+import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.FormatCheckService;
@@ -74,6 +76,7 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
     private final AssignmentInstanceMapper instanceMapper;
     private final AssignmentMapper assignmentMapper;
     private final AssignmentTargetClassMapper targetClassMapper;
+    private final SysUserMapper userMapper;
     private final TeachingClassMapper teachingClassMapper;
     private final AssignmentItemMapper itemMapper;
     private final AssignmentItemProgressMapper progressMapper;
@@ -105,7 +108,35 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                 .in(AssignmentInstance::getStatus, 0, 1, 2)
                 .orderByDesc(AssignmentInstance::getCreatedAt);
         instanceMapper.selectPage(page, wrapper);
-        return PageResult.of(page, buildVOs(page.getRecords()));
+        List<StudentAssignmentVO> list = buildVOs(page.getRecords());
+        LocalDateTime now = LocalDateTime.now();
+        // 定时发布的作业：未到开始时间不进入待办（学生个人待办量有限，内存过滤可接受）
+        list.removeIf(v -> v.getStartTime() != null && now.isBefore(v.getStartTime()));
+        // 时效性排序：未逾期按截止时间升序（越紧急越靠前）→ 逾期且可补交 → 逾期不可补交沉底
+        list.sort((x, y) -> {
+            int rx = urgencyRank(x, now);
+            int ry = urgencyRank(y, now);
+            if (rx != ry) return Integer.compare(rx, ry);
+            if (rx == 0) {
+                // 均未逾期：截止时间升序，无截止时间排最后
+                if (x.getDeadline() == null && y.getDeadline() == null) return 0;
+                if (x.getDeadline() == null) return 1;
+                if (y.getDeadline() == null) return -1;
+                return x.getDeadline().compareTo(y.getDeadline());
+            }
+            // 已逾期：最近截止的排前面
+            if (x.getDeadline() == null && y.getDeadline() == null) return 0;
+            if (x.getDeadline() == null) return 1;
+            if (y.getDeadline() == null) return -1;
+            return y.getDeadline().compareTo(x.getDeadline());
+        });
+        return PageResult.of(page, list);
+    }
+
+    /** 紧急度分档：0 未逾期 / 1 逾期但可补交 / 2 逾期且不可补交（沉底） */
+    private int urgencyRank(StudentAssignmentVO v, LocalDateTime now) {
+        if (v.getDeadline() == null || !now.isAfter(v.getDeadline())) return 0;
+        return Boolean.TRUE.equals(v.getCanSubmitLate()) ? 1 : 2;
     }
 
     /** 批量补全作业标题、病例标题、截止时间、任务项，组装列表 VO */
@@ -120,10 +151,18 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
         Map<Long, List<StudentItemVO>> itemMap = loadItemSummary(assignmentIds, records);
         // 作业→班级名（支持学生端按课程分组汇总待办）
         Map<Long, String> classNameByAssignment = loadClassNameMap(assignmentIds);
+        Map<Long, Long> classIdByAssignment = loadClassIdMap(assignmentIds);
+        Map<Long, String> teacherNameByAssignment = loadTeacherNameMap(assignmentIds);
+        LocalDateTime now = LocalDateTime.now();
 
         return records.stream().map(inst -> {
             Assignment a = aMap.get(inst.getAssignmentId());
             SpCaseConfig c = cMap.get(inst.getCaseId());
+            LocalDateTime dl = a == null ? null : a.getDeadline();
+            boolean allowLate = a != null && Boolean.TRUE.equals(a.getAllowLateSubmit());
+            boolean overdue = dl != null && now.isAfter(dl);
+            boolean canSubmitLate = overdue && allowLate
+                    && (a.getLateDeadline() == null || !now.isAfter(a.getLateDeadline()));
             return StudentAssignmentVO.builder()
                     .instanceId(inst.getId())
                     .assignmentId(inst.getAssignmentId())
@@ -131,7 +170,15 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                     .caseId(inst.getCaseId())
                     .caseTitle(c == null ? null : c.getTitle())
                     .className(classNameByAssignment.get(inst.getAssignmentId()))
-                    .deadline(a == null ? null : a.getDeadline())
+                    .classId(classIdByAssignment.get(inst.getAssignmentId()))
+                    .teacherName(teacherNameByAssignment.get(inst.getAssignmentId()))
+                    .deadline(dl)
+                    .startTime(a == null ? null : a.getStartTime())
+                    .allowLateSubmit(a == null ? null : a.getAllowLateSubmit())
+                    .lateDeadline(a == null ? null : a.getLateDeadline())
+                    .totalScore(a == null ? null : a.getTotalScore())
+                    .overdue(overdue)
+                    .canSubmitLate(canSubmitLate)
                     .status(inst.getStatus())
                     .score(inst.getScore())
                     .items(itemMap.get(inst.getId()))
@@ -161,8 +208,20 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                 .caseId(inst.getCaseId())
                 .caseTitle(c == null ? null : c.getTitle())
                 .department(c == null ? null : c.getDepartment())
+                .teacherName(resolveTeacherName(a == null ? null : a.getTeacherId()))
+                .className(resolveClassName(inst.getAssignmentId()))
                 .deadline(a == null ? null : a.getDeadline())
+                .startTime(a == null ? null : a.getStartTime())
                 .allowLateSubmit(a == null ? null : a.getAllowLateSubmit())
+                .lateDeadline(a == null ? null : a.getLateDeadline())
+                .totalScore(a == null ? null : a.getTotalScore())
+                .overdue(a != null && a.getDeadline() != null
+                        && LocalDateTime.now().isAfter(a.getDeadline()))
+                .canSubmitLate(a != null && a.getDeadline() != null
+                        && LocalDateTime.now().isAfter(a.getDeadline())
+                        && Boolean.TRUE.equals(a.getAllowLateSubmit())
+                        && (a.getLateDeadline() == null
+                            || !LocalDateTime.now().isAfter(a.getLateDeadline())))
                 .status(status)
                 .score(inst.getScore())
                 .submitTime(inst.getSubmitTime())
@@ -442,9 +501,17 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
             throw new BizException(ResultCode.ASSIGNMENT_NOT_FOUND);
         }
         LocalDateTime now = LocalDateTime.now();
-        boolean allowLate = a.getAllowLateSubmit() != null && a.getAllowLateSubmit();
-        if (a.getDeadline() != null && now.isAfter(a.getDeadline()) && !allowLate) {
-            throw new BizException(ResultCode.ASSIGNMENT_DEADLINE_PASSED);
+        // 定时发布：未到开始时间不允许提交（前端也不展示）
+        if (a.getStartTime() != null && now.isBefore(a.getStartTime())) {
+            throw new BizException(ResultCode.BAD_REQUEST, "作业尚未开始，暂不可提交");
+        }
+        if (a.getDeadline() != null && now.isAfter(a.getDeadline())) {
+            boolean allowLate = Boolean.TRUE.equals(a.getAllowLateSubmit());
+            // 配了补交截止就必须落在窗口内；旧数据只开开关未配窗口的沿用「无限补交」
+            boolean inLateWindow = a.getLateDeadline() == null || !now.isAfter(a.getLateDeadline());
+            if (!allowLate || !inLateWindow) {
+                throw new BizException(ResultCode.ASSIGNMENT_DEADLINE_PASSED);
+            }
         }
     }
 
@@ -614,6 +681,58 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
     }
 
     /** 作业→班级名（首个目标班级；支持学生端按课程分组待办） */
+    /** 单个教师姓名 */
+    private String resolveTeacherName(Long teacherId) {
+        if (teacherId == null) return null;
+        SysUser u = userMapper.selectById(teacherId);
+        if (u == null) return null;
+        String n = u.getRealName();
+        return (n == null || n.isBlank()) ? u.getUsername() : n;
+    }
+
+    /** 作业首个目标班级名 */
+    private String resolveClassName(Long assignmentId) {
+        if (assignmentId == null) return null;
+        AssignmentTargetClass t = targetClassMapper.selectOne(
+                new LambdaQueryWrapper<AssignmentTargetClass>()
+                        .eq(AssignmentTargetClass::getAssignmentId, assignmentId)
+                        .last("LIMIT 1"));
+        if (t == null || t.getClassId() == null) return null;
+        TeachingClass c = teachingClassMapper.selectById(t.getClassId());
+        return c == null ? null : c.getName();
+    }
+
+    /** 作业→首个目标班级ID（学生端按课程分档） */
+    private Map<Long, Long> loadClassIdMap(List<Long> assignmentIds) {
+        Map<Long, Long> map = new HashMap<>();
+        if (assignmentIds.isEmpty()) return map;
+        List<AssignmentTargetClass> targets = targetClassMapper.selectList(
+                new LambdaQueryWrapper<AssignmentTargetClass>()
+                        .in(AssignmentTargetClass::getAssignmentId, assignmentIds));
+        targets.forEach(t -> map.putIfAbsent(t.getAssignmentId(), t.getClassId()));
+        return map;
+    }
+
+    /** 作业→布置教师姓名（多科老师作业混排时用于区分来源） */
+    private Map<Long, String> loadTeacherNameMap(List<Long> assignmentIds) {
+        Map<Long, String> map = new HashMap<>();
+        if (assignmentIds.isEmpty()) return map;
+        List<Assignment> as = assignmentMapper.selectList(
+                new LambdaQueryWrapper<Assignment>().in(Assignment::getId, assignmentIds));
+        List<Long> teacherIds = as.stream().map(Assignment::getTeacherId)
+                .filter(Objects::nonNull).distinct().toList();
+        if (teacherIds.isEmpty()) return map;
+        Map<Long, String> nameById = new HashMap<>();
+        for (SysUser u : userMapper.selectBatchIds(teacherIds)) {
+            if (u == null || u.getId() == null) continue;
+            String n = u.getRealName();
+            if (n == null || n.isBlank()) n = u.getUsername();
+            nameById.put(u.getId(), n);
+        }
+        as.forEach(a -> map.put(a.getId(), nameById.get(a.getTeacherId())));
+        return map;
+    }
+
     private Map<Long, String> loadClassNameMap(List<Long> assignmentIds) {
         Map<Long, String> map = new HashMap<>();
         if (assignmentIds.isEmpty()) return map;

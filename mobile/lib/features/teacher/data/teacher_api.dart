@@ -230,6 +230,20 @@ class TeacherApi {
     }
   }
 
+  /// 修改作业设置（延期 / 补交窗口 / 公布策略等）
+  Future<ApiResponse<bool>> updateAssignmentSettings(
+      int id, Map<String, dynamic> data) async {
+    try {
+      await _dio.put<Map<String, dynamic>>(
+        '/api/v1/teacher/assignments/$id/settings',
+        data: data,
+      );
+      return ApiResponse(code: 0, message: 'ok', data: true);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 获取作业进度
   Future<ApiResponse<Map<String, dynamic>>> getAssignmentProgress(
       int id) async {

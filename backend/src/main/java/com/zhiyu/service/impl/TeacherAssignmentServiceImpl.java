@@ -34,6 +34,7 @@ import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.mapper.TextbookMapper;
 import com.zhiyu.service.TeacherAssignmentService;
 import com.zhiyu.service.dto.AssignmentCreateDTO;
+import com.zhiyu.service.dto.AssignmentSettingsDTO;
 import com.zhiyu.vo.AssignmentItemStatVO;
 import com.zhiyu.vo.AssignmentItemVO;
 import com.zhiyu.vo.AssignmentProgressVO;
@@ -106,6 +107,16 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         a.setDescription(req.getDescription());
         a.setDeadline(req.getDeadline());
         a.setAllowLateSubmit(req.getAllowLateSubmit() == null ? Boolean.FALSE : req.getAllowLateSubmit());
+        // 学习通式作业设置：定时发布 / 补交窗口 / 总分 / 公布策略 / 提交次数 / 乱序 / 查重
+        a.setStartTime(req.getStartTime());
+        a.setLateDeadline(req.getLateDeadline());
+        a.setTotalScore(req.getTotalScore());
+        a.setScorePublishMode(normalizePublishMode(req.getScorePublishMode(), "IMMEDIATE"));
+        a.setAnswerPublishMode(normalizePublishMode(req.getAnswerPublishMode(), "AFTER_DEADLINE"));
+        a.setShuffleQuestions(req.getShuffleQuestions() != null && req.getShuffleQuestions());
+        a.setMaxAttempts(req.getMaxAttempts() == null || req.getMaxAttempts() < 1 ? 1 : req.getMaxAttempts());
+        a.setPlagiarismCheck(req.getPlagiarismCheck() != null && req.getPlagiarismCheck());
+        validateSchedule(a);
         a.setStatus(1);
         assignmentMapper.insert(a);
 
@@ -196,6 +207,74 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     teacherId, a.getId(), items.size(), instances.size(), progresses.size());
         }
         return a.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateSettings(Long assignmentId, AssignmentSettingsDTO req) {
+        Long teacherId = UserContext.requireUserId();
+        Assignment a = assignmentMapper.selectById(assignmentId);
+        if (a == null || !teacherId.equals(a.getTeacherId())) {
+            throw new BizException(ResultCode.FORBIDDEN, "只能修改本人发布的作业");
+        }
+        if (req.getDeadline() != null) {
+            a.setDeadline(req.getDeadline());
+        }
+        if (req.getStartTime() != null) {
+            a.setStartTime(req.getStartTime());
+        }
+        if (req.getAllowLateSubmit() != null) {
+            a.setAllowLateSubmit(req.getAllowLateSubmit());
+        }
+        if (req.getLateDeadline() != null) {
+            a.setLateDeadline(req.getLateDeadline());
+        }
+        if (req.getTotalScore() != null) {
+            a.setTotalScore(req.getTotalScore());
+        }
+        if (req.getScorePublishMode() != null) {
+            a.setScorePublishMode(normalizePublishMode(req.getScorePublishMode(), "IMMEDIATE"));
+        }
+        if (req.getAnswerPublishMode() != null) {
+            a.setAnswerPublishMode(normalizePublishMode(req.getAnswerPublishMode(), "AFTER_DEADLINE"));
+        }
+        if (req.getShuffleQuestions() != null) {
+            a.setShuffleQuestions(req.getShuffleQuestions());
+        }
+        if (req.getMaxAttempts() != null) {
+            a.setMaxAttempts(req.getMaxAttempts() < 1 ? 1 : req.getMaxAttempts());
+        }
+        if (req.getPlagiarismCheck() != null) {
+            a.setPlagiarismCheck(req.getPlagiarismCheck());
+        }
+        validateSchedule(a);
+        assignmentMapper.updateById(a);
+    }
+
+    /** 发布时间线校验：开始 < 截止 < 补交截止 */
+    private void validateSchedule(Assignment a) {
+        if (a.getStartTime() != null && a.getDeadline() != null && !a.getStartTime().isBefore(a.getDeadline())) {
+            throw new BizException(ResultCode.VALIDATION_FAILED, "开始时间必须早于截止时间");
+        }
+        if (Boolean.TRUE.equals(a.getAllowLateSubmit())) {
+            if (a.getLateDeadline() == null) {
+                throw new BizException(ResultCode.VALIDATION_FAILED, "允许补交时必须填写补交截止时间");
+            }
+            if (a.getDeadline() != null && !a.getLateDeadline().isAfter(a.getDeadline())) {
+                throw new BizException(ResultCode.VALIDATION_FAILED, "补交截止时间必须晚于截止时间");
+            }
+        }
+    }
+
+    /** 公布方式归一：非法值回落默认值，避免脏数据导致前端判断失效 */
+    private String normalizePublishMode(String mode, String fallback) {
+        if (mode == null || mode.isBlank()) {
+            return fallback;
+        }
+        return switch (mode.trim().toUpperCase()) {
+            case "IMMEDIATE", "AFTER_DEADLINE", "MANUAL" -> mode.trim().toUpperCase();
+            default -> fallback;
+        };
     }
 
     /** 校验单个任务项的内容归属 */
@@ -334,6 +413,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             return TeacherAssignmentListVO.builder()
                     .id(a.getId()).title(a.getTitle()).caseId(a.getCaseId())
                     .caseTitle(caseTitle).deadline(a.getDeadline())
+                    .startTime(a.getStartTime()).allowLateSubmit(a.getAllowLateSubmit())
+                    .lateDeadline(a.getLateDeadline()).totalScore(a.getTotalScore())
+                    .scorePublishMode(a.getScorePublishMode()).answerPublishMode(a.getAnswerPublishMode())
+                    .shuffleQuestions(a.getShuffleQuestions()).maxAttempts(a.getMaxAttempts())
+                    .plagiarismCheck(a.getPlagiarismCheck())
                     .status(a.getStatus()).requireMedicalRecord(a.getRequireMedicalRecord())
                     .antiCheatVariables(a.getAntiCheatVariables()).classNames(classNames)
                     .submittedCount(submitted).studentCount(studentCount).items(itemVOs).build();

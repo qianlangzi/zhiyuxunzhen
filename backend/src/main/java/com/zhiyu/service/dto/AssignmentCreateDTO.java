@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -24,8 +25,32 @@ public class AssignmentCreateDTO {
     @NotNull(message = "截止时间不能为空")
     private LocalDateTime deadline;
 
+    /** 开始时间（定时发布），为空表示立即发布 */
+    private LocalDateTime startTime;
+
     /** 是否允许迟交，默认 false */
     private Boolean allowLateSubmit;
+
+    /** 补交截止时间（allowLateSubmit=true 时生效，需晚于 deadline） */
+    private LocalDateTime lateDeadline;
+
+    /** 作业总分（可空，留空由任务项自动汇总） */
+    private BigDecimal totalScore;
+
+    /** 成绩公布方式：IMMEDIATE / AFTER_DEADLINE / MANUAL，默认 IMMEDIATE */
+    private String scorePublishMode;
+
+    /** 答案与解析公布方式：IMMEDIATE / AFTER_DEADLINE / MANUAL，默认 AFTER_DEADLINE */
+    private String answerPublishMode;
+
+    /** 题目乱序，默认 false */
+    private Boolean shuffleQuestions;
+
+    /** 允许提交次数，默认 1 */
+    private Integer maxAttempts;
+
+    /** 抄袭检测，默认 false */
+    private Boolean plagiarismCheck;
 
     @NotEmpty(message = "至少选择一个班级")
     private List<Long> classIds;

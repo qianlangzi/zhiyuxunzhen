@@ -258,6 +258,19 @@ class TeacherService {
     return resp.data;
   }
 
+  /// 修改作业设置（延期 / 补交 / 公布策略），成功返回 true
+  Future<bool> updateAssignmentSettings(
+      int id, Map<String, dynamic> data) async {
+    if (_isMock) return false;
+    final resp = await _api.updateAssignmentSettings(id, data);
+    if (!resp.isSuccess) {
+      log('updateAssignmentSettings failed: ${resp.message}',
+          name: 'teacher_service');
+      return false;
+    }
+    return true;
+  }
+
   /// 获取作业进度
   Future<Map<String, dynamic>?> getAssignmentProgress(int id) async {
     if (_isMock) return null;

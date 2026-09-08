@@ -19,6 +19,32 @@ class MyCoursesScreen extends ConsumerStatefulWidget {
   ConsumerState<MyCoursesScreen> createState() => _MyCoursesScreenState();
 }
 
+/// 无数字待办红点（我的课程专用）
+///
+/// 课程卡片只表达「有未完成任务」，不报具体数量；数量与时效提醒统一由「作业待办」页承载。
+class _PendingDot extends StatelessWidget {
+  const _PendingDot();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 9,
+      height: 9,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE5484D),
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFE5484D).withValues(alpha: 0.45),
+            blurRadius: 6,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
   List<dynamic>? _classes;
   bool _loading = true;
@@ -140,23 +166,28 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
         ? ''
         : _shortDate(DateTime.tryParse(m['joinedAt'].toString()));
     // 待办联动：未完成作业 + 未完成资料任务（完成后自动清零）
+    // 注意：课程页只做「有/无」提示（右上角无数字红点），不展示待办数量——数量提醒统一收口在作业待办
     final pendingAssignment = (m['pendingAssignmentCount'] as num?)?.toInt() ?? 0;
     final pendingLesson = (m['pendingLessonCount'] as num?)?.toInt() ?? 0;
-    final pending = pendingAssignment + pendingLesson;
+    final hasPending = pendingAssignment + pendingLesson > 0;
 
-    return AppPressable(
-      onTap: () {
-        final id = (m['id'] as num?)?.toInt();
-        if (id == null) return;
-        context
-            .pushNamed(
-          RouteNames.myCourseDetail,
-          pathParameters: {'id': '$id'},
-          extra: {'name': name},
-        )
-            .then((_) => _refresh());
-      },
-      borderRadius: BorderRadius.circular(AppRadius.lg),
+    // 卡片本体 + 右上角无数字红点：只表达「这门课还有事没做」，不报数量
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        AppPressable(
+          onTap: () {
+            final id = (m['id'] as num?)?.toInt();
+            if (id == null) return;
+            context
+                .pushNamed(
+                  RouteNames.myCourseDetail,
+                  pathParameters: {'id': '$id'},
+                  extra: {'name': name},
+                )
+                .then((_) => _refresh());
+          },
+          borderRadius: BorderRadius.circular(AppRadius.lg),
       child: Container(
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
@@ -216,40 +247,27 @@ class _MyCoursesScreenState extends ConsumerState<MyCoursesScreen> {
                     ),
                   ),
                 ),
+                // 右侧仅保留箭头：待办提示改为卡片右上角无数字红点
                 Padding(
                   padding: const EdgeInsets.only(right: 14),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // 待办角标：与待办页同口径，完成后清零
-                      if (pending > 0)
-                        Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE5484D)
-                                .withValues(alpha: 0.12),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.full),
-                          ),
-                          child: Text('$pending 项待办',
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFFE5484D))),
-                        ),
-                      Icon(Icons.chevron_right_rounded,
-                          size: 20, color: AppColors.text4Of(context)),
-                    ],
-                  ),
+                  child: Icon(Icons.chevron_right_rounded,
+                      size: 20, color: AppColors.text4Of(context)),
                 ),
               ],
             ),
           ),
         ),
       ),
-    );
+        ),
+          // 无数字红点：仅表示「这门课还有事没做」，不展示数量
+          if (hasPending)
+            const Positioned(
+              top: 12,
+              right: 12,
+              child: IgnorePointer(child: _PendingDot()),
+            ),
+        ],
+      );
   }
 
   Widget _metaText(String text) {
