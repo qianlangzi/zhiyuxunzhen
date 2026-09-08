@@ -180,14 +180,15 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse smsLogin(SmsLoginRequest req) {
-        smsCodeService.verifyAndConsume(req.getPhone(), req.getCode());
+        // 先确认手机号已注册，未注册用户明确引导去注册，避免统一抛「手机号或验证码错误」造成困惑
         SysUser user = userMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getPhone, req.getPhone()));
         if (user == null) {
             log.warn("短信登录失败，手机号未绑定用户: {}", maskPhone(req.getPhone()));
-            throw new BizException(ResultCode.PHONE_OR_CODE_ERROR);
+            throw new BizException(ResultCode.PHONE_NOT_REGISTERED);
         }
+        smsCodeService.verifyAndConsume(req.getPhone(), req.getCode());
         return issueLogin(user);
     }
 

@@ -79,25 +79,38 @@ class _EbookReaderScreenState extends State<EbookReaderScreen> {
 
   Future<void> _prepare() async {
     try {
-      // 先查缓存：本地已有完整文件 → 秒开
-      final cached = await _cacheFile;
-      if (await cached.exists() && await cached.length() > 0) {
+      // 1) 优先打开缓存（秒开）；缓存不存在/为空时走流式下载
+      var file = await _cacheFile;
+      var fromCache = await file.exists() && await file.length() > 0;
+      if (!fromCache) {
+        file = await _downloadToFile();
+      }
+
+      // 2) 尝试按 PDF 打开。若打开失败说明缓存/文件是损坏或非 PDF 内容
+      //    （例如上次下载被中断的残缺文件，或拿到的 HTML 错误页被误存成 .pdf）。
+      //    命中坏缓存时自动删除并重新下载，避免一直卡在同一个坏文件上。
+      var document = await _openOrNull(file);
+      if (document == null && fromCache) {
+        try { await file.delete(); } catch (_) {}
+        file = await _downloadToFile();
+        document = await _openOrNull(file);
+        fromCache = false;
+      }
+
+      if (document == null) {
         if (!mounted) return;
         setState(() {
-          _controller = PdfController(document: PdfDocument.openFile(cached.path));
+          _error = '电子书文件无效或已损坏，请确认该教材已上传可解析的 PDF 文件';
           _downloading = false;
-          _fromCache = true;
         });
         return;
       }
 
-      // 缓存未命中 → 流式下载到固定缓存路径
-      final file = await _downloadToFile();
       if (!mounted) return;
       setState(() {
-        _controller = PdfController(document: PdfDocument.openFile(file.path));
+        _controller = PdfController(document: Future.value(document));
         _downloading = false;
-        _fromCache = false;
+        _fromCache = fromCache;
       });
     } on DioException catch (e) {
       if (!mounted) return;
@@ -113,6 +126,18 @@ class _EbookReaderScreenState extends State<EbookReaderScreen> {
         _error = '电子书加载失败：$e';
         _downloading = false;
       });
+    }
+  }
+
+  /// 尝试以 PDF 打开文件。
+  ///
+  /// 文件不存在/为空/损坏/非 PDF 时返回 null（坏缓存走删除+重下流程），
+  /// 而不是把异常直接抛给外层 catch，避免「坏缓存永久命中、无法自愈」。
+  Future<PdfDocument?> _openOrNull(File file) async {
+    try {
+      return await PdfDocument.openFile(file.path);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -246,7 +271,9 @@ class _EbookReaderScreenState extends State<EbookReaderScreen> {
           ],
           const SizedBox(height: 10),
           MonoText(_fromCache ? '已从本地缓存打开' : '首次打开需下载文件，之后将自动缓存',
-              fontSize: 10, color: AppColors.text4Of(context)),
+              fontSize: 10,
+              color: AppColors.text4Of(context),
+            ),
         ],
       ),
     );

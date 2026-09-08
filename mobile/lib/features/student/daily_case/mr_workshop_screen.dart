@@ -10,6 +10,9 @@ import '../../../shared/utils/feedback.dart';
 import '../../../shared/utils/media_url.dart';
 import '../../../shared/utils/patient_profile.dart';
 import '../../../shared/widgets/app_widgets.dart';
+import '../../common/guide/guide_anchor.dart';
+import '../../common/guide/guide_controller.dart';
+import '../../common/guide/guide_tours.dart';
 import '../../student/data/student_service.dart';
 
 /// 病历书写工坊：九段结构化书写 + AI 段落教练（三级提示梯度）
@@ -83,6 +86,12 @@ class _MrWorkshopScreenState extends ConsumerState<MrWorkshopScreen> {
       _detail = detail;
       _loading = false;
     });
+    // 数据就绪后再触发页面级引导（「问 AI」连点升级），锚点此时才渲染
+    if (detail != null && mounted) {
+      ref
+          .read(guideControllerProvider.notifier)
+          .schedulePageEnter(GuidePageIds.studentMr);
+    }
   }
 
   // ---------------- 数据解析 ----------------
@@ -418,9 +427,13 @@ class _MrWorkshopScreenState extends ConsumerState<MrWorkshopScreen> {
               Text('$full 分',
                   style: TextStyle(fontSize: 11, color: AppColors.text4Of(context))),
               const Spacer(),
-              AppPressable(
-                onTap: hintLoading ? null : () => _askHint(seg),
-                child: Container(
+              // 仅首段挂引导锚点：教用户「问 AI 连点升级」这条隐藏机制
+              if (seg['key'] == _segments.first['key'])
+                GuideTarget(
+                  anchor: GuideAnchors.studentMrAskAi,
+                  child: AppPressable(
+                    onTap: hintLoading ? null : () => _askHint(seg),
+                    child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
                     color: AppColors.primaryOf(context).withValues(alpha: 0.08),
@@ -446,6 +459,7 @@ class _MrWorkshopScreenState extends ConsumerState<MrWorkshopScreen> {
                             ),
                           ],
                         ),
+                  ),
                 ),
               ),
             ],

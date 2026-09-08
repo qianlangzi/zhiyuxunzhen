@@ -973,6 +973,7 @@ class _PaperPracticeScreenState extends ConsumerState<PaperPracticeScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 12.5, height: 1.6, color: AppColors.text2Of(context)),
               ),
+              if (source == 'AI') const AiGeneratedNote(),
             ],
           ),
         ),

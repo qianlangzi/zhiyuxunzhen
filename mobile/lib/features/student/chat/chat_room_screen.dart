@@ -1,14 +1,19 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/media_url.dart';
+import '../../../features/common/guide/guide_anchor.dart';
+import '../../../features/common/guide/guide_controller.dart';
+import '../../../features/common/guide/guide_tours.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
@@ -81,6 +86,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
   // ---- 流式取消令牌 ----
   CancelToken? _streamCancel;
 
+  // ---- 多模态影像（2026-09-08）：选中→上传→预览→发送调 AI 读图 ----
+  XFile? _pickImageFile; // 本地选中的影像文件（即时预览）
+  String? _pendingImageUrl; // 上传成功后的服务端 URL
+  bool _imageUploading = false; // 正在上传
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +99,13 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
       duration: const Duration(milliseconds: 1200),
     )..repeat();
     _scroll.addListener(_onScroll);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _initSession());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initSession();
+      // 页面级新手指引：首帧渲染完成后触发（左滑托盘 / 空闲提醒 / 双指缩放）
+      ref.read(guideControllerProvider.notifier).schedulePageEnter(
+            GuidePageIds.studentChat,
+          );
+    });
   }
 
   @override
@@ -303,6 +319,186 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     });
   }
 
+  // ─── 多模态影像（2026-09-08）────────────────────────
+
+  /// 发送分发：存在待发送影像时优先走读图链路，否则走纯文本对话。
+  void _onSend() {
+    if (_streaming) return;
+    if (_pendingImageUrl != null && _pendingImageUrl!.isNotEmpty) {
+      _sendImage();
+    } else {
+      _sendMessage();
+    }
+  }
+
+  /// 选图 → 上传到后端（返回服务端 URL），期间本地文件即时预览。
+  Future<void> _pickAndUploadImage() async {
+    if (_streaming || _imageUploading || _sessionId == null) return;
+    try {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        imageQuality: 88,
+      );
+      if (file == null || !mounted) return;
+      setState(() {
+        _pickImageFile = file;
+        _imageUploading = true;
+      });
+      final uploaded = await StudentService().uploadImage(
+        sessionId: _sessionId!,
+        filePath: file.path,
+      );
+      if (!mounted) return;
+      if (uploaded == null || (uploaded['url'] as String?)?.isEmpty == true) {
+        AppFeedback.error(context, '影像上传失败，请重试');
+        setState(() {
+          _pickImageFile = null;
+          _imageUploading = false;
+        });
+        return;
+      }
+      setState(() {
+        _pendingImageUrl = uploaded['url'] as String;
+        _imageUploading = false;
+      });
+      _scrollToBottom();
+    } catch (_) {
+      // 取消或读取失败：静默忽略
+      if (!mounted) return;
+      setState(() {
+        _pickImageFile = null;
+        _imageUploading = false;
+      });
+    }
+  }
+
+  void _removePendingImage() {
+    setState(() {
+      _pickImageFile = null;
+      _pendingImageUrl = null;
+    });
+  }
+
+  /// 发送影像：入账学生影像气泡 → 调 AI 读图 → finding 以患者气泡回显；
+  /// 触发安全策略或读图降级时以 aside 提示，不中断问诊。
+  Future<void> _sendImage() async {
+    final url = _pendingImageUrl;
+    if (url == null || url.isEmpty || _streaming || _sessionId == null) return;
+    final note = _ctl.text.trim();
+    _ctl.clear();
+    _resetIdleTimer();
+    setState(() {
+      _messages.add(_Msg(
+        role: _Role.student,
+        text: note,
+        imagePath: _pickImageFile?.path,
+      ));
+      _pickImageFile = null;
+      _pendingImageUrl = null;
+      _streaming = true;
+      _streamingHint = 'AI 正在读图分析…';
+    });
+    _scrollToBottom();
+
+    try {
+      // 上传接口返回相对路径（/uploads/...），AI 读图要求绝对 HTTP(S) URL，
+      // 复用 resolveMediaUrl 拼上公网入口，保证 AI 侧能拉到图片。
+      final absUrl = resolveMediaUrl(url);
+      final res = await StudentService().analyzeImage(
+        sessionId: _sessionId!,
+        imageUrl: absUrl,
+        studentNote: note.isEmpty ? null : note,
+      );
+      if (!mounted) return;
+      if (res != null &&
+          res['finding'] is String &&
+          (res['finding'] as String).trim().isNotEmpty) {
+        final finding = res['finding'] as String;
+        final degraded = res['degraded'] == true ||
+            res['status'] == 'DEGRADED';
+        setState(() {
+          _messages.add(_Msg(
+            role: _Role.patient,
+            text: (degraded ? '[读图服务降级] ' : '') + finding,
+          ));
+          if (res['safetyBlocked'] == true) {
+            _pending.add(_PendingAside.socrates('影像内容触发安全策略，已拦截本次分析'));
+          }
+        });
+      } else {
+        setState(() {
+          _pending.add(_PendingAside.socrates('暂未从影像中读到信息，可重试或换一张图'));
+        });
+      }
+      _flushPending();
+      _scrollToBottom();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _pending.add(_PendingAside.socrates('影像分析失败，请稍后重试'));
+      });
+      _flushPending();
+      _scrollToBottom();
+    } finally {
+      if (mounted) setState(() => _streaming = false);
+    }
+  }
+
+  /// 待发送影像的缩略图预览条：本地即时展示 + 右上角 × 移除。
+  Widget _buildPendingImagePreview() {
+    final file = _pickImageFile;
+    if (file == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: Image.file(
+              File(file.path),
+              width: 96,
+              height: 72,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 96,
+                height: 72,
+                color: AppColors.ruleSoftOf(context),
+                child: Icon(Icons.broken_image_outlined,
+                    color: AppColors.text4Of(context)),
+              ),
+            ),
+          ),
+          Positioned(
+            top: -6,
+            right: -6,
+            child: GestureDetector(
+              onTap: _removePendingImage,
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceOf(context),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.ruleOf(context)),
+                  boxShadow: const [
+                    BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 3,
+                        offset: Offset(0, 1)),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: Icon(Icons.close_rounded,
+                    size: 14, color: AppColors.textOf(context)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _handleStreamEvent(AskStreamEvent ev) {
     switch (ev.event) {
       case 'message':
@@ -426,18 +622,21 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                 ),
                 _buildSessionBanner(),
                 Expanded(
-                  child: GestureDetector(
-                    // 2026-09-03：左滑唤出「提示 / 思维树 / 引用」辅助托盘，右滑收起；
-                    // 聊天区垂直滚动不受影响（水平位移超过阈值才触发）。
-                    onHorizontalDragEnd: (d) => _onChatSwipe(d),
-                    child: ListView(
-                      controller: _scroll,
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      children: [
-                        for (final m in _messages) _buildMessageBubble(m),
-                        if (_streaming) _buildStreamingBubble(),
-                        if (_streamError != null) _buildStreamErrorChip(),
-                      ],
+                  child: GuideTarget(
+                    anchor: GuideAnchors.studentChatList,
+                    child: GestureDetector(
+                      // 2026-09-03：左滑唤出「提示 / 思维树 / 引用」辅助托盘，右滑收起；
+                      // 聊天区垂直滚动不受影响（水平位移超过阈值才触发）。
+                      onHorizontalDragEnd: (d) => _onChatSwipe(d),
+                      child: ListView(
+                        controller: _scroll,
+                        padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                        children: [
+                          for (final m in _messages) _buildMessageBubble(m),
+                          if (_streaming) _buildStreamingBubble(),
+                          if (_streamError != null) _buildStreamErrorChip(),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -789,7 +988,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: m.role == _Role.student
-          ? _buildStudentBubble(m.text)
+          ? _buildStudentBubble(m.text, imagePath: m.imagePath)
           : _buildPatientBubble(m.text,
               reports: m.reports, citations: m.citations),
     );
@@ -1361,7 +1560,7 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     );
   }
 
-  Widget _buildStudentBubble(String text) {
+  Widget _buildStudentBubble(String text, {String? imagePath}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1390,12 +1589,37 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                 ),
               ],
             ),
-            child: Text(text,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.onPrimaryOf(context),
-                  height: 1.6,
-                )),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (imagePath != null) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.file(
+                      File(imagePath),
+                      width: 176,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 176,
+                        height: 96,
+                        color: Colors.black.withValues(alpha: 0.25),
+                        child: const Icon(Icons.broken_image_outlined,
+                            color: Colors.white70),
+                      ),
+                    ),
+                  ),
+                  if (text.isNotEmpty) const SizedBox(height: 8),
+                ],
+                if (text.isNotEmpty)
+                  Text(text,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.onPrimaryOf(context),
+                        height: 1.6,
+                      )),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -1574,6 +1798,11 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
               ],
             ),
             const SizedBox(height: 6),
+            // 待发送影像预览（多模态，2026-09-08）
+            if (_pickImageFile != null && _pendingImageUrl != null) ...[
+              _buildPendingImagePreview(),
+              const SizedBox(height: 6),
+            ],
             // 一体化输入容器
             Container(
               decoration: BoxDecoration(
@@ -1586,11 +1815,23 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   GestureDetector(
-                    onTap: _streaming ? null : () => _quickFill('继续追问（疼痛性质）'),
+                    onTap: (_streaming || _imageUploading)
+                        ? null
+                        : _pickAndUploadImage,
+                    behavior: HitTestBehavior.opaque,
                     child: Padding(
                       padding: const EdgeInsets.all(10),
-                      child: Icon(Icons.add,
-                          size: 20, color: AppColors.text3Of(context)),
+                      child: _imageUploading
+                          ? SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.text3Of(context),
+                              ),
+                            )
+                          : Icon(Icons.add_photo_alternate_outlined,
+                              size: 20, color: AppColors.text3Of(context)),
                     ),
                   ),
                   Expanded(
@@ -1725,11 +1966,6 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
     return const ['继续追问', '既往史', '过敏史'];
   }
 
-  void _quickFill(String t) {
-    _ctl.text = t;
-    _ctl.selection = TextSelection.fromPosition(TextPosition(offset: t.length));
-  }
-
   // ─── 空闲提醒（2026-09-03）────────────────────────
 
   /// 发送/恢复对话后重置空闲计时：45s 未开口才触发一次引导提示。
@@ -1828,6 +2064,7 @@ class _Msg {
   final _PendingAside? aside;
   final List<_ExamReport> reports; // L0/L1 检查报告卡（仅 SP 消息携带，随气泡渲染）
   final List<Map<String, dynamic>> citations; // 本轮教材出处（book/chapter/page/snippet）
+  final String? imagePath; // 学生上传的多模态影像（本地路径，仅学生消息携带，即时预览）
 
   _Msg({
     required this.role,
@@ -1835,6 +2072,7 @@ class _Msg {
     this.aside,
     this.reports = const [],
     this.citations = const [],
+    this.imagePath,
   }) : assert(role != _Role.aside || aside != null,
             'aside 消息必须携带 aside');
 }

@@ -136,3 +136,21 @@ mobile/errors.txt
 
 # ===== TRAE 本地工具配置（勿提交） =====
 .trae/
+
+# ===== Flutter 根目录工具产物（勿提交） =====
+/.flutter
+
+# ===== 一次性的本地 DB 比对/诊断脚本（含数据库密码，严禁提交） =====
+/.trae_local_mysql_compare.ini
+/backup_server_db.sh
+/compare*.sh
+/compare*.ps1
+/count_local.ps1
+/diag.sh
+/verify_import.sh
+
+# ===== 大体积临时打包（勿提交，仓库膨胀 + 体积大） =====
+/mmore-repo-slim.tar.gz
+
+# ===== 敏感内部文档（永不入库）=====
+/docs/服务器问题交接文档.md

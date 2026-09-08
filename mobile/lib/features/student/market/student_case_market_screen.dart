@@ -90,12 +90,9 @@ class _StudentCaseMarketScreenState
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 104),
         children: [
-          // 套 GuideTarget：新手指引会分别高亮训练宫格与每日一例
-          GuideTarget(
-            anchor: GuideAnchors.studentTrainingGrid,
-            child: _buildGrid(),
-          ),
+          _buildGrid(),
           const SizedBox(height: 14),
+          // 唯一锚点：每日一例背后有 AI 逐段批改，属于看名字看不出来的机制
           GuideTarget(
             anchor: GuideAnchors.studentTrainingDaily,
             child: _buildDailyCaseEntry(),

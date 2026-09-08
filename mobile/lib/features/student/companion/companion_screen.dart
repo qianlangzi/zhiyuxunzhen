@@ -764,6 +764,7 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
                 height: 1.5,
               ),
             ),
+            if (!msg.isGreeting && !msg.isError) const AiGeneratedNote(),
             if (msg.degraded) ...[
               const SizedBox(height: 8),
               Row(

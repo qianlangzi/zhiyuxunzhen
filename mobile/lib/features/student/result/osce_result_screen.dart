@@ -433,6 +433,7 @@ class _OsceResultScreenState extends ConsumerState<OsceResultScreen> {
               ),
             ),
           ),
+          const AiGeneratedNote(),
         ],
       ),
     );

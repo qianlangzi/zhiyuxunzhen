@@ -13,6 +13,8 @@ import '../features/student/chat/chat_room_screen.dart';
 import '../features/student/result/osce_history_screen.dart';
 import '../features/student/result/osce_result_screen.dart';
 import '../features/student/mistakes/mistakes_screen.dart';
+import '../features/student/mistakes/mistake_detail_screen.dart';
+import '../features/student/growth/widgets/mistake_tile.dart';
 import '../features/student/recommend/recommendation_screen.dart';
 import '../features/student/training/question_training_screen.dart';
 import '../features/student/training/paper_practice_screen.dart';
@@ -34,6 +36,8 @@ import '../features/student/daily_case/mr_report_screen.dart';
 import '../features/student/daily_case/mr_workshop_screen.dart';
 import '../features/student/profile/student_profile_screen.dart';
 import '../features/student/growth/growth_screen.dart';
+import '../features/student/growth/ability_profile_screen.dart';
+import '../features/student/growth/training_overview_screen.dart';
 import '../features/student/assignments/todo_assignments_screen.dart';
 import '../features/student/assignments/todo_assignment_detail_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
@@ -336,6 +340,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LearningArchiveScreen(),
       ),
       GoRoute(
+        name: RouteNames.abilityProfile,
+        path: '/student/ability-profile',
+        builder: (context, state) => const AbilityProfileScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.trainingOverview,
+        path: '/student/training-overview',
+        builder: (context, state) => const TrainingOverviewScreen(),
+      ),
+      GoRoute(
         name: RouteNames.todoAssignments,
         path: '/student/assignments/todo',
         builder: (context, state) => TodoAssignmentsScreen(),
@@ -351,6 +365,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.mistakeBook,
         path: '/student/mistake-book',
         builder: (context, state) => const MistakeBookScreen(),
+      ),
+      GoRoute(
+        name: RouteNames.mistakeDetail,
+        path: '/student/mistake-detail',
+        builder: (context, state) => MistakeDetailScreen(
+          entry: state.extra! as MistakeEntry,
+        ),
       ),
       GoRoute(
         name: RouteNames.dailyCase,

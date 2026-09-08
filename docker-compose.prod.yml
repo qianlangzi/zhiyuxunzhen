@@ -30,11 +30,15 @@ services:
           memory: 256M
 
   # ---- Milvus:不暴露端口 ----
+  # 内存上限曾为 2G，但对 4G 整机而言仍偏宽松，Milvus 高负载/索引时会抢占大量内存，
+  # 叠加历史上 swappiness=0（swap 不生效）极易触发系统内存冻结/崩机（见运维大全 §内存治理）。
+  # 2026-09-08 起收敛为 1G：缓解整机内存压力、防复发。日常 RAG 检索约占用 200-400M，1G 足够；
+  # 若 OOM 会自动重启（restart: unless-stopped），可接受。
   milvus:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1G
 
   # ---- etcd / minio:不暴露端口 ----
   etcd: {}

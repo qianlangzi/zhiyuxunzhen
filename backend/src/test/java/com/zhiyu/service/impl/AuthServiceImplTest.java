@@ -386,7 +386,7 @@ class AuthServiceImplTest {
     }
 
     @Test
-    @DisplayName("smsLogin 未绑定手机号 -> 不签发 token")
+    @DisplayName("smsLogin 未绑定手机号 -> 引导先注册且不签发 token")
     void should_reject_unknown_phone() {
         when(userMapper.selectOne(any())).thenReturn(null);
         SmsLoginRequest req = new SmsLoginRequest();
@@ -396,8 +396,9 @@ class AuthServiceImplTest {
         assertThatThrownBy(() -> authService.smsLogin(req))
                 .isInstanceOf(BizException.class)
                 .satisfies(ex -> assertThat(((BizException) ex).getCode())
-                        .isEqualTo(ResultCode.PHONE_OR_CODE_ERROR.getCode()));
+                        .isEqualTo(ResultCode.PHONE_NOT_REGISTERED.getCode()));
 
+        verify(smsCodeService, never()).verifyAndConsume(anyString(), anyString());
         verify(jwtUtils, never()).issueRefreshToken(anyLong(), anyInt());
     }
 

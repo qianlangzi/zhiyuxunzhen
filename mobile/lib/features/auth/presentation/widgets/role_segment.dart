@@ -4,9 +4,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../data/models/models.dart';
 
-/// 角色激活色：学生=苔藓绿，教师=朱砂红（有意义的身份色彩区分）
+/// 角色激活色：学生=苔藓绿，教师=靛蓝（有意义的身份色彩区分）
 Color roleActiveColor(UserRole role, BuildContext context) =>
-    role == UserRole.student ? AppColors.primaryOf(context) : AppColors.vermilionOf(context);
+    role == UserRole.student
+        ? AppColors.primaryOf(context)
+        : AppColors.teacherOf(context);
 
 /// 角色分段选择（学生 / 教师）
 ///
@@ -29,7 +31,7 @@ class RoleSegment extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(4),
+      padding: const EdgeInsets.all(5),
       decoration: BoxDecoration(
         color: AppColors.surfaceEdgeOf(context),
         borderRadius: BorderRadius.circular(AppRadius.full),
@@ -43,6 +45,7 @@ class RoleSegment extends StatelessWidget {
             label: '学生',
             onTap: () => onChanged(UserRole.student),
           ),
+          const SizedBox(width: 4),
           _Item(
             role: UserRole.teacher,
             active: role == UserRole.teacher,
@@ -77,9 +80,12 @@ class _Item extends StatelessWidget {
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 240),
-          curve: const Cubic(0.16, 1, 0.3, 1),
+          duration: const Duration(milliseconds: 260),
+          curve: const Cubic(0.22, 1, 0.36, 1),
+          // 选中项微微上浮（灵动感），未选中保持贴地
+          transform: Matrix4.translationValues(0, active ? -2 : 0, 0),
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             color: active ? activeColor : null,
@@ -87,15 +93,29 @@ class _Item extends StatelessWidget {
             border: Border.all(
               color: active ? Colors.transparent : AppColors.ruleOf(context),
             ),
+            boxShadow: active ? AppShadow.leveled(level: 3) : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(
-                  icon,
-                  size: 17,
-                  color: active ? AppColors.onPrimaryOf(context) : AppColors.text3Of(context),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeOut,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? AppColors.onPrimaryOf(context).withValues(alpha: 0.16)
+                        : null,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 18,
+                    color: active
+                        ? AppColors.onPrimaryOf(context)
+                        : AppColors.text3Of(context),
+                  ),
                 ),
                 const SizedBox(width: 6),
               ],
@@ -103,8 +123,10 @@ class _Item extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: active ? AppColors.onPrimaryOf(context) : AppColors.text3Of(context),
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                  color: active
+                      ? AppColors.onPrimaryOf(context)
+                      : AppColors.text3Of(context),
                 ),
               ),
             ],

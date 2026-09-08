@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
-import '../../features/common/guide/guide_anchor.dart';
 
 /// 底部导航 Tab 定义
 class TabItem {
@@ -105,9 +104,7 @@ class _AppBottomTabBarState extends State<AppBottomTabBar>
           ],
         ),
       ),
-      child: GuideTarget(
-        anchor: GuideAnchors.bottomBar,
-        child: Container(
+      child: Container(
         height: navHeight,
         decoration: BoxDecoration(
           color: AppColors.surfaceOf(context),
@@ -168,7 +165,6 @@ class _AppBottomTabBarState extends State<AppBottomTabBar>
               ],
             );
           },
-        ),
         ),
       ),
     );

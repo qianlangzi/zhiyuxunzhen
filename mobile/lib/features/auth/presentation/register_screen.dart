@@ -98,7 +98,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Color get _roleColor =>
       _role == UserRole.student
           ? AppColors.primaryOf(context)
-          : AppColors.vermilionOf(context);
+          : AppColors.teacherOf(context);
 
   void _startCountdown() {
     _timer?.cancel();
@@ -298,7 +298,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       const EyebrowText('CREATE ACCOUNT · 注册'),
                       const SizedBox(height: 6),
                       Text(
-                        '填写信息以创建您的账号（注册需手机号验证）',
+                        '注册需手机号验证',
                         style: TextStyle(
                           fontSize: 13,
                           color: AppColors.text3Of(context),
@@ -546,13 +546,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        '注册必须完成手机号验证：先作答图形验证码，点击「获取验证码」后输入下发短信验证码（演示环境验证码会在页面提示）。',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.text4Of(context),
-                          height: 1.4,
-                        ),
+                      MonoText(
+                        '提示：先作答图形验证码，点击「获取验证码」获取短信验证码',
+                        fontSize: 11,
+                        color: AppColors.text4Of(context),
                       ),
                     ],
                   ),

@@ -1182,6 +1182,43 @@ class _DottedLinePainter extends CustomPainter {
 }
 
 // ============================================================
+// AI 生成内容标注
+// ============================================================
+
+/// AI 生成内容小字标注 —— 在 AI 生成的正文下方显示一行浅灰小字。
+///
+/// 用于合规透明：所有 AI 生成内容（对话回复、诊断归纳、批改评语、教案、组卷、
+/// 归因分析等）下方统一一行「本内容由 AI 生成」，克制不打扰阅读。
+class AiGeneratedNote extends StatelessWidget {
+  const AiGeneratedNote({
+    super.key,
+    this.text = '本内容由 AI 生成',
+    this.color,
+  });
+
+  final String text;
+
+  /// 显式指定颜色（用于深色/渐变背景上覆盖默认浅灰，例如 AI 评分卡片）。
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 9.5,
+          color: color ?? AppColors.text4Of(context),
+          height: 1.3,
+          letterSpacing: 0.02,
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
 // 免责声明
 // ============================================================
 

@@ -27,26 +27,37 @@ abstract final class GuideAnchorRegistry {
   }
 }
 
-/// 全 App 使用的锚点常量
+/// 引导锚点常量
+///
+/// 只保留「看名字理解不了」的目标：一个页面最多 1 个锚点，
+/// 绝不给常识性入口（Tab 栏、头像卡、标题大卡）挂引导。
 abstract final class GuideAnchors {
-  /// 底部 Tab 导航胶囊（学生端 / 教师端共用）
-  static const bottomBar = 'app.bottom_bar';
-
   // ---- 学生端 ----
-  static const studentHomeCards = 'student.home.cards';
-  static const studentTrainingGrid = 'student.training.grid';
+  /// 训练 Tab · 每日一例卡（背后有 AI 逐段批改，看名字看不出来）
   static const studentTrainingDaily = 'student.training.daily';
-  static const studentGrowthMistakes = 'student.growth.mistakes';
+
+  /// 成长 Tab · 学习热力图（颜色深浅的含义不自解释）
   static const studentGrowthHeatmap = 'student.growth.heatmap';
-  static const studentProfileHero = 'student.profile.hero';
 
   // ---- 教师端 ----
-  static const teacherHomeMarket = 'teacher.home.market';
-  static const teacherBprepCreate = 'teacher.bprep.create';
+  /// 备课 Tab · 首张教案卡（长按才出管理菜单）
   static const teacherBprepCard = 'teacher.bprep.card';
-  static const teacherClassesCreate = 'teacher.classes.create';
+
+  /// 班级 Tab · 首张班级卡（长按才出管理菜单）
   static const teacherClassesCard = 'teacher.classes.card';
-  static const teacherProfileHero = 'teacher.profile.hero';
+
+  // ---- 二级页面 ----
+  /// SP 问诊室 · 聊天区（左滑唤出托盘的判定区域）
+  static const studentChatList = 'student.chat.list';
+
+  /// 病历工坊 · 首段「问 AI」按钮（连点升级机制）
+  static const studentMrAskAi = 'student.mr.askAi';
+
+  /// AI 备课助手 · 底部输入栏（长按麦克风 / 附件上传）
+  static const teacherBprepGuideInput = 'teacher.bprepGuide.input';
+
+  /// 作业管理 · AI 推荐按钮（弹出可拖拽关闭的病例面板）
+  static const teacherAssignmentRecommend = 'teacher.assignment.recommend';
 }
 
 /// 把子控件标记为引导高亮目标

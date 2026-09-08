@@ -24,8 +24,14 @@ class GuideState {
 
 /// 新手指引控制器
 ///
-/// 已完成记录存 SharedPreferences（key: guide_completed_tours_v1），
-/// 每条引导只播一次；「我的 → 新手指引」可重置后重播。
+/// 已完成记录存 SharedPreferences（key: guide_completed_tours_v1），每条只播一次。
+///
+/// ## 曾经踩过的坑（勿回退）
+/// 1. **必须在判空前 `await ensureLoaded()`**。否则冷启动读盘还没回来，
+///    `_done` 是空的，已经看过引导的老用户会被再播一遍。
+/// 2. **延迟回调里不能复用旧的 tabId**。用户可能在 520ms 等待期内切走，
+///    于是播错 Tab 的引导。统一改由 [bindTabResolver] 实时取当前 Tab。
+/// 3. **finish 后立刻 await 写盘**，不能 fire-and-forget。
 class GuideController extends StateNotifier<GuideState> {
   GuideController() : super(const GuideState()) {
     _initFuture = _load();
@@ -36,9 +42,13 @@ class GuideController extends StateNotifier<GuideState> {
   final Set<String> _done = {};
   late final Future<void> _initFuture;
   GuideRole? _role;
-  String? _pendingTab;
 
-  /// 供 main() 预热，避免首帧读盘竞态（不 await 也不会出错）
+  /// 由 [GuideHost] 注册，用于实时取当前所在 Tab
+  String? Function()? _tabResolver;
+
+  int _tabToken = 0;
+  int _pageToken = 0;
+
   Future<void> ensureLoaded() => _initFuture;
 
   Future<void> _load() async {
@@ -47,7 +57,7 @@ class GuideController extends StateNotifier<GuideState> {
       final list = prefs.getStringList(_prefsKey);
       if (list != null) _done.addAll(list);
     } catch (_) {
-      // 读盘失败按「全部未看过」处理，最多是多播一次引导，不影响主流程
+      // 读盘失败按「没看过」处理，最坏多播一次，不影响主流程
     }
   }
 
@@ -58,21 +68,57 @@ class GuideController extends StateNotifier<GuideState> {
     } catch (_) {}
   }
 
-  /// 进入某个 Tab 时调用：首次会先播「隐藏手势速览」，速览结束再播本 Tab 引导
-  void enterTab(GuideRole role, String tabId) {
+  void bindTabResolver(String? Function() resolver) =>
+      _tabResolver = resolver;
+
+  void unbindTabResolver() => _tabResolver = null;
+
+  /// 进入某个 Tab 时调用
+  ///
+  /// 未看过速览 → 先播速览，速览正常走完再播本 Tab 引导；
+  /// 点「跳过」则本轮全部取消，且后续不再打扰。
+  Future<void> enterTab(GuideRole role, String tabId) async {
+    final token = ++_tabToken;
+    await ensureLoaded();
+    if (!mounted || token != _tabToken) return;
+
     _role = role;
     if (state.active) return;
+
     final intro = GuideTours.introOf(role);
     if (intro != null && !_done.contains(intro.id)) {
-      _pendingTab = tabId;
       state = GuideState(tour: intro);
       return;
     }
     _startTab(role, tabId);
   }
 
+  /// 进入某个二级页面时调用（页面在 initState / 数据就绪后触发）
+  ///
+  /// 与 Tab 引导互斥：若正在播，本次静默跳过（未标 done，下次进页还会再触发）。
+  /// 延迟由 [schedulePageEnter] 包一层，给页面首帧渲染留时间；
+  /// 即使锚点还没渲染出来，遮罩层每帧重测，锚点出现后洞会自动浮现。
+  void schedulePageEnter(String pageId,
+      {Duration delay = const Duration(milliseconds: 900)}) {
+    final token = ++_pageToken;
+    Future<void>.delayed(delay, () async {
+      if (!mounted || token != _pageToken) return;
+      await enterPage(pageId);
+    });
+  }
+
+  Future<void> enterPage(String pageId) async {
+    await ensureLoaded();
+    if (!mounted || state.active) return;
+    final tour = GuideTours.pageOf(pageId);
+    if (tour == null || _done.contains(tour.id)) return;
+    state = GuideState(tour: tour);
+  }
+
   void _startTab(GuideRole role, String tabId) {
+    if (state.active) return;
     final tour = GuideTours.of(role, tabId);
+    // 已看过 → 永久静默；该 Tab 没配引导 → 不打扰
     if (tour == null || _done.contains(tour.id)) return;
     state = GuideState(tour: tour);
   }
@@ -84,54 +130,67 @@ class GuideController extends StateNotifier<GuideState> {
     if (state.step + 1 < tour.steps.length) {
       state = GuideState(tour: tour, step: state.step + 1);
     } else {
-      finish();
+      // 只有「开屏速览」走完才衔接 Tab 引导；页面引导走完就地结束
+      finish(continuePending: tour.intro);
     }
   }
 
-  /// 结束当前引导（点「跳过」或最后一步「知道了」）
-  void finish() {
-    final id = state.tour?.id;
-    state = const GuideState();
-    if (id != null) {
-      _done.add(id);
-      _persist();
-    }
-    final pending = _pendingTab;
+  /// 跳过：本轮取消，后续 Tab 引导也不再播（跳过 = 不想被打扰）
+  void skip() => finish(continuePending: false);
+
+  /// 结束当前引导
+  ///
+  /// [continuePending] 为 true 时，速览结束后会继续播「当前所在 Tab」的引导；
+  /// Tab 由 resolver 实时取，避免用户中途切 Tab 导致播错。
+  Future<void> finish({required bool continuePending}) async {
+    final tour = state.tour;
+    final id = tour?.id;
     final role = _role;
-    _pendingTab = null;
-    if (pending != null && role != null) {
-      // 速览结束 → 稍等一拍再播当前 Tab 的引导，让页面先稳住
-      Future<void>.delayed(const Duration(milliseconds: 420), () {
-        if (mounted) _startTab(role, pending);
+    state = const GuideState();
+    if (id == null) return;
+
+    _done.add(id);
+
+    // 跳过开屏速览 = 连本轮 Tab 引导一起视为已读。
+    // 否则只取消本轮续播，二次进 Tab 还会再弹，违背「跳过 = 不想被打扰」。
+    if (!continuePending && tour!.intro && role != null) {
+      final tabId = _tabResolver?.call();
+      final tabTour = tabId == null ? null : GuideTours.of(role, tabId);
+      if (tabTour != null) _done.add(tabTour.id);
+    }
+
+    await _persist();
+    if (!mounted) return;
+
+    if (continuePending && role != null) {
+      Future<void>.delayed(const Duration(milliseconds: 480), () {
+        if (!mounted) return;
+        final tabId = _tabResolver?.call();
+        if (tabId == null) return;
+        _startTab(role, tabId);
       });
     }
   }
 
-  /// 跳过：连本轮待播的 Tab 引导一起取消（跳过 = 不再打扰）
-  void skip() {
-    _pendingTab = null;
-    finish();
-  }
-
-  /// 重看：清空该角色的完成记录，并从「隐藏手势速览」开始
+  /// 重看：清空该角色的完成记录，从速览重新开始
   ///
-  /// [tabId] 非空时，速览结束后紧接着播这个 Tab 的引导。
-  Future<void> replay(GuideRole role, {String? tabId}) async {
+  /// 注意：记录被清空后，只有用户完整看完（或跳过）才会重新写回，
+  /// 中途杀掉 App 下次仍会重播，这是有意为之。
+  Future<void> replay(GuideRole role) async {
     state = const GuideState();
     final prefix = role == GuideRole.student ? 'student_' : 'teacher_';
     _done.removeWhere((id) => id.startsWith(prefix));
     await _persist();
+
     _role = role;
-    _pendingTab = tabId;
     final intro = GuideTours.introOf(role);
     if (intro != null) {
-      // 等一帧，避免与上一个动画抢帧导致高亮位置测量不准
       await Future<void>.delayed(const Duration(milliseconds: 60));
       if (mounted) state = GuideState(tour: intro);
     }
   }
 
-  /// 是否已看过（供外部判断，如「新手指引」入口的角标）
+  /// 是否已看过（供外部判断）
   bool isDone(String id) => _done.contains(id);
 }
 

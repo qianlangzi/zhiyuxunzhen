@@ -430,6 +430,7 @@ class _MrReportScreenState extends ConsumerState<MrReportScreen> {
             Text(ai,
                 style: TextStyle(fontSize: 12.5, height: 1.6,
                     color: AppColors.text2Of(context))),
+            const AiGeneratedNote(),
           ],
         ],
       ),

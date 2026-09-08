@@ -355,6 +355,7 @@ class _RecommendationScreenState extends ConsumerState<RecommendationScreen> {
                 const SizedBox(height: 4),
                 ...items.map((it) => _buildDiagnosisItem(it)),
               ],
+              if (isAi) const AiGeneratedNote(),
             ],
           ),
         ),

@@ -83,7 +83,12 @@ async def generate_learning_path(
             {"role": "user", "content": _facts_to_user_msg(req)},
         ]
         try:
-            result: dict[str, Any] = await llm_client.chat_json(messages, trace_id=trace_id)
+            # 学习路径输出含 5 步递进路径（每步 goal/detail/evidence/resources），
+            # 全局默认 max_tokens=2048 必截断 → JSON 不完整 → 解析失败
+            # （根因：structured_output_no_json）。这里显式放宽到 4096。
+            result: dict[str, Any] = await llm_client.chat_json(
+                messages, trace_id=trace_id, max_tokens=4096,
+            )
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 

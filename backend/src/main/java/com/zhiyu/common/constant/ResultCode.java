@@ -30,6 +30,7 @@ public enum ResultCode {
     TEACHER_AUDIT_REJECTED(2005, "资质审核未通过"),
     USERNAME_EXISTS(2006, "用户名已存在"),
     PHONE_OR_CODE_ERROR(2007, "手机号或验证码错误"),
+    PHONE_NOT_REGISTERED(2016, "该手机号尚未注册，请先注册"),
     SMS_CODE_TOO_FREQUENT(2008, "验证码发送过于频繁，请稍后再试"),
     SMS_SERVICE_NOT_CONFIGURED(2009, "短信服务未配置"),
     PHONE_EXISTS(2010, "手机号已注册"),

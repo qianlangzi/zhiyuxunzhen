@@ -5,7 +5,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/profile_widgets.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../features/common/guide/guide_anchor.dart';
 import '../../../features/common/guide/guide_controller.dart';
 import '../../../routes/route_names.dart';
 
@@ -52,16 +51,12 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     RiseIn(
-                      child: GuideTarget(
-                        anchor: GuideAnchors.studentProfileHero,
-                        child: ProfileHero(
-                          initial: initial,
-                          displayName: displayName,
-                          subtitle: subtitle,
-                          avatarPath: user?.avatarPath,
-                          onEdit: () =>
-                              context.pushNamed(RouteNames.profileEdit),
-                        ),
+                      child: ProfileHero(
+                        initial: initial,
+                        displayName: displayName,
+                        subtitle: subtitle,
+                        avatarPath: user?.avatarPath,
+                        onEdit: () => context.pushNamed(RouteNames.profileEdit),
                       ),
                     ),
                     RiseIn(
@@ -90,28 +85,18 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
   }
 
   Widget _buildStudySection(BuildContext context) {
+    // 入口统一：学习档案 / 错题本已归口「成长」Tab 的子级入口方块，
+    // 本页不再重复挂入口，避免同一功能多处进入导致口径混乱。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const ProfileSectionLabel('学习资源'),
+        const ProfileSectionLabel('学习工具'),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: AppPaper(
             padding: EdgeInsets.zero,
             child: Column(
               children: [
-                ProfileMenuTile(
-                  icon: Icons.folder_copy_outlined,
-                  color: AppColors.primaryOf(context),
-                  title: '学习档案',
-                  onTap: () => context.pushNamed(RouteNames.learningArchive),
-                ),
-                ProfileMenuTile(
-                  icon: Icons.fact_check_outlined,
-                  color: AppColors.vermilionOf(context),
-                  title: '错题本',
-                  onTap: () => context.pushNamed(RouteNames.mistakeBook),
-                ),
                 ProfileMenuTile(
                   icon: Icons.thumb_up_alt_outlined,
                   color: AppColors.primaryOf(context),
@@ -156,7 +141,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
                   title: '新手指引',
                   onTap: () => ref
                       .read(guideControllerProvider.notifier)
-                      .replay(GuideRole.student, tabId: 'profile'),
+                      .replay(GuideRole.student),
                 ),
                 ProfileMenuTile(
                   icon: Icons.feedback_outlined,

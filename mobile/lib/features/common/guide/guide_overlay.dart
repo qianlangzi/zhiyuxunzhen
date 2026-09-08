@@ -1,23 +1,25 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/app_widgets.dart';
 import 'guide_anchor.dart';
 import 'guide_controller.dart';
 import 'guide_gesture.dart';
 import 'guide_models.dart';
 
-/// 新手指引 · 聚焦高亮遮罩层
+/// 新手指引 · 聚焦高亮层
 ///
-/// 挂在 [MaterialApp] 的 builder 里（覆盖包括 push 页在内的全屏），
-/// 由 [guideControllerProvider] 驱动：
-///   · 全屏半透明遮罩 + 目标控件「挖洞」
-///   · 洞口呼吸光晕，位置每帧平滑跟随（页面滚动 / 布局变化时不会飘）
-///   · 说明卡片自动落在洞的上方或下方，带指向小三角
-///   · 点遮罩任意处 = 下一步
+/// 视觉语言与项目一致（磨砂玻璃 + 柔光）：
+///   · 全屏暗化 + 目标控件挖洞，**不画任何实线描边**，只用多层柔光把硬边藏起来
+///   · 说明卡是真·毛玻璃（BackdropFilter），无边框，只靠阴影与顶部极淡高光分层
+///   · 洞口位置每帧 lerp 跟随；卡片淡入 + 轻微上浮，节奏放慢求「柔滑」
+///
+/// 挂在 [MaterialApp] 的 builder 里，覆盖包括 push 页在内的整屏。
 class GuideOverlay extends ConsumerStatefulWidget {
   const GuideOverlay({super.key});
 
@@ -27,24 +29,20 @@ class GuideOverlay extends ConsumerStatefulWidget {
 
 class _GuideOverlayState extends ConsumerState<GuideOverlay>
     with TickerProviderStateMixin {
-  /// 光晕呼吸
+  /// 柔光呼吸（放慢到 2.6s，避免急促闪烁）
   late final AnimationController _pulse = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1700),
+    duration: const Duration(milliseconds: 2600),
   )..repeat();
 
   /// 卡片入场
   late final AnimationController _card = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 320),
+    duration: const Duration(milliseconds: 460),
   )..value = 1;
 
-  /// 当前绘制的洞（每帧向目标 lerp）
   Rect? _curRect;
-
-  /// 洞的淡入淡出进度（无锚点的概念卡步骤会淡出洞口）
   double _holeAlpha = 0;
-
   String? _stepKey;
 
   @override
@@ -56,14 +54,14 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
 
   void _syncHole(Rect? target) {
     if (target == null) {
-      _holeAlpha = (_holeAlpha - 0.14).clamp(0.0, 1.0);
+      _holeAlpha = (_holeAlpha - 0.10).clamp(0.0, 1.0);
       return;
     }
-    _holeAlpha = (_holeAlpha + 0.14).clamp(0.0, 1.0);
-    if (_curRect == null || _holeAlpha < 0.15) {
+    _holeAlpha = (_holeAlpha + 0.10).clamp(0.0, 1.0);
+    if (_curRect == null || _holeAlpha < 0.12) {
       _curRect = target;
     } else {
-      _curRect = Rect.lerp(_curRect, target, 0.22);
+      _curRect = Rect.lerp(_curRect, target, 0.18);
     }
   }
 
@@ -85,13 +83,12 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
     }
 
     final tour = state.tour!;
-    final key = '${tour.id}#${state.step}';
-    _playCardEntrance(key);
+    _playCardEntrance('${tour.id}#${state.step}');
 
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        // 每帧重新测量锚点位置：滚动 / 懒加载 / 转场动画中洞都能跟住
+        // 每帧重测锚点：滚动 / 懒加载 / 转场时洞都能平滑跟住
         _syncHole(GuideAnchorRegistry.rectOf(step.anchor));
         return _buildLayer(context, state, step);
       },
@@ -105,60 +102,55 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
     final primary = AppColors.primaryOf(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final hasHole = _curRect != null && _holeAlpha > 0.05;
-    final hole = hasHole ? _curRect! : null;
-
-    // 卡片预估高度（用于安全区钳制）
-    final estH = step.hasGesture ? 272.0 : 218.0;
+    final hole = (_curRect != null && _holeAlpha > 0.05) ? _curRect! : null;
+    final estH = step.hasGesture ? 252.0 : 206.0;
 
     double? top;
     double? bottom;
     bool below = true;
     if (hole != null) {
       if (hole.center.dy >= size.height * 0.52) {
-        bottom = size.height - hole.top + 14;
+        bottom = size.height - hole.top + 16;
         below = false;
       } else {
-        top = hole.bottom + 14;
+        top = hole.bottom + 16;
         below = true;
       }
-      if (top != null) {
-        top = _clamp(
-          top,
-          padding.top + 8,
-          size.height - padding.bottom - estH - 8,
-        );
-      }
-      if (bottom != null) {
-        bottom = _clamp(
-          bottom,
-          padding.bottom + 8,
-          size.height - padding.top - estH - 8,
-        );
-      }
+      top = top == null
+          ? null
+          : _clamp(
+              top, padding.top + 12, size.height - padding.bottom - estH - 12);
+      bottom = bottom == null
+          ? null
+          : _clamp(
+              bottom, padding.bottom + 12, size.height - padding.top - estH - 12);
     }
 
     final card = AnimatedBuilder(
       animation: _card,
       builder: (context, child) {
-        final v = Curves.easeOutCubic.transform(_card.value);
+        final v = Curves.easeOutQuart.transform(_card.value);
         return Opacity(
           opacity: v.clamp(0.0, 1.0),
           child: Transform.translate(
-            offset: Offset(0, (1 - v) * 14),
-            child: child,
+            offset: Offset(0, (1 - v) * 20),
+            child: Transform.scale(
+              scale: 0.95 + 0.05 * v,
+              alignment: below ? Alignment.topCenter : Alignment.bottomCenter,
+              child: child,
+            ),
           ),
         );
       },
-      child: _buildCard(context, state, step, primary),
+      child: _buildGlassCard(context, state, step, primary),
     );
 
-    Widget positionedCard;
+    final Widget positionedCard;
     if (hole == null) {
       positionedCard = Positioned.fill(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 30),
             child: card,
           ),
         ),
@@ -168,44 +160,20 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
         top: top,
         left: 20,
         right: 20,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          // stretch：让卡片占满左右 20 边距之间的整宽，避免文字换行导致宽度抖动
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _Arrow(
-              color: AppColors.surfaceOf(context),
-              up: true,
-              offset: _arrowOffset(hole, size.width),
-            ),
-            card,
-          ],
-        ),
+        child: card,
       );
     } else {
       positionedCard = Positioned(
         bottom: bottom,
         left: 20,
         right: 20,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            card,
-            _Arrow(
-              color: AppColors.surfaceOf(context),
-              up: false,
-              offset: _arrowOffset(hole, size.width),
-            ),
-          ],
-        ),
+        child: card,
       );
     }
 
     return SizedBox.expand(
       child: Stack(
         children: [
-          // 遮罩（挖洞）—— 点任意处进入下一步
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -218,7 +186,7 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
                     pulse: _pulse.value,
                     circle: step.circle,
                     glow: primary,
-                    mask: Colors.black.withValues(alpha: isDark ? 0.72 : 0.64),
+                    mask: Colors.black.withValues(alpha: isDark ? 0.68 : 0.58),
                   ),
                 ),
               ),
@@ -230,255 +198,247 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
     );
   }
 
-  double _arrowOffset(Rect hole, double screenW) {
-    final cardW = screenW - 40;
-    final dx = hole.center.dx - 20 - 9;
-    return dx.clamp(16.0, (cardW - 34).clamp(16.0, cardW));
-  }
-
   double _clamp(double v, double min, double max) =>
       max < min ? min : v.clamp(min, max);
 
-  Widget _buildCard(
+  // ---------------- 毛玻璃说明卡 ----------------
+
+  Widget _buildGlassCard(
     BuildContext context,
     GuideState state,
     GuideStep step,
     Color primary,
   ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = AppColors.surfaceOf(context);
     final isLast = state.step == state.tour!.steps.length - 1;
     final controller = ref.read(guideControllerProvider.notifier);
 
-    return Container(
+    const shape = BorderRadius.only(
+      topLeft: Radius.circular(26),
+      topRight: Radius.circular(8),
+      bottomLeft: Radius.circular(8),
+      bottomRight: Radius.circular(26),
+    );
+
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(
-          color: AppColors.surfaceEdgeOf(context),
-          width: 1,
-        ),
+        borderRadius: shape,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 34,
-            offset: const Offset(0, 12),
+            color: Colors.black.withValues(alpha: isDark ? 0.52 : 0.20),
+            blurRadius: 48,
+            offset: const Offset(0, 20),
+            spreadRadius: -8,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.08),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      padding: const EdgeInsets.fromLTRB(18, 13, 14, 12),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // —— 顶部：步骤点 / 角标 / 跳过 ——
-          Row(
-            children: [
-              ...List.generate(state.tour!.steps.length, (i) {
-                final on = i == state.step;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
-                  margin: const EdgeInsets.only(right: 5),
-                  width: on ? 16 : 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: on
-                        ? primary
-                        : AppColors.text4Of(context).withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                );
-              }),
-              if (step.tag != null) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
-                  decoration: BoxDecoration(
-                    color: AppColors.amberSoftOf(context),
-                    borderRadius: BorderRadius.circular(AppRadius.full),
-                  ),
-                  child: Text(
-                    step.tag!,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.amberOf(context),
-                      letterSpacing: 0.02,
-                    ),
-                  ),
-                ),
-              ],
-              const Spacer(),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: controller.skip,
-                child: Padding(
-                  padding: const EdgeInsets.all(4),
-                  child: Text(
-                    '跳过',
-                    style: TextStyle(
-                      fontSize: 12.5,
-                      color: AppColors.text4Of(context),
-                    ),
-                  ),
-                ),
+      child: ClipRRect(
+        borderRadius: shape,
+        child: BackdropFilter(
+          filter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  surface.withValues(alpha: isDark ? 0.80 : 0.88),
+                  surface.withValues(alpha: isDark ? 0.64 : 0.74),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // —— 标题 ——
-          Text(
-            step.title,
-            style: TextStyle(
-              fontSize: 16.5,
-              fontWeight: FontWeight.w700,
-              height: 1.25,
-              color: AppColors.textOf(context),
             ),
-          ),
-          const SizedBox(height: 7),
-
-          // —— 说明（有手势时与动画并排，控制卡片高度）——
-          if (step.hasGesture)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            child: Stack(
               children: [
-                GuideGestureDemo(gesture: step.gesture),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    step.desc,
-                    style: TextStyle(
-                      fontSize: 12.8,
-                      height: 1.55,
-                      color: AppColors.text2Of(context),
+                // 顶部极淡高光：给玻璃一点「厚度」，不是线
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 70,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.only(
+                        topLeft: Radius.circular(26),
+                      ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white.withValues(alpha: isDark ? 0.06 : 0.15),
+                          Colors.white.withValues(alpha: 0),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ],
-            )
-          else
-            Text(
-              step.desc,
-              style: TextStyle(
-                fontSize: 13.2,
-                height: 1.6,
-                color: AppColors.text2Of(context),
-              ),
-            ),
-
-          const SizedBox(height: 12),
-
-          // —— 底部：提示 + 下一步 ——
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '点击屏幕任意处继续',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.text4Of(context),
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: controller.next,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: primary,
-                    borderRadius: BorderRadius.circular(AppRadius.full),
-                  ),
-                  child: Row(
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 15, 13),
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Row(
+                        children: [
+                          ...List.generate(state.tour!.steps.length, (i) {
+                            final on = i == state.step;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 340),
+                              curve: Curves.easeOutCubic,
+                              margin: const EdgeInsets.only(right: 5),
+                              width: on ? 14 : 5,
+                              height: 5,
+                              decoration: BoxDecoration(
+                                color: on
+                                    ? primary
+                                    : AppColors.text4Of(context)
+                                        .withValues(alpha: 0.32),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            );
+                          }),
+                          if (step.tag != null) ...[
+                            const SizedBox(width: 9),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppColors.amberOf(context)
+                                    .withValues(alpha: 0.14),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.full),
+                              ),
+                              child: Text(
+                                step.tag!,
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppColors.amberOf(context),
+                                  letterSpacing: 0.03,
+                                ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: controller.skip,
+                            child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: Text(
+                                '跳过',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppColors.text4Of(context),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 13),
                       Text(
-                        isLast ? '知道了' : '下一步',
+                        step.title,
                         style: TextStyle(
-                          fontSize: 13.5,
+                          fontSize: 15.5,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.onPrimaryOf(context),
+                          height: 1.3,
+                          letterSpacing: -0.01,
+                          color: AppColors.textOf(context),
                         ),
                       ),
-                      if (!isLast) ...[
-                        const SizedBox(width: 3),
-                        Icon(
-                          Icons.arrow_forward_rounded,
-                          size: 15,
-                          color: AppColors.onPrimaryOf(context),
+                      const SizedBox(height: 7),
+                      if (step.hasGesture)
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            GuideGestureDemo(gesture: step.gesture),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                step.desc,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  height: 1.62,
+                                  color: AppColors.text2Of(context),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Text(
+                          step.desc,
+                          style: TextStyle(
+                            fontSize: 12.8,
+                            height: 1.68,
+                            color: AppColors.text2Of(context),
+                          ),
                         ),
-                      ],
+                      const SizedBox(height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          PressableScale(
+                            child: GestureDetector(
+                              onTap: controller.next,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 9),
+                                decoration: BoxDecoration(
+                                  color: primary,
+                                  borderRadius:
+                                      BorderRadius.circular(AppRadius.full),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      isLast ? '知道了' : '下一步',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.02,
+                                        color: AppColors.onPrimaryOf(context),
+                                      ),
+                                    ),
+                                    if (!isLast) ...[
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        Icons.arrow_forward_rounded,
+                                        size: 15,
+                                        color: AppColors.onPrimaryOf(context),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// 指向高亮区的小三角
-class _Arrow extends StatelessWidget {
-  const _Arrow({
-    required this.color,
-    required this.up,
-    required this.offset,
-  });
-
-  final Color color;
-  final bool up;
-  final double offset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(left: offset),
-      child: CustomPaint(
-        size: const Size(18, 9),
-        painter: _ArrowPainter(color: color, up: up),
-      ),
-    );
-  }
-}
-
-class _ArrowPainter extends CustomPainter {
-  const _ArrowPainter({required this.color, required this.up});
-
-  final Color color;
-  final bool up;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-    final path = Path();
-    if (up) {
-      path
-        ..moveTo(size.width / 2, 0)
-        ..lineTo(size.width, size.height)
-        ..lineTo(0, size.height);
-    } else {
-      path
-        ..moveTo(size.width / 2, size.height)
-        ..lineTo(0, 0)
-        ..lineTo(size.width, 0);
-    }
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _ArrowPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.up != up;
-}
-
-/// 挖洞遮罩 + 呼吸光晕
+/// 挖洞遮罩 + 柔光（**无实线描边**）
+///
+/// 旧版在洞口画了 1.6px 实线，而目标控件（教案卡 / 班级卡）本身就带边框，
+/// 两圈线叠在一起看着就是「下划线」。改为：外侧用大模糊晕开，内侧裁到洞里
+/// 刷一层柔光把剪切硬边藏起来 —— 既聚焦，又没有任何线。
 class _SpotlightPainter extends CustomPainter {
   const _SpotlightPainter({
     required this.rect,
@@ -496,8 +456,8 @@ class _SpotlightPainter extends CustomPainter {
   final Color glow;
   final Color mask;
 
-  static const double _pad = 6.0;
-  static const double _radius = 16.0;
+  static const double _pad = 7.0;
+  static const double _radius = 18.0;
 
   RRect get _rRect {
     final r = rect!.inflate(_pad);
@@ -517,38 +477,43 @@ class _SpotlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final full = Path()..addRect(Offset.zero & size);
-
     if (rect == null || alpha <= 0.01) {
       canvas.drawPath(full, Paint()..color = mask);
       return;
     }
 
     final hole = _rRect;
-    final maskPath = Path.combine(
-      PathOperation.difference,
-      full,
-      Path()..addRRect(hole),
+    canvas.drawPath(
+      Path.combine(
+        PathOperation.difference,
+        full,
+        Path()..addRRect(hole),
+      ),
+      Paint()..color = mask,
     );
-    canvas.drawPath(maskPath, Paint()..color = mask);
 
-    // 外发光（呼吸）
-    final glowAlpha = (0.20 + 0.42 * pulse) * alpha;
+    // ① 外侧柔光：大模糊，向暗化区域晕开
     canvas.drawRRect(
-      hole.inflate(pulse * 3.5),
+      hole.inflate(1.5 + pulse * 2.5),
       Paint()
-        ..color = glow.withValues(alpha: glowAlpha)
+        ..color = glow.withValues(alpha: (0.14 + 0.10 * pulse) * alpha)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0 + pulse * 1.8
-        ..maskFilter = const MaskFilter.blur(BlurStyle.outer, 13),
+        ..strokeWidth = 7 + pulse * 3
+        ..maskFilter = const MaskFilter.blur(ui.BlurStyle.normal, 18),
     );
-    // 内圈实描边，保证洞口边界清晰
+
+    // ② 内侧柔光：裁到洞内，柔化剪切硬边
+    canvas.save();
+    canvas.clipPath(Path()..addRRect(hole), doAntiAlias: true);
     canvas.drawRRect(
-      hole,
+      hole.deflate(1),
       Paint()
-        ..color = glow.withValues(alpha: 0.85 * alpha)
+        ..color = glow.withValues(alpha: (0.16 + 0.12 * pulse) * alpha)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6,
+        ..strokeWidth = 13 + pulse * 5
+        ..maskFilter = const MaskFilter.blur(ui.BlurStyle.normal, 14),
     );
+    canvas.restore();
   }
 
   @override

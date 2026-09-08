@@ -7,7 +7,6 @@ import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../common/guide/guide_anchor.dart';
 
 /// 教师首页 · 工作台
 ///
@@ -78,11 +77,7 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
                         children: [
                           _buildGreeting(context),
                           const SizedBox(height: 20),
-                          // 套 GuideTarget：新手指引会高亮 SP 病例广场大卡
-                          GuideTarget(
-                            anchor: GuideAnchors.teacherHomeMarket,
-                            child: _buildHeroMarket(context),
-                          ),
+                          _buildHeroMarket(context),
                           const SizedBox(height: 14),
                           _buildSubTools(context),
                           const SizedBox(height: 14),

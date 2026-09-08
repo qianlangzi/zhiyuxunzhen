@@ -103,6 +103,15 @@ class LlmClient:
             )
             text = (resp.choices[0].message.content or "").strip()
             latency_ms = int((time.time() - _chat_start) * 1000)
+            # 截断观测：finish_reason=length 意味着 JSON 极可能不完整，
+            # 下游结构化解析会失败——必须留痕，否则只剩 no_json 疑案。
+            finish_reason = getattr(resp.choices[0], "finish_reason", None)
+            if finish_reason == "length":
+                log_event(
+                    logger, _WARNING, "llm_chat_truncated",
+                    trace_id=trace_id, model=model, max_tokens=max_tokens,
+                    tokens=getattr(resp.usage, "total_tokens", 0),
+                )
             log_event(
                 logger, _INFO, "llm_chat_ok",
                 trace_id=trace_id,
@@ -278,10 +287,19 @@ class LlmClient:
         messages: list[dict[str, str]],
         *,
         model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
         trace_id: str = "-",
     ) -> dict[str, Any]:
-        """对话并解析为 JSON；解析失败时抛出 OutputSchemaInvalidError"""
-        text = await self.chat(messages, model=model, trace_id=trace_id)
+        """对话并解析为 JSON；解析失败时抛出 OutputSchemaInvalidError
+
+        max_tokens 可按调用覆盖：结构化输出（如学习路径）内容长，
+        全局默认 2048 常不够用，会被截断成非法 JSON（历史 bug）。
+        """
+        text = await self.chat(
+            messages, model=model, temperature=temperature,
+            max_tokens=max_tokens, trace_id=trace_id, scene="structured",
+        )
         return await structured_output.parse_to_dict(text, trace_id=trace_id)
 
     # ------------------- 工具调用（function calling） -------------------

@@ -6,6 +6,9 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../common/guide/guide_anchor.dart';
+import '../../common/guide/guide_controller.dart';
+import '../../common/guide/guide_tours.dart';
 import '../data/teacher_service.dart';
 
 /// 作业分发与进度
@@ -70,6 +73,12 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
         _assignmentData = data;
         _isLoading = false;
       });
+      // 数据就绪后再触发页面级引导（AI 推荐面板可拖拽关闭），锚点此时才渲染
+      if (data != null) {
+        ref
+            .read(guideControllerProvider.notifier)
+            .schedulePageEnter(GuidePageIds.teacherAssignment);
+      }
     }
   }
 
@@ -241,7 +250,7 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
             AppBackAppBar(
               title: '作业进度',
               onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.teacherHome),
-              action: const AppIconButton(icon: Icon(Icons.more_horiz, size: 20)),
+              // 原右上角 more_horiz 是个无 onPressed 的死按钮，点了没反应还让人困惑，已删
             ),
             Expanded(
               child: _isLoading
@@ -304,11 +313,15 @@ class _AssignmentScreenState extends ConsumerState<AssignmentScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        AppGhostButton(
-          label: _aiRecommendLoading ? 'AI 推荐中…' : 'AI 推荐作业病例',
-          icon: const Icon(Icons.auto_awesome, size: 14),
-          fullWidth: true,
-          onPressed: _aiRecommendLoading ? null : _recommendCases,
+        // 套 GuideTarget：页面级引导教「AI 推荐 + 弹层下拉关闭」
+        GuideTarget(
+          anchor: GuideAnchors.teacherAssignmentRecommend,
+          child: AppGhostButton(
+            label: _aiRecommendLoading ? 'AI 推荐中…' : 'AI 推荐作业病例',
+            icon: const Icon(Icons.auto_awesome, size: 14),
+            fullWidth: true,
+            onPressed: _aiRecommendLoading ? null : _recommendCases,
+          ),
         ),
       ],
     );

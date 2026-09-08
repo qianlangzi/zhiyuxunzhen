@@ -55,7 +55,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Color get _accent =>
       widget.role == UserRole.student
           ? AppColors.primaryOf(context)
-          : AppColors.vermilionOf(context);
+          : AppColors.teacherOf(context);
 
   @override
   void dispose() {

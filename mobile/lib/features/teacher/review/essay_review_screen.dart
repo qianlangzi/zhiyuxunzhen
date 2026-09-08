@@ -584,6 +584,7 @@ class _EssayReviewScreenState extends ConsumerState<EssayReviewScreen> {
             ],
           ),
         ),
+          const AiGeneratedNote(),
       ],
     ];
   }

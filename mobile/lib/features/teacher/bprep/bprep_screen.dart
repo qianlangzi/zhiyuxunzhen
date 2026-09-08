@@ -527,14 +527,10 @@ class _BprepScreenState extends ConsumerState<BprepScreen> {
               AppTitleAppBar(
                 tag: '智能备课',
                 title: '我的教案',
-                // 套 GuideTarget：新手指引会高亮「+ 新建备课」
-                action: GuideTarget(
-                  anchor: GuideAnchors.teacherBprepCreate,
-                  child: AppPrimaryButton(
-                    label: '+ 新建备课',
-                    small: true,
-                    onPressed: _createLesson,
-                  ),
+                action: AppPrimaryButton(
+                  label: '+ 新建备课',
+                  small: true,
+                  onPressed: _createLesson,
                 ),
               ),
             Expanded(

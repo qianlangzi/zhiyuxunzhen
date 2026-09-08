@@ -5,7 +5,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/profile_widgets.dart';
 import '../../../features/auth/providers/auth_provider.dart';
-import '../../../features/common/guide/guide_anchor.dart';
 import '../../../features/common/guide/guide_controller.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
@@ -86,16 +85,12 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    GuideTarget(
-                      anchor: GuideAnchors.teacherProfileHero,
-                      child: ProfileHero(
-                        initial: initial,
-                        displayName: displayName,
-                        badge: _auditBadge,
-                        avatarPath: user?.avatarPath,
-                        onEdit: () =>
-                            context.pushNamed(RouteNames.profileEditTeacher),
-                      ),
+                    ProfileHero(
+                      initial: initial,
+                      displayName: displayName,
+                      badge: _auditBadge,
+                      avatarPath: user?.avatarPath,
+                      onEdit: () => context.pushNamed(RouteNames.profileEditTeacher),
                     ),
                     ProfileStatsStrip(
                       stats: [
@@ -203,7 +198,7 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
                   title: '新手指引',
                   onTap: () => ref
                       .read(guideControllerProvider.notifier)
-                      .replay(GuideRole.teacher, tabId: 'profile'),
+                      .replay(GuideRole.teacher),
                 ),
                 ProfileMenuTile(
                   icon: Icons.info_outline,

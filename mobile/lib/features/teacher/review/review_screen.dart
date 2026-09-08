@@ -611,6 +611,7 @@ Text(aiScoreLevel, style: TextStyle(fontSize: 12, color: AppColors.onPrimaryLigh
                     color: AppColors.onPrimaryLightOf(context),
                   ),
                 ),
+              AiGeneratedNote(color: AppColors.onPrimaryLightOf(context)),
             ],
           ),
         ],

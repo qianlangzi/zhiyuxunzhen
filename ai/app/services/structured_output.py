@@ -67,13 +67,58 @@ def extract_json(text: str) -> str | None:
         return None
 
     last_brace = s.rfind("}")
-    if last_brace == -1 or last_brace <= first_brace:
-        return None
+    if last_brace != -1 and last_brace > first_brace:
+        candidate = s[first_brace : last_brace + 1]
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            pass
 
-    candidate = s[first_brace : last_brace + 1]
+    # 尝试 4（截断兜底）: 模型输出被 max_tokens 截断时 JSON 不完整
+    # （finish_reason=length，可能连一个 } 都没有），围栏未闭合、
+    # 尾部缺括号。做括号/引号平衡修复后再次校验，
+    # 救回「内容完整、仅尾部被截」的输出。
+    repaired = _repair_truncated_json(s[first_brace:])
+    if repaired is not None:
+        return repaired
+
+    return None
+
+
+def _repair_truncated_json(fragment: str) -> str | None:
+    """补齐被截断 JSON 缺失的闭合符；无法修复时返回 None
+
+    策略：逐字符扫描，跟踪字符串边界与括号栈，扫描到安全位置后
+    按栈逆序补齐闭合符。字符串中间截断时先补一个引号再闭合。
+    """
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    for ch in fragment:
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack:
+                return None  # 结构已错，无法修复
+            stack.pop()
+    # 截在字符串中间 → 补引号；再按栈逆序闭合
+    if in_string:
+        fragment += '"'
+    fragment += "".join("}" if c == "{" else "]" for c in reversed(stack))
     try:
-        json.loads(candidate)
-        return candidate
+        json.loads(fragment)
+        return fragment
     except json.JSONDecodeError:
         return None
 

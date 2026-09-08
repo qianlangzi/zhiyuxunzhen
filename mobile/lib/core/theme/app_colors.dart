@@ -254,6 +254,13 @@ class AppColors {
           ? const Color(0xFF8FB8A5)
           : moss3;
 
+  /// 教师（身份区分色）：采用靛蓝，与主色苔绿互补，契合本草/宣纸整体基调；
+  /// 取代原先直接挪用「朱砂红（错误色）」做教师身份的做法，语义更正确、配色更协调。
+  static Color teacherOf(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark
+          ? const Color(0xFF93A3DC)
+          : indigo;
+
   // ========== 主色背景上的柔和文字 ==========
   /// 主色背景上的柔和文字（用于 hero 次要文字）
   static Color onPrimarySoftOf(BuildContext context) =>

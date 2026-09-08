@@ -19,6 +19,9 @@ class RouteNames {
   static const osceHistory = 'osceHistory';
   static const mistakes = 'mistakes';
   static const mistakeBook = 'mistakeBook';
+  static const mistakeDetail = 'mistakeDetail';
+  static const abilityProfile = 'abilityProfile';
+  static const trainingOverview = 'trainingOverview';
   static const dailyCase = 'dailyCase';
   static const mrBank = 'mrBank';
   static const mrWorkshop = 'mrWorkshop';

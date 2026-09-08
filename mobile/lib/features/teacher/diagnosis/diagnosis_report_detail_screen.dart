@@ -220,6 +220,7 @@ class _DiagnosisReportDetailScreenState
               ],
             ),
           ),
+          const AiGeneratedNote(),
       ],
     );
   }

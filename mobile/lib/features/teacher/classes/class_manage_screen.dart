@@ -408,26 +408,22 @@ class _ClassManageScreenState extends ConsumerState<ClassManageScreen> {
               AppTitleAppBar(
                 tag: '教师端 · 班级管理',
                 title: '我的教学班',
-                // 套 GuideTarget：新手指引会高亮「新建班级 / 发放作业」
-                action: GuideTarget(
-                  anchor: GuideAnchors.teacherClassesCreate,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AppPrimaryButton(
-                        label: '新建班级',
-                        small: true,
-                        onPressed: _createClass,
-                      ),
-                      const SizedBox(width: 8),
-                      AppPrimaryButton(
-                        label: '发放作业',
-                        small: true,
-                        onPressed: () =>
-                            context.pushNamed(RouteNames.assignmentCreate),
-                      ),
-                    ],
-                  ),
+                action: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AppPrimaryButton(
+                      label: '新建班级',
+                      small: true,
+                      onPressed: _createClass,
+                    ),
+                    const SizedBox(width: 8),
+                    AppPrimaryButton(
+                      label: '发放作业',
+                      small: true,
+                      onPressed: () =>
+                          context.pushNamed(RouteNames.assignmentCreate),
+                    ),
+                  ],
                 ),
               ),
             Expanded(

@@ -1111,6 +1111,7 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
             _textSection('教学反思', _design['teachingReflection'],
                 onEdit: () => _editText('teachingReflection', '教学反思')),
             _refsSection(),
+            const AiGeneratedNote(),
           ],
         ],
       ),

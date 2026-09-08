@@ -54,11 +54,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   int _countdown = 0;
   bool _sendingCode = false;
   bool _loggingIn = false;
-  String? _error;
   Timer? _timer;
 
   Color get _roleColor =>
-      _role == UserRole.student ? AppColors.primaryOf(context) : AppColors.vermilionOf(context);
+      _role == UserRole.student
+          ? AppColors.primaryOf(context)
+          : AppColors.teacherOf(context);
 
   @override
   void dispose() {
@@ -74,10 +75,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   void _setMethod(_LoginMethod method) {
     if (method == _method) return;
-    setState(() {
-      _method = method;
-      _error = null;
-    });
+    setState(() => _method = method);
     // 切换登录方式时刷新图形验证码，避免使用过期/无效题目
     _captchaKey.currentState?.refresh();
   }
@@ -106,7 +104,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (_sendingCode || _countdown > 0) return;
     final phone = _phoneCtl.text.trim();
     if (!RegExp(r'^1[3-9]\d{9}$').hasMatch(phone)) {
-      setState(() => _error = '请输入有效的手机号');
+      AppFeedback.error(context, '请输入有效的手机号');
       return;
     }
     final captcha = _captchaKey.currentState?.current();
@@ -114,10 +112,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       AppFeedback.error(context, '请先完成图形验证');
       return;
     }
-    setState(() {
-      _sendingCode = true;
-      _error = null;
-    });
+    setState(() => _sendingCode = true);
     final result = await _auth.requestCode(
       phone,
       captchaId: captcha.captchaId,
@@ -125,10 +120,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
     if (!mounted) return;
     if (result.error != null) {
-      setState(() {
-        _sendingCode = false;
-        _error = result.error;
-      });
+      setState(() => _sendingCode = false);
       AppFeedback.error(context, result.error!);
       // 验证码校验失败或发送失败，刷新图形验证码
       _captchaKey.currentState?.refresh();
@@ -147,10 +139,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     if (_loggingIn) return;
     if (!_formKey.currentState!.validate()) return;
-    setState(() {
-      _loggingIn = true;
-      _error = null;
-    });
+    setState(() => _loggingIn = true);
 
     late final ({UserModel? user, String? token, String? refreshToken, String? error}) result;
     if (_method == _LoginMethod.password) {
@@ -169,10 +158,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
 
     if (result.error != null) {
-      setState(() {
-        _loggingIn = false;
-        _error = result.error;
-      });
+      setState(() => _loggingIn = false);
       AppFeedback.error(context, result.error!);
       return;
     }
@@ -181,11 +167,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (user.role != _role) {
       // P1：角色不匹配时 token 尚未持久化（AuthApi 不再自动持久化），
       // 无需清理。仅提示用户身份不一致。
-      setState(() {
-        _loggingIn = false;
-        _error = '该账号身份为「${_roleLabel(user.role)}」，与所选「${_roleLabel(_role)}」不一致';
-      });
-      AppFeedback.error(context, _error!);
+      setState(() => _loggingIn = false);
+      AppFeedback.error(
+        context,
+        '该账号身份为「${_roleLabel(user.role)}」，与所选「${_roleLabel(_role)}」不一致',
+      );
       return;
     }
 
@@ -204,11 +190,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // loginWith 内部 setSession 失败时不会保存 user，但可能已部分写入 token——
       // 调用 clearSession 确保清理（幂等操作，无副作用）
       await ApiClient.clearSession();
-      setState(() {
-        _loggingIn = false;
-        _error = '登录凭证保存失败，请重试';
-      });
-      AppFeedback.error(context, _error!);
+      setState(() => _loggingIn = false);
+      AppFeedback.error(context, '登录凭证保存失败，请重试');
       return;
     }
     if (!mounted) return;
@@ -267,13 +250,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _buildBrand(),
+                  RiseIn(
+                    delay: const Duration(milliseconds: 40),
+                    child: _buildBrand(),
+                  ),
                   const SizedBox(height: 32),
-                  _buildCard(),
+                  RiseIn(
+                    delay: const Duration(milliseconds: 120),
+                    offset: 20,
+                    child: _buildCard(),
+                  ),
                   const SizedBox(height: 18),
-                  _buildRegisterLink(),
+                  RiseIn(
+                    delay: const Duration(milliseconds: 200),
+                    child: _buildRegisterLink(),
+                  ),
                   const SizedBox(height: 18),
-                  const MedicalDisclaimer(),
+                  RiseIn(
+                    delay: const Duration(milliseconds: 260),
+                    child: const MedicalDisclaimer(),
+                  ),
                 ],
               ),
             ),
@@ -351,45 +347,35 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-                  const EyebrowText('SIGN IN · 内科教研协同'),
-                  const SizedBox(height: 6),
+                  // 精简标题区：去掉冗余眉标/长副标题，只保留一句克制的引导
                   Text(
                     '登录',
                     style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
                       color: AppColors.textOf(context),
-                      letterSpacing: -0.01,
+                      letterSpacing: -0.02,
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    '选择身份，以账号进入你的教研空间',
+                  Text(
+                    '患者之路 · 教研启航',
                     style: TextStyle(
-                      fontSize: 13,
-                      color: AppColors.ink3,
-                      height: 1.4,
+                      fontSize: 12,
+                      color: AppColors.text4Of(context),
+                      letterSpacing: 0.4,
                     ),
                   ),
                   const SizedBox(height: 20),
 
-                  // 身份选择
-                  const Text(
-                    '选择身份',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: AppColors.ink2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
+                  // 身份选择（无冗余标题，控件自带学生/教师图标语义）
                   RoleSegment(
                     role: _role,
                     onChanged: _setRole,
                     studentIcon: Icons.school_outlined,
                     teacherIcon: Icons.menu_book_outlined,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
 
                   // 登录方式切换（简单分段，无动画隐患）
                   _MethodToggle(
@@ -467,10 +453,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (v) {
                         final s = v?.trim() ?? '';
                         if (s.isEmpty) return '请输入手机号';
-                        // 测试模式：不校验手机号格式
-                        // if (!RegExp(r'^1[3-9]\d{9}$').hasMatch(s)) {
-                        //   return '手机号格式不正确';
-                        // }
                         return null;
                       },
                     ),
@@ -486,31 +468,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       validator: (v) {
                         final s = v?.trim() ?? '';
                         if (s.isEmpty) return '请输入验证码';
-                        // 测试模式：不校验验证码正确性
-                        // if (!_auth.verifyCode(_phoneCtl.text, s)) {
-                        //   return '验证码错误、已过期或未获取';
-                        // }
                         return null;
                       },
-                    ),
-                  ],
-
-                  if (_error != null) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.vermilionOf(context).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _error!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.vermilionOf(context),
-                        ),
-                      ),
                     ),
                   ],
 

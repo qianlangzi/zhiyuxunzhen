@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../data/student_service.dart';
@@ -15,7 +14,7 @@ import '../growth/widgets/mistake_tile.dart';
 /// 原成长 Tab 承担了「数据可视化 + 全部错题列表 + 全部功能入口」三重职责，
 /// 页面又长又杂。现职责收敛：
 /// - 成长页（GrowthScreen）只看进步：主卡 / 热力图 / 能力评分 / 待复盘前 3 条；
-/// - 本页承接完整错题列表：状态统计 + 类型筛选 + AI 归因 + 标记掌握 + 导出 PDF。
+/// - 本页承接完整错题列表：状态统计 + 来源筛选；单条复盘进详情二级页。
 class MistakeBookScreen extends ConsumerStatefulWidget {
   const MistakeBookScreen({super.key});
 
@@ -50,25 +49,6 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
       _mistakes = list;
       _isLoading = false;
     });
-  }
-
-  Future<Map<String, dynamic>?> _analyze(int id) =>
-      StudentService().analyzeMistake(id);
-
-  /// 练同类题：以错题知识点 + 归因标签生成巩固练习卷
-  Future<Map<String, dynamic>?> _drill(int id) =>
-      StudentService().generateMistakeDrill(id, count: 5);
-
-  /// 标记已掌握：持久化到服务端成功后，再把本地条目状态回填为已掌握(2)。
-  /// 失败时仅本地回显 + 提示，避免死锁（本地逻辑不再是假标记）。
-  Future<void> _markMastered(MistakeEntry e) async {
-    final ok = await StudentService().markMistakeStatus(e.id, 2);
-    if (!mounted) return;
-    setState(() => e.resolvedStatus = 2);
-    AppFeedback.info(
-      context,
-      ok ? '已标记为已掌握' : '已标记（需联网后才会同步）',
-    );
   }
 
   List<MistakeEntry> get _filtered {
@@ -131,9 +111,7 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: MistakeTile(
                   entry: m,
-                  onAnalyze: _analyze,
-                  onDrill: _drill,
-                  onMarkMastered: (e) => _markMastered(e),
+                  onChanged: () => setState(() {}),
                 ),
               ),
             ),
@@ -142,7 +120,8 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
     );
   }
 
-  /// 状态统计 —— 三张带色晕的小卡
+  /// 状态统计 —— 三张小卡：左侧色条 + 数字着色；
+  /// 计数为 0 时整体弱化为灰，不再整卡铺满色晕。
   Widget _buildStatusRow(int unreviewed, int reviewed, int mastered) {
     return Row(
       children: [
@@ -156,11 +135,14 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
   }
 
   Widget _statusCard(String label, int count, Color color) {
+    final hasData = count > 0;
     return Expanded(
       child: PaperCard(
-        tint: color,
+        tint: hasData ? color : AppColors.text4Of(context),
+        tintStrength: hasData ? 0.45 : 0.18,
         radius: AppRadius.lg,
         padding: const EdgeInsets.symmetric(vertical: 13),
+        accent: hasData ? color : null,
         child: Column(
           children: [
             Text(
@@ -171,14 +153,18 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
                 height: 1.1,
                 fontFamily: 'JetBrainsMono',
                 fontFamilyFallback: kCjkMonoFallback,
-                color: color,
+                color: hasData ? color : AppColors.text4Of(context),
               ),
             ),
             const SizedBox(height: 3),
             Text(
               label,
-              style:
-                  TextStyle(fontSize: 11, color: AppColors.text3Of(context)),
+              style: TextStyle(
+                fontSize: 11,
+                color: hasData
+                    ? AppColors.text3Of(context)
+                    : AppColors.text4Of(context),
+              ),
             ),
           ],
         ),
@@ -204,7 +190,9 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
                   _selectedSource = label;
                   _consultSub = '全部'; // 切来源时重置二级细分
                 }),
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
                   padding: const EdgeInsets.symmetric(horizontal: 15),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
@@ -247,7 +235,9 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
                 final active = label == _consultSub;
                 return GestureDetector(
                   onTap: () => setState(() => _consultSub = label),
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     alignment: Alignment.center,
                     decoration: BoxDecoration(

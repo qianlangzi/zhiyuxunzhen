@@ -12,6 +12,9 @@ import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/typewriter_text.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../common/guide/guide_anchor.dart';
+import '../../common/guide/guide_controller.dart';
+import '../../common/guide/guide_tours.dart';
 import '../data/teacher_service.dart';
 
 /// 对话式备课引导（向导式）
@@ -320,6 +323,10 @@ class _BprepGuideScreenState extends ConsumerState<BprepGuideScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadMeta();
       _ask('');
+      // 页面级新手指引：首帧渲染完成后触发（长按麦克风 / 附件上传）
+      ref
+          .read(guideControllerProvider.notifier)
+          .schedulePageEnter(GuidePageIds.teacherBprepGuide);
     });
   }
 
@@ -1151,7 +1158,10 @@ class _BprepGuideScreenState extends ConsumerState<BprepGuideScreen> {
   }
 
   Widget _buildInputBar() {
-    return SafeArea(
+    // 套 GuideTarget：页面级引导高亮整条输入栏（麦克风长按 / 附件上传）
+    return GuideTarget(
+      anchor: GuideAnchors.teacherBprepGuideInput,
+      child: SafeArea(
       top: false,
       child: Container(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
@@ -1247,6 +1257,7 @@ class _BprepGuideScreenState extends ConsumerState<BprepGuideScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

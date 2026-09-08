@@ -9,6 +9,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/widgets/paper_surfaces.dart';
 import '../data/student_service.dart';
 import '../growth/growth_stats.dart';
+import '../growth/widgets/weakness_list_card.dart';
 import '../recommend/learning_path_screen.dart';
 
 /// 学习档案页（P2-1 学习档案/目标管理）
@@ -204,170 +205,69 @@ class _LearningArchiveScreenState extends ConsumerState<LearningArchiveScreen> {
   }
 
   Widget _buildWeaknessCard() {
-    if (_weaknesses.isEmpty) return const SizedBox.shrink();
-    final items = _weaknesses.take(5).toList();
-    return PaperCard(
-      tint: AppColors.vermilionOf(context),
-      radius: AppRadius.xl,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              GradientIconBadge(
-                icon: Icons.psychology_outlined,
-                color: AppColors.vermilionOf(context),
-                size: 34,
-              ),
-              const SizedBox(width: 9),
-              Text(
-                '薄弱知识点 Top',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textOf(context),
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: () => context.pushNamed(RouteNames.recommendation),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('AI 诊断',
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.primaryOf(context))),
-                    Icon(Icons.chevron_right,
-                        size: 15, color: AppColors.primaryOf(context)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          ...items.asMap().entries.map((e) {
-            final w =
-                e.value is Map ? e.value as Map : const <String, dynamic>{};
-            final tag = (w['knowledgeTag'] as String?) ?? '知识点';
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
-                children: [
-                  Container(
-                    width: 21,
-                    height: 21,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          AppColors.vermilionOf(context)
-                              .withValues(alpha: 0.18),
-                          AppColors.vermilionOf(context)
-                              .withValues(alpha: 0.08),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(AppRadius.full),
-                    ),
-                    child: Text(
-                      '${e.key + 1}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: AppColors.vermilionOf(context),
-                          fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Text(tag,
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.text2Of(context))),
-                  ),
-                  Icon(Icons.chevron_right,
-                      size: 15, color: AppColors.text4Of(context)),
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
+    return WeaknessListCard(
+      weaknesses: _weaknesses,
+      onAiDiagnosis: () => context.pushNamed(RouteNames.recommendation),
     );
   }
 
   Widget _buildShortcuts() {
+    // 入口统一原则：错题本 → 成长页「待复盘」方块；考核记录 → 「训练概览」子页。
+    // 本区只保留 AI 学习路径（学习教练 Agent 生成），避免与成长页重复。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 9),
-          child: MonoText('继续学习',
+          child: MonoText('AI 学习教练',
               fontSize: 10,
               color: AppColors.text4Of(context),
               letterSpacing: 0.12),
         ),
-        Row(
-          children: [
-            Expanded(
-              child: _shortcutCard(
-                context,
+        PaperCard(
+          tint: AppColors.primaryOf(context),
+          radius: AppRadius.lg,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const LearningPathScreen()),
+          ),
+          child: Row(
+            children: [
+              GradientIconBadge(
                 icon: Icons.route_rounded,
                 color: AppColors.primaryOf(context),
-                label: '学习路径',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LearningPathScreen()),
+                size: 38,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '我的学习路径',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textOf(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '按你的薄弱点生成递进式补练计划',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.text4Of(context),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _shortcutCard(
-                context,
-                icon: Icons.fact_check_outlined,
-                color: AppColors.indigoOf(context),
-                label: '错题本',
-                onTap: () => context.pushNamed(RouteNames.mistakeBook),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _shortcutCard(
-                context,
-                icon: Icons.medical_services_outlined,
-                color: AppColors.vermilionOf(context),
-                label: '考核记录',
-                onTap: () => context.pushNamed(RouteNames.osceHistory),
-              ),
-            ),
-          ],
+              Icon(Icons.chevron_right,
+                  size: 18, color: AppColors.text4Of(context)),
+            ],
+          ),
         ),
       ],
-    );
-  }
-
-  Widget _shortcutCard(
-    BuildContext context, {
-    required IconData icon,
-    required Color color,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return PaperCard(
-      tint: color,
-      radius: AppRadius.lg,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      onTap: onTap,
-      child: Column(
-        children: [
-          GradientIconBadge(icon: icon, color: color, size: 38),
-          const SizedBox(height: 8),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.text2Of(context))),
-        ],
-      ),
     );
   }
 }
