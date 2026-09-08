@@ -59,10 +59,6 @@ services:
       resources:
         limits:
           memory: 1G
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
 
   # ---- AI:生产配置 ----
   ai:
@@ -84,10 +80,6 @@ services:
       resources:
         limits:
           memory: 2G
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
 
   # ---- AI Worker:生产配置 ----
   # 基础 compose 的 ai-worker 通过 *ai-env 锚点继承 dev 配置，
@@ -105,10 +97,6 @@ services:
       resources:
         limits:
           memory: 2G
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 3
 
   # ---- 前端:生产用多阶段构建 Nginx ----
   front:
@@ -127,9 +115,12 @@ services:
     container_name: zhiyu-nginx
     restart: always
     depends_on:
-      - front
-      - backend
-      - ai
+      front:
+        condition: service_started
+      backend:
+        condition: service_started
+      ai:
+        condition: service_healthy
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       # 如需 HTTPS,取消下行注释并挂载证书
