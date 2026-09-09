@@ -764,51 +764,55 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
           Expanded(
             child: _departments.isEmpty
                 ? const SizedBox.shrink()
-                : ListView.separated(
+                // 项目统一用 SingleChildScrollView + Row 承载横向分类，而非横向 ListView：
+                // 后者放在无高度约束的 Column 里会触发 viewport 无界高度的布局异常，
+                // release 下表现为「全部题库」整块白屏、无任何提示。
+                : SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    itemCount: _departments.length + 1,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (context, i) {
-                      final dept = i == 0 ? null : _departments[i - 1];
-                      final active = _department == dept;
-                      return GestureDetector(
-                        onTap: () {
-                          if (_department == dept) return;
-                          setState(() {
-                            _department = dept;
-                            _knowledgeTag = null;
-                          });
-                          _loadFirst();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: active
-                                ? AppColors.primaryOf(context)
-                                : AppColors.surfaceOf(context),
-                            border: Border.all(
+                    child: Row(
+                      children: List.generate(_departments.length + 1, (i) {
+                        final dept = i == 0 ? null : _departments[i - 1];
+                        final active = _department == dept;
+                        return GestureDetector(
+                          onTap: () {
+                            if (_department == dept) return;
+                            setState(() {
+                              _department = dept;
+                              _knowledgeTag = null;
+                            });
+                            _loadFirst();
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(right: 6),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
                               color: active
                                   ? AppColors.primaryOf(context)
-                                  : AppColors.ruleOf(context),
-                            ),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.full),
-                          ),
-                          child: Center(
-                            child: Text(
-                              dept ?? '全部科室',
-                              style: TextStyle(
-                                fontSize: 11,
+                                  : AppColors.surfaceOf(context),
+                              border: Border.all(
                                 color: active
-                                    ? AppColors.onPrimaryOf(context)
-                                    : AppColors.text2Of(context),
+                                    ? AppColors.primaryOf(context)
+                                    : AppColors.ruleOf(context),
+                              ),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Center(
+                              child: Text(
+                                dept ?? '全部科室',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: active
+                                      ? AppColors.onPrimaryOf(context)
+                                      : AppColors.text2Of(context),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      }),
+                    ),
                   ),
           ),
         ],
