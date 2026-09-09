@@ -1,13 +1,13 @@
-name: 服务器性能诊断（一次性）
+name: 服务器部署失败根因诊断（第二轮）
 
 on:
   workflow_dispatch:
 
 jobs:
-  diag:
+  diag2:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH 到服务器执行只读诊断
+      - name: SSH 深度诊断
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -15,26 +15,21 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
-            echo "========== 1. 代码版本 =========="
-            cd /opt/zhiyu-new && git log --oneline -3
+            cd /opt/zhiyu-new
 
-            echo "========== 2. backend 容器 =========="
-            docker inspect zhiyu-backend --format 'StartedAt: {{.State.StartedAt}}'
+            echo "===== A. git 状态与 pull 实测 ====="
+            git status --short | head -10
+            git remote -v
+            echo "--- 手动 git pull 看真实报错 ---"
+            git pull origin main 2>&1 | head -15
 
-            echo "========== 3. Flyway 最新迁移 =========="
-            docker exec zhiyu-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "USE zhiyu_db; SELECT version, description, success, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;"' 2>/dev/null || docker exec zhiyu-mysql mysql -uroot -proot123456 -e "USE zhiyu_db; SELECT version, description, success, installed_on FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;"
+            echo "===== B. 手动 backend 构建实测（看真实报错） ====="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build backend 2>&1 | tail -25
 
-            echo "========== 4. practice_question 索引 =========="
-            docker exec zhiyu-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "USE zhiyu_db; SHOW INDEX FROM practice_question;"' 2>/dev/null | awk '{print $3, $4}' | sort -u || true
+            echo "===== C. Docker 磁盘占用 ====="
+            docker system df
+            echo "--- 镜像列表（含悬挂） ---"
+            docker images --format "{{.Repository}}:{{.Tag}} {{.Size}} {{.CreatedSince}}" | head -20
 
-            echo "========== 5. 题库行数 =========="
-            docker exec zhiyu-mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -e "USE zhiyu_db; SELECT COUNT(*) FROM practice_question;"' 2>/dev/null || true
-
-            echo "========== 6. backend 启动日志(Flyway/启动) =========="
-            docker logs zhiyu-backend 2>&1 | grep -iE "Migrating|Started ZhiyuApplication" | tail -5
-
-            echo "========== 7. 容器资源 =========="
-            docker stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}" | head -12
-
-            echo "========== 8. 磁盘与内存 =========="
-            df -h / | tail -1 && free -m | head -2
+            echo "===== D. compose 配置校验 ====="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml config 2>&1 | head -5
