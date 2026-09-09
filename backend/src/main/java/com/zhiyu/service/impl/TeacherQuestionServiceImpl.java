@@ -109,12 +109,16 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
     @Override
     public PageResult<TeacherQuestionVO> myQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus) {
         Long teacherId = UserContext.requireUserId();
-        return query(pageNum, pageSize, adminAuditStatus, true, teacherId);
+        return query(pageNum, pageSize, adminAuditStatus, true, teacherId,
+                null, null, null, null, null);
     }
 
     @Override
-    public PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus) {
-        return query(pageNum, pageSize, adminAuditStatus, false, null);
+    public PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus,
+                                                      String department, String knowledgeTag, Integer difficulty,
+                                                      String questionType, String keyword) {
+        return query(pageNum, pageSize, adminAuditStatus, false, null,
+                department, knowledgeTag, difficulty, questionType, keyword);
     }
 
     /**
@@ -124,11 +128,18 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
      * @param teacherId 仅本人时当前教师 id
      */
     private PageResult<TeacherQuestionVO> query(Integer pageNum, Integer pageSize,
-                                                Integer adminAuditStatus, boolean onlyMine, Long teacherId) {
+                                                Integer adminAuditStatus, boolean onlyMine, Long teacherId,
+                                                String department, String knowledgeTag, Integer difficulty,
+                                                String questionType, String keyword) {
         Page<PracticeQuestion> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<PracticeQuestion> wrapper = new LambdaQueryWrapper<PracticeQuestion>()
                 .eq(onlyMine, PracticeQuestion::getSubmitterId, onlyMine ? teacherId : null)
                 .eq(adminAuditStatus != null, PracticeQuestion::getAdminAuditStatus, adminAuditStatus)
+                .eq(StringUtils.hasText(department), PracticeQuestion::getDepartment, department)
+                .eq(StringUtils.hasText(knowledgeTag), PracticeQuestion::getKnowledgeTag, knowledgeTag)
+                .eq(difficulty != null, PracticeQuestion::getDifficulty, difficulty)
+                .eq(StringUtils.hasText(questionType), PracticeQuestion::getQuestionType, questionType)
+                .like(StringUtils.hasText(keyword), PracticeQuestion::getTitle, keyword)
                 .orderByDesc(PracticeQuestion::getCreatedAt);
         questionMapper.selectPage(page, wrapper);
 

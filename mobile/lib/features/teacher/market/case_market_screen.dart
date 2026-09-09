@@ -25,8 +25,8 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
   String _query = '';
   List<_CaseData> _cases = [];
   bool _isLoading = true;
-  int? _qcLoadingId; // AI 质检进行中的 caseId
-  int? _pqLoadingId; // AI 生成练习题进行中的 caseId
+  /// 详情弹层加载中（点击卡片后拉取患者画像等详情）
+  bool _detailLoading = false;
 
   @override
   void initState() {
@@ -81,42 +81,26 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
     _loadCases();
   }
 
-  /// AI 病例质检（RAG 教材锚点）
-  Future<void> _qualityCheck(_CaseData c) async {
-    if (c.caseId == null || _qcLoadingId != null) return;
-    setState(() => _qcLoadingId = c.caseId);
-    final result = await TeacherService().getQualityCheck(c.caseId!);
+  /// 查看病例详情：拉取患者画像 + 知识点等（老师设置的具体内容）
+  Future<void> _openDetail(_CaseData c) async {
+    if (c.caseId == null || _detailLoading) return;
+    setState(() => _detailLoading = true);
+    final detail = await TeacherService().getMarketDetail(c.caseId!);
     if (!mounted) return;
-    setState(() => _qcLoadingId = null);
-    if (result == null) {
-      AppFeedback.error(context, 'AI 暂不可用，无法质检病例');
+    setState(() => _detailLoading = false);
+    if (detail == null) {
+      AppFeedback.error(context, '病例详情加载失败');
       return;
     }
-    _showQualitySheet(result);
+    _showDetailSheet(c, detail);
   }
 
-  /// AI 自动生成练习题（RAG 教材锚点）
-  Future<void> _practiceQuestions(_CaseData c) async {
-    if (c.caseId == null || _pqLoadingId != null) return;
-    setState(() => _pqLoadingId = c.caseId);
-    final result = await TeacherService().getPracticeQuestions(c.caseId!);
-    if (!mounted) return;
-    setState(() => _pqLoadingId = null);
-    if (result == null) {
-      AppFeedback.error(context, 'AI 暂不可用，无法生成练习题');
-      return;
-    }
-    final questions =
-        (result['questions'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
-            [];
-    _showQuestionsSheet(questions);
-  }
-
-  void _showQualitySheet(Map<String, dynamic> result) {
-    final overallPass = result['overallPass'] as bool? ?? false;
-    final checklist =
-        (result['checklist'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
-            [];
+  void _showDetailSheet(_CaseData c, Map<String, dynamic> detail) {
+    final profile = detail['patientProfile'] as String? ?? '';
+    final tagsRaw = detail['knowledgeTags'];
+    final tags = tagsRaw is List
+        ? tagsRaw.map((e) => e.toString().trim()).where((t) => t.isNotEmpty).toList()
+        : c.tags;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -126,7 +110,7 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
       ),
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
-        initialChildSize: 0.75,
+        initialChildSize: 0.72,
         maxChildSize: 0.9,
         builder: (ctx, scrollController) => Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -145,230 +129,104 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
               ),
               const SizedBox(height: 12),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(child: SerifText('AI 病例质检', fontSize: 17)),
-                  AppChip(
-                    label: overallPass ? '通过' : '需整改',
-                    type: overallPass ? ChipType.moss : ChipType.vermilion,
+                  Expanded(
+                    child: Text(
+                      detail['title'] as String? ?? c.title,
+                      style: TextStyle(
+                        fontFamily: 'NotoSerifSC',
+                        fontFamilyFallback: [
+                          'Songti SC',
+                          'STSong',
+                          'Noto Serif CJK SC',
+                          'Source Han Serif SC'
+                        ],
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textOf(context),
+                        height: 1.35,
+                      ),
+                    ),
                   ),
+                  const SizedBox(width: 8),
+                  AppChip(label: c.dept, type: ChipType.indigo, fontSize: 10),
                 ],
               ),
-              const SizedBox(height: 4),
-              MonoText('依据教材逐项校验病例，附出处',
-                  fontSize: 11, color: AppColors.text3Of(context)),
+              const SizedBox(height: 6),
+              MonoText(
+                '${c.difficulty} · ${detail['creatorName'] as String? ?? c.author} · '
+                '引用 ${detail['referenceCount'] as num? ?? c.refs} · '
+                '★ ${(detail['ratingAvg'] as num?)?.toStringAsFixed(1) ?? c.rating.toStringAsFixed(1)}',
+                fontSize: 11,
+                color: AppColors.text3Of(context),
+              ),
               Divider(height: 20, color: AppColors.ruleOf(context)),
               Expanded(
-                child: checklist.isEmpty
-                    ? const Center(
-                        child:
-                            MonoText('无可质检项', fontSize: 12, color: Colors.grey))
-                    : ListView(
-                        controller: scrollController,
-                        children: checklist.asMap().entries.map((e) {
-                          final item = e.value;
-                          final passed = item['passed'] == true;
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceOf(context),
-                              border: Border.all(
-                                  color: AppColors.surfaceEdgeOf(context)),
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                        passed
-                                            ? Icons.check_circle
-                                            : Icons.error_outline,
-                                        size: 16,
-                                        color: passed
-                                            ? AppColors.primaryOf(context)
-                                            : AppColors.vermilionOf(context)),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: MonoText(
-                                          '${item['item'] ?? '质检项'}',
-                                          fontSize: 11,
-                                          color: AppColors.textOf(context)),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text('${item['reason'] ?? ''}',
-                                    style: TextStyle(
-                                        fontSize: 12.5,
-                                        color: AppColors.textOf(context),
-                                        height: 1.6)),
-                                if ((item['textbookRef'] as String?)
-                                        ?.isNotEmpty ??
-                                    false)
-                                  MonoText('教材：${item['textbookRef']}',
-                                      fontSize: 11,
-                                      color: AppColors.text3Of(context)),
-                              ],
-                            ),
-                          );
-                        }).toList(),
+                child: ListView(
+                  controller: scrollController,
+                  children: [
+                    if (tags.isNotEmpty) ...[
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: tags
+                            .map((t) => AppChip(label: t, type: ChipType.moss, fontSize: 10))
+                            .toList(),
                       ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showQuestionsSheet(List<Map<String, dynamic>> questions) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgOf(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.8,
-        maxChildSize: 0.92,
-        builder: (ctx, scrollController) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.ruleOf(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                      const SizedBox(height: 14),
+                    ],
+                    MonoText('患者画像 / 病例内容',
+                        fontSize: 11, color: AppColors.text3Of(context)),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceOf(context),
+                        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                      child: Text(
+                        profile.isNotEmpty ? profile : '暂无患者画像内容',
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.7,
+                          color: profile.isNotEmpty
+                              ? AppColors.textOf(context)
+                              : AppColors.text4Of(context),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Expanded(child: SerifText('AI 配套练习题', fontSize: 17)),
-                  const AppChip(label: 'AI', type: ChipType.moss),
-                ],
-              ),
-              const SizedBox(height: 4),
-              MonoText('依据本病例知识点生成，均附教材出处',
-                  fontSize: 11, color: AppColors.text3Of(context)),
-              Divider(height: 20, color: AppColors.ruleOf(context)),
-              Expanded(
-                child: questions.isEmpty
-                    ? const Center(
-                        child: MonoText('暂未生成题目',
-                            fontSize: 12, color: Colors.grey))
-                    : ListView(
-                        controller: scrollController,
-                        children: questions.asMap().entries.map((e) {
-                          final q = e.value;
-                          final options = (q['options'] as List<dynamic>?)
-                                  ?.cast<String>() ??
-                              [];
-                          final typeLabel = switch (q['type']) {
-                            'single' => '单选',
-                            'multi' => '多选',
-                            'short' => '简答',
-                            _ => '${q['type'] ?? '题'}',
-                          };
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: AppColors.surfaceOf(context),
-                              border: Border.all(
-                                  color: AppColors.surfaceEdgeOf(context)),
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 22,
-                                      height: 22,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.primaryOf(context),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: MonoText('${e.key + 1}',
-                                          fontSize: 10,
-                                          color:
-                                              AppColors.onPrimaryOf(context)),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    AppChip(label: typeLabel, fontSize: 10),
-                                    if ((q['knowledgeTag'] as String?)
-                                            ?.isNotEmpty ??
-                                        false)
-                                      Padding(
-                                        padding: const EdgeInsets.only(left: 6),
-                                        child: MonoText('${q['knowledgeTag']}',
-                                            fontSize: 10,
-                                            color: AppColors.text3Of(context)),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Text('${q['stem'] ?? ''}',
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.textOf(context),
-                                        height: 1.6)),
-                                if (options.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  ...options.map((o) => Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 2),
-                                        child: Text(o,
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color:
-                                                    AppColors.text2Of(context),
-                                                height: 1.5)),
-                                      )),
-                                ],
-                                const SizedBox(height: 8),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(10),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.mossTintOf(context),
-                                    borderRadius:
-                                        BorderRadius.circular(AppRadius.sm),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      MonoText('答案：${q['answer'] ?? ''}',
-                                          fontSize: 11,
-                                          color: AppColors.primaryOf(context)),
-                                      const SizedBox(height: 4),
-                                      Text('解析：${q['explanation'] ?? ''}',
-                                          style: TextStyle(
-                                              fontSize: 11.5,
-                                              color: AppColors.text2Of(context),
-                                              height: 1.5)),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
+              // 引用入口（与卡片上的「引用」一致，弹层内可直接操作）
+              AppPrimaryButton(
+                label: '引用到我的病例库',
+                fullWidth: true,
+                onPressed: () async {
+                  final ok = await AppFeedback.confirm(
+                    ctx,
+                    title: '引用病例',
+                    content:
+                        '引用后将生成独立副本到你的病例库，可基于副本设置班级变量。原病例后续修改不影响本副本。',
+                    confirmText: '引用',
+                  );
+                  if (!ok || !ctx.mounted) return;
+                  Navigator.of(ctx).pop();
+                  if (!mounted) return;
+                  final newId = await TeacherService().quoteCase(c.caseId!);
+                  if (!mounted) return;
+                  if (newId == null) {
+                    AppFeedback.error(context, '引用失败，请稍后重试');
+                    return;
+                  }
+                  AppFeedback.success(context, '已引用到我的病例库 · 病例 #$newId');
+                  // 引用后直接进入编辑模式：配置台按副本 ID 回填，可改可保存可发布
+                  context.pushNamed(RouteNames.spConfig, extra: {'caseId': newId});
+                },
               ),
             ],
           ),
@@ -473,7 +331,6 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
                                     author: c.author,
                                     hospital: c.hospital,
                                     grade: c.grade,
-                                    summary: c.summary,
                                     refs: c.refs,
                                     rating: c.rating.toStringAsFixed(1),
                                     version: c.versionStr,
@@ -545,191 +402,178 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
     required String author,
     required String hospital,
     required String grade,
-    required String summary,
     required int refs,
     required String rating,
     required String version,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        boxShadow: AppShadow.card(context),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          // —— 封面区域 ——
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: coverColor,
-              border: Border(bottom: BorderSide(color: coverBorderColor)),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(AppRadius.md),
-                topRight: Radius.circular(AppRadius.md),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => _openDetail(data),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          boxShadow: AppShadow.card(context),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            // —— 封面区域 ——
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: coverColor,
+                border: Border(bottom: BorderSide(color: coverBorderColor)),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(AppRadius.md),
+                  topRight: Radius.circular(AppRadius.md),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        MonoText(dept,
+                            fontSize: 10,
+                            color: deptColor,
+                            letterSpacing: 0.12),
+                        const SizedBox(height: 4),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontFamily: 'NotoSerifSC',
+                            fontFamilyFallback: [
+                              'Songti SC',
+                              'STSong',
+                              'Noto Serif CJK SC',
+                              'Source Han Serif SC'
+                            ],
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textOf(context),
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (official)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOf(context),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
+                      ),
+                      child: MonoText(
+                        '✓ 官方',
+                        fontSize: 10,
+                        color: AppColors.onPrimaryOf(context),
+                        letterSpacing: 0.04,
+                      ),
+                    ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            // —— 详情区域 ——
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
                     children: [
-                      MonoText(dept,
-                          fontSize: 10, color: deptColor, letterSpacing: 0.12),
-                      const SizedBox(height: 4),
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontFamily: 'NotoSerifSC',
-                          fontFamilyFallback: [
-                            'Songti SC',
-                            'STSong',
-                            'Noto Serif CJK SC',
-                            'Source Han Serif SC'
-                          ],
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textOf(context),
-                          height: 1.3,
+                      MonoText(author,
+                          fontSize: 11, color: AppColors.text3Of(context)),
+                      MonoText(' · $hospital',
+                          fontSize: 11, color: AppColors.text3Of(context)),
+                      MonoText(' · $grade',
+                          fontSize: 11, color: AppColors.text3Of(context)),
+                    ],
+                  ),
+                  // —— 知识点标签（老师设置的具体内容入口提示）——
+                  if (data.tags.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 4,
+                      runSpacing: 4,
+                      children: data.tags
+                          .take(3)
+                          .map((t) => AppChip(label: t,
+                              type: ChipType.moss, fontSize: 10))
+                          .toList(),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                    MonoText('点击卡片查看患者画像等病例内容',
+                        fontSize: 11, color: AppColors.text4Of(context)),
+                  ],
+                  const SizedBox(height: 10),
+                  const DottedDivider(),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          MonoText('引用 ',
+                              fontSize: 11, color: AppColors.text3Of(context)),
+                          MonoText('$refs',
+                              fontSize: 11,
+                              color: AppColors.textOf(context),
+                              weight: FontWeight.w600),
+                          const SizedBox(width: 12),
+                          MonoText('★ $rating',
+                              fontSize: 11, color: AppColors.amberOf(context)),
+                          const SizedBox(width: 12),
+                          MonoText(version,
+                              fontSize: 11, color: AppColors.text3Of(context)),
+                        ],
+                      ),
+                      Builder(
+                        builder: (btnCtx) => AppPrimaryButton(
+                          label: '引用',
+                          small: true,
+                          onPressed: () async {
+                            final ok = await AppFeedback.confirm(
+                              btnCtx,
+                              title: '引用病例',
+                              content:
+                                  '引用后将生成独立副本到你的病例库，可基于副本设置班级变量。原病例后续修改不影响本副本。',
+                              confirmText: '引用',
+                            );
+                            if (!ok || !btnCtx.mounted) return;
+                            if (data.caseId == null) {
+                              AppFeedback.error(btnCtx, '该病例暂不可引用');
+                              return;
+                            }
+                            final newId =
+                                await TeacherService().quoteCase(data.caseId!);
+                            if (!btnCtx.mounted) return;
+                            if (newId == null) {
+                              AppFeedback.error(btnCtx, '引用失败，请稍后重试');
+                              return;
+                            }
+                            AppFeedback.success(btnCtx, '已引用到我的病例库 · 病例 #$newId');
+                            // 引用后直接进入编辑模式：配置台按副本 ID 回填，可改可保存可发布
+                            btnCtx.pushNamed(RouteNames.spConfig,
+                                extra: {'caseId': newId});
+                          },
                         ),
                       ),
                     ],
                   ),
-                ),
-                if (official)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryOf(context),
-                      borderRadius: BorderRadius.circular(AppRadius.xs),
-                    ),
-                    child: MonoText(
-                      '✓ 官方',
-                      fontSize: 10,
-                      color: AppColors.onPrimaryOf(context),
-                      letterSpacing: 0.04,
-                    ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // —— 详情区域 ——
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    MonoText(author,
-                        fontSize: 11, color: AppColors.text3Of(context)),
-                    MonoText(' · $hospital',
-                        fontSize: 11, color: AppColors.text3Of(context)),
-                    MonoText(' · $grade',
-                        fontSize: 11, color: AppColors.text3Of(context)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(summary,
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.text2Of(context),
-                        height: 1.55)),
-                const SizedBox(height: 10),
-                const DottedDivider(),
-                const SizedBox(height: 8),
-                // —— AI 辅助入口（质检 / 生成练习题）——
-                Row(
-                  children: [
-                    Expanded(
-                      child: AppGhostButton(
-                        label: _qcLoadingId == data.caseId ? '质检中…' : 'AI 质检',
-                        icon: const Icon(Icons.fact_check_outlined, size: 14),
-                        small: true,
-                        fullWidth: true,
-                        onPressed: data.caseId == null
-                            ? null
-                            : (() => _qualityCheck(data)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: AppGhostButton(
-                        label: _pqLoadingId == data.caseId ? '生成中…' : 'AI 练习题',
-                        icon: const Icon(Icons.quiz_outlined, size: 14),
-                        small: true,
-                        fullWidth: true,
-                        onPressed: data.caseId == null
-                            ? null
-                            : (() => _practiceQuestions(data)),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        MonoText('引用 ',
-                            fontSize: 11, color: AppColors.text3Of(context)),
-                        MonoText('$refs',
-                            fontSize: 11,
-                            color: AppColors.textOf(context),
-                            weight: FontWeight.w600),
-                        const SizedBox(width: 12),
-                        MonoText('★ $rating',
-                            fontSize: 11, color: AppColors.amberOf(context)),
-                        const SizedBox(width: 12),
-                        MonoText(version,
-                            fontSize: 11, color: AppColors.text3Of(context)),
-                      ],
-                    ),
-                    Builder(
-                      builder: (btnCtx) => AppPrimaryButton(
-                        label: '引用',
-                        small: true,
-                        onPressed: () async {
-                          final ok = await AppFeedback.confirm(
-                            btnCtx,
-                            title: '引用病例',
-                            content:
-                                '引用后将生成独立副本到你的病例库，可基于副本设置班级变量。原病例后续修改不影响本副本。',
-                            confirmText: '引用',
-                          );
-                          if (!ok || !btnCtx.mounted) return;
-                          if (data.caseId == null) {
-                            AppFeedback.error(btnCtx, '该病例暂不可引用');
-                            return;
-                          }
-                          final newId =
-                              await TeacherService().quoteCase(data.caseId!);
-                          if (!btnCtx.mounted) return;
-                          if (newId == null) {
-                            AppFeedback.error(btnCtx, '引用失败，请稍后重试');
-                            return;
-                          }
-                          AppFeedback.success(btnCtx, '已引用到我的病例库 · 病例 #$newId');
-                          // 引用后直接进入编辑模式：配置台按副本 ID 回填，可改可保存可发布
-                          btnCtx.pushNamed(RouteNames.spConfig,
-                              extra: {'caseId': newId});
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -748,7 +592,7 @@ class _CaseData {
   final String author;
   final String hospital;
   final String grade;
-  final String summary;
+  final List<String> tags;
   final int refs;
   final double rating;
   final String versionStr;
@@ -765,7 +609,7 @@ class _CaseData {
     required this.author,
     required this.hospital,
     required this.grade,
-    required this.summary,
+    required this.tags,
     required this.refs,
     required this.rating,
     required this.versionStr,
@@ -781,6 +625,19 @@ class _CaseData {
       final String s => s,
       _ => '标准',
     };
+    final tagsRaw = json['knowledgeTags'];
+    final tags = switch (tagsRaw) {
+      final List l => l.map((e) => e.toString().trim()).where((t) => t.isNotEmpty).toList(),
+      final String s when s.isNotEmpty => s
+          .replaceAll('[', '')
+          .replaceAll(']', '')
+          .replaceAll('"', '')
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      _ => const <String>[],
+    };
     return _CaseData(
       caseId: (json['id'] as num?)?.toInt(),
       dept: (json['department'] as String?) ?? (json['dept'] as String?) ?? '',
@@ -794,7 +651,7 @@ class _CaseData {
           (json['creatorName'] as String?) ?? (json['author'] as String?) ?? '',
       hospital: json['hospital'] as String? ?? '',
       grade: json['grade'] as String? ?? '',
-      summary: json['summary'] as String? ?? '',
+      tags: tags,
       refs: ((json['referenceCount'] as num?) ?? (json['refs'] as num?))
               ?.toInt() ??
           0,

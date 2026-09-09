@@ -853,24 +853,12 @@ class TeacherService {
     return resp.data;
   }
 
-  /// AI 病例质检
-  Future<Map<String, dynamic>?> getQualityCheck(int caseId) async {
+  /// 病例广场公开详情（患者画像 + 知识点等）
+  Future<Map<String, dynamic>?> getMarketDetail(int id) async {
     if (_isMock) return null;
-    final resp = await _api.getQualityCheck(caseId);
+    final resp = await _api.getMarketDetail(id);
     if (!resp.isSuccess) {
-      log('getQualityCheck failed: ${resp.message}', name: 'teacher_service');
-      return null;
-    }
-    return resp.data;
-  }
-
-  /// AI 自动生成练习题
-  Future<Map<String, dynamic>?> getPracticeQuestions(int caseId) async {
-    if (_isMock) return null;
-    final resp = await _api.getPracticeQuestions(caseId);
-    if (!resp.isSuccess) {
-      log('getPracticeQuestions failed: ${resp.message}',
-          name: 'teacher_service');
+      log('getMarketDetail failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
     return resp.data;
@@ -936,6 +924,19 @@ class TeacherService {
       return null;
     }
     return resp.data;
+  }
+
+  /// 教材库科室列表（动态筛选用）
+  Future<List<String>> getTextbookLibraryDepartments() async {
+    if (_isMock) return const [];
+    final resp = await _api.getTextbookLibraryDepartments();
+    if (!resp.isSuccess || resp.data == null) return const [];
+    return resp.data!
+        .map((e) => e.toString().trim())
+        .where((d) => d.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
   }
 
   /// 下架教材
@@ -1014,18 +1015,57 @@ class TeacherService {
     return resp.data;
   }
 
-  /// 全部基础题库（含所有人的题目）
+  /// 全部基础题库（含所有人的题目，支持筛选 + 搜索）
   Future<Map<String, dynamic>?> getAllQuestions({
     int pageNum = 1,
     int pageSize = 20,
+    String? department,
+    String? knowledgeTag,
+    int? difficulty,
+    String? questionType,
+    String? keyword,
   }) async {
     if (_isMock) return null;
-    final resp = await _api.getAllQuestions(pageNum: pageNum, pageSize: pageSize);
+    final resp = await _api.getAllQuestions(
+      pageNum: pageNum,
+      pageSize: pageSize,
+      department: department,
+      knowledgeTag: knowledgeTag,
+      difficulty: difficulty,
+      questionType: questionType,
+      keyword: keyword,
+    );
     if (!resp.isSuccess) {
       log('getAllQuestions failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
     return resp.data;
+  }
+
+  /// 题库科室列表（筛选用）
+  Future<List<String>> getQuestionDepartments() async {
+    if (_isMock) return const [];
+    final resp = await _api.getQuestionDepartments();
+    if (!resp.isSuccess || resp.data == null) return const [];
+    return resp.data!
+        .map((e) => e.toString().trim())
+        .where((d) => d.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  /// 题库知识点列表（筛选用）
+  Future<List<String>> getQuestionKnowledgeTags() async {
+    if (_isMock) return const [];
+    final resp = await _api.getQuestionKnowledgeTags();
+    if (!resp.isSuccess || resp.data == null) return const [];
+    return resp.data!
+        .map((e) => e.toString().trim())
+        .where((d) => d.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
   }
 
   /// 题库公开详情（全部题库中查看他人题目）

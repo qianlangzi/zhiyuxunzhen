@@ -37,9 +37,11 @@ public interface TeacherQuestionService {
     PageResult<TeacherQuestionVO> myQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus);
 
     /**
-     * 全部题库列表（含所有人已录入题目；可按审核状态筛选）
+     * 全部题库列表（含所有人已录入题目；支持审核状态 / 科室 / 知识点 / 难度 / 题型筛选 + 关键字搜索）
      */
-    PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus);
+    PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus,
+                                               String department, String knowledgeTag, Integer difficulty,
+                                               String questionType, String keyword);
 
     /**
      * 我的题目详情

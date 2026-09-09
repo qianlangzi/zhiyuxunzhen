@@ -25,14 +25,164 @@ import 'image_search_screen.dart';
 /// 3. 顶部内嵌搜索框，支持模糊搜索（书名/作者/科室/出版社，服务端 like 模糊匹配）；
 /// 4. 标签只展示精简有用的前 2 个知识点，去掉无用冗余标签；
 /// 5. “去刷对应基础题”直接跳转到该教材对应科室+知识点的题目，而非总入口。
-class TextbookCenterScreen extends ConsumerStatefulWidget {
+class TextbookCenterScreen extends StatelessWidget {
   const TextbookCenterScreen({super.key});
 
   @override
-  ConsumerState<TextbookCenterScreen> createState() => _TextbookCenterScreenState();
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.bgOf(context),
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            AppBackAppBar(
+              title: '教材中心',
+              onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.studentHome),
+              action: PopupMenuButton<String>(
+                icon: Icon(Icons.cleaning_services_outlined, size: 20, color: AppColors.text2Of(context)),
+                tooltip: '缓存管理',
+                onSelected: (v) => TextbookCenterView.handleCacheAction(context, v),
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'info',
+                    child: Text('查看缓存', style: TextStyle(fontSize: 13)),
+                  ),
+                  const PopupMenuItem(
+                    value: 'clear',
+                    child: Text('清除电子书缓存', style: TextStyle(fontSize: 13)),
+                  ),
+                ],
+              ),
+            ),
+            const Expanded(child: TextbookCenterView()),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
+/// 教材列表分页拉取器：返回 PageResult 兼容 Map（data.list / data.total）。
+typedef TextbookPageFetcher = Future<Map<String, dynamic>?> Function({
+  required int pageNum,
+  required int pageSize,
+  String? department,
+  String? keyword,
+});
+
+/// 教材大厅可复用视图（搜索 + 科室筛选 + 封面卡片列表 + 详情/在线阅读/去刷题）。
+///
+/// 学生端「教材中心」与教师端「教材管理 · 教材库」共用此视图，保证两端
+/// 浏览体验一致；宿主自行提供 Scaffold / AppBar，本组件只负责主体内容。
+///
+/// 数据源可注入：学生端默认走 /api/v1/student/textbooks；教师端传入
+/// TeacherService 的教材库方法（/api/v1/teacher/textbooks/library，权限拦截
+/// 决定了教师无法调用学生端接口）。[showPracticeAction] 控制详情页
+/// 「去刷对应基础题」按钮——学生端作答链路对教师不可用，教师端关闭。
+class TextbookCenterView extends ConsumerStatefulWidget {
+  const TextbookCenterView({
+    super.key,
+    this.fetchPage,
+    this.fetchDepartments,
+    this.showPracticeAction = true,
+  });
+
+  /// 分页拉取教材（缺省 = 学生端教材中心接口）
+  final TextbookPageFetcher? fetchPage;
+
+  /// 拉取科室筛选项（缺省 = 学生端接口）
+  final Future<List<String>> Function()? fetchDepartments;
+
+  /// 教材详情是否展示「去刷对应基础题」（教师端无学生作答链路，传 false）
+  final bool showPracticeAction;
+
+  /// 缓存管理（查看 / 清除电子书缓存），供宿主 AppBar 菜单复用。
+  static Future<void> handleCacheAction(BuildContext context, String action) async {
+    if (action == 'info') {
+      final size = await EbookCache.cacheSizeFormatted;
+      final count = await EbookCache.cachedCount;
+      if (!context.mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceOf(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          title: Row(
+            children: [
+              Icon(Icons.storage_outlined, size: 20, color: AppColors.primaryOf(context)),
+              const SizedBox(width: 8),
+              const Text('电子书缓存', style: TextStyle(fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _cacheInfoRow(ctx, '已缓存教材', '$count 本'),
+              const SizedBox(height: 8),
+              _cacheInfoRow(ctx, '占用空间', size),
+              const SizedBox(height: 8),
+              Text('缓存文件存储在临时目录，系统或应用清理时可能被清除',
+                  style: TextStyle(fontSize: 11, color: AppColors.text3Of(context))),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text('知道了', style: TextStyle(color: AppColors.primaryOf(context))),
+            ),
+          ],
+        ),
+      );
+    } else if (action == 'clear') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.surfaceOf(context),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
+          title: const Text('清除缓存？', style: TextStyle(fontSize: 16)),
+          content: Text('将删除所有已下载的电子书离线文件，下次打开需重新下载。',
+              style: TextStyle(fontSize: 13, color: AppColors.text2Of(context))),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text('取消', style: TextStyle(color: AppColors.text2Of(context))),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text('确认清除', style: TextStyle(color: AppColors.vermilionOf(context))),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+      final freed = await EbookCache.clearCache();
+      if (!context.mounted) return;
+      if (freed >= 0) {
+        final mb = (freed / (1024 * 1024)).toStringAsFixed(1);
+        AppFeedback.success(context, '已释放 $mb MB 空间');
+      } else {
+        AppFeedback.error(context, '清除失败，请重试');
+      }
+    }
+  }
+
+  static Widget _cacheInfoRow(BuildContext context, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: AppColors.text2Of(context))),
+        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      ],
+    );
+  }
+
+  @override
+  ConsumerState<TextbookCenterView> createState() => _TextbookCenterViewState();
+}
+
+class _TextbookCenterViewState extends ConsumerState<TextbookCenterView> {
   static const _fallbackFilters = ['全部', '基础医学', '综合', '心血管内科', '呼吸内科'];
   static const int _pageSize = 20;
 
@@ -83,7 +233,9 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
   }
 
   Future<void> _loadDepartments() async {
-    final depts = await StudentService().getTextbookDepartments();
+    final depts = widget.fetchDepartments != null
+        ? await widget.fetchDepartments!()
+        : await StudentService().getTextbookDepartments();
     if (!mounted) return;
     final list = (depts ?? const []).cast<String>()
         .where((e) => e.trim().isNotEmpty)
@@ -156,87 +308,6 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
     _debounce?.cancel();
     _query = '';
     _load(reset: true);
-  }
-
-  /// 缓存管理操作
-  Future<void> _handleCacheAction(String action) async {
-    if (action == 'info') {
-      final size = await EbookCache.cacheSizeFormatted;
-      final count = await EbookCache.cachedCount;
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.surfaceOf(context),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: Row(
-            children: [
-              Icon(Icons.storage_outlined, size: 20, color: AppColors.primaryOf(context)),
-              const SizedBox(width: 8),
-              const Text('电子书缓存', style: TextStyle(fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _cacheInfoRow('已缓存教材', '$count 本'),
-              const SizedBox(height: 8),
-              _cacheInfoRow('占用空间', size),
-              const SizedBox(height: 8),
-              Text('缓存文件存储在临时目录，系统或应用清理时可能被清除',
-                  style: TextStyle(fontSize: 11, color: AppColors.text3Of(context))),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('知道了', style: TextStyle(color: AppColors.primaryOf(context))),
-            ),
-          ],
-        ),
-      );
-    } else if (action == 'clear') {
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.surfaceOf(context),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: const Text('清除缓存？', style: TextStyle(fontSize: 16)),
-          content: Text('将删除所有已下载的电子书离线文件，下次打开需重新下载。',
-              style: TextStyle(fontSize: 13, color: AppColors.text2Of(context))),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: Text('取消', style: TextStyle(color: AppColors.text2Of(context))),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: Text('确认清除', style: TextStyle(color: AppColors.vermilionOf(context))),
-            ),
-          ],
-        ),
-      );
-      if (confirm != true) return;
-      final freed = await EbookCache.clearCache();
-      if (!mounted) return;
-      if (freed >= 0) {
-        final mb = (freed / (1024 * 1024)).toStringAsFixed(1);
-        AppFeedback.success(context, '已释放 $mb MB 空间');
-      } else {
-        AppFeedback.error(context, '清除失败，请重试');
-      }
-    }
-  }
-
-  Widget _cacheInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(fontSize: 13, color: AppColors.text2Of(context))),
-        Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-      ],
-    );
   }
 
   void _openEbook(Map<String, dynamic> tb) {
@@ -353,14 +424,15 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
                     ),
                     const SizedBox(width: 8),
                   ],
-                  AppPrimaryButton(
-                    label: '去刷对应基础题',
-                    small: true,
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                      _openPractice(tb);
-                    },
-                  ),
+                  if (widget.showPracticeAction)
+                    AppPrimaryButton(
+                      label: '去刷对应基础题',
+                      small: true,
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _openPractice(tb);
+                      },
+                    ),
                 ],
               ),
             ],
@@ -372,46 +444,21 @@ class _TextbookCenterScreenState extends ConsumerState<TextbookCenterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgOf(context),
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            AppBackAppBar(
-              title: '教材中心',
-              onBack: () => context.canPop() ? context.pop() : context.goNamed(RouteNames.studentHome),
-              action: PopupMenuButton<String>(
-                icon: Icon(Icons.cleaning_services_outlined, size: 20, color: AppColors.text2Of(context)),
-                tooltip: '缓存管理',
-                onSelected: (v) => _handleCacheAction(v),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(
-                    value: 'info',
-                    child: Text('查看缓存', style: TextStyle(fontSize: 13)),
-                  ),
-                  const PopupMenuItem(
-                    value: 'clear',
-                    child: Text('清除电子书缓存', style: TextStyle(fontSize: 13)),
-                  ),
-                ],
-              ),
-            ),
-            _buildSearchBar(),
-            _buildFilterBar(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : RefreshIndicator(
-                      onRefresh: () => _load(reset: true),
-                      child: _textbooks.isEmpty
-                          ? _buildEmpty()
-                          : _buildList(),
-                    ),
-            ),
-          ],
+    return Column(
+      children: [
+        _buildSearchBar(),
+        _buildFilterBar(),
+        Expanded(
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: () => _load(reset: true),
+                  child: _textbooks.isEmpty
+                      ? _buildEmpty()
+                      : _buildList(),
+                ),
         ),
-      ),
+      ],
     );
   }
 

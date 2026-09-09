@@ -268,14 +268,18 @@ class _LegalSection extends StatelessWidget {
             children: [
               const EyebrowText('免责声明'),
               const SizedBox(height: 6),
-        Text(
-                '本应用提供的内容仅供医学思维训练使用，不具备真实临床诊疗效力，'
-                '不能替代临床医师诊疗。真实患者信息不作为训练内容，AI 不提供'
-                '真实患者诊疗建议、药物处方。训练数据仅用于教学评估。',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.7,
-                  color: AppColors.text3Of(context),
+        SizedBox(
+                width: double.infinity,
+                child: Text(
+                  '本应用提供的内容仅供医学思维训练使用，不具备真实临床诊疗效力，'
+                  '不能替代临床医师诊疗。真实患者信息不作为训练内容，AI 不提供'
+                  '真实患者诊疗建议、药物处方。训练数据仅用于教学评估。',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    height: 1.7,
+                    color: AppColors.text3Of(context),
+                  ),
                 ),
               ),
             ],

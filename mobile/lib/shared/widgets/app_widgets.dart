@@ -1230,15 +1230,20 @@ const   MedicalDisclaimer({super.key});
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 4),
-      child: Text(
-        AppConstants.medicalDisclaimer,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: 10.5,
-          color: AppColors.text3Of(context),
-          height: 1.5,
-          fontFamily: 'JetBrainsMono',
-          fontFamilyFallback: kCjkMonoFallback,
+      // 撑满整行宽度，配合 textAlign 才能真正水平居中
+      //（否则 Text 只包住内容宽，被外层 Column 左对齐）
+      child: SizedBox(
+        width: double.infinity,
+        child: Text(
+          AppConstants.medicalDisclaimer,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 10.5,
+            color: AppColors.text3Of(context),
+            height: 1.5,
+            fontFamily: 'JetBrainsMono',
+            fontFamilyFallback: kCjkMonoFallback,
+          ),
         ),
       ),
     );

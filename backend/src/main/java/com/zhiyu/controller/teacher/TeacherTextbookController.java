@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -118,6 +119,12 @@ public class TeacherTextbookController {
             @RequestParam(required = false) String department,
             @RequestParam(required = false) String keyword) {
         return R.ok(textbookService.page(pageNum, pageSize, department, keyword));
+    }
+
+    @Operation(summary = "教材库科室列表（与学生端教材中心同源，供动态筛选）")
+    @GetMapping("/library/departments")
+    public R<List<String>> libraryDepartments() {
+        return R.ok(textbookService.departments());
     }
 
     @Operation(summary = "下架教材")

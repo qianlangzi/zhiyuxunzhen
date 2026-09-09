@@ -76,6 +76,40 @@
 html.dark {
   color-scheme: dark;
 
+  /* 品牌主色系（暗色版）：element-plus 的 dark/css-vars.css 会把主色重定义回
+     默认蓝/浅绿，必须在这里覆盖回品牌色，否则暗色模式下按钮忽蓝忽绿 */
+  --el-color-primary: #3d8fa3;
+  --el-color-primary-light-3: #356f7f;
+  --el-color-primary-light-5: #2b5865;
+  --el-color-primary-light-7: #223f48;
+  --el-color-primary-light-8: #1c333a;
+  --el-color-primary-light-9: #16262b;
+  --el-color-primary-dark-2: #5aa9bd;
+
+  --el-color-success: #2e9c6e;
+  --el-color-success-light-3: #27805a;
+  --el-color-success-light-5: #1f6446;
+  --el-color-success-light-7: #174732;
+  --el-color-success-light-8: #123627;
+  --el-color-success-light-9: #0d261c;
+  --el-color-success-dark-2: #48b988;
+
+  --el-color-warning: #d29155;
+  --el-color-warning-light-3: #a8764a;
+  --el-color-warning-light-5: #855c3d;
+  --el-color-warning-light-7: #5f4130;
+  --el-color-warning-light-8: #483225;
+  --el-color-warning-light-9: #32231b;
+  --el-color-warning-dark-2: #e0a869;
+
+  --el-color-danger: #d6564f;
+  --el-color-danger-light-3: #ab4741;
+  --el-color-danger-light-5: #883934;
+  --el-color-danger-light-7: #602825;
+  --el-color-danger-light-8: #471e1c;
+  --el-color-danger-light-9: #301413;
+  --el-color-danger-dark-2: #e57670;
+
   --adm-content-bg: #0d1518;
   --adm-card-bg: #131f24;
   --adm-card-line: rgba(255, 255, 255, 0.09);
@@ -148,10 +182,17 @@ html.dark .adm-card:hover {
   padding: 18px;
 }
 
-/* 页面骨架：所有业务页复用 */
+/* 页面骨架：所有业务页复用。
+   minmax(0,1fr) 锁死列宽上限为容器宽度：表格/宽内容会在卡片内部滚动，
+   而不是把整页撑出横向滚动条 */
 .admin-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+}
+
+.admin-page > * {
+  min-width: 0;
 }
 
 .admin-page-head {
@@ -188,12 +229,53 @@ html.dark .adm-card:hover {
   font-weight: 500;
 }
 
+/* 实心彩色按钮：文字强制白色 + 600 字重。
+   500 字重在深底上经 Windows 亚像素抗锯齿会视觉发灰，加粗后清晰 */
+.el-button--primary:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--success:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--warning:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--danger:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--info:not(.is-plain):not(.is-link):not(.is-text) {
+  --el-button-text-color: #ffffff;
+  --el-button-hover-text-color: #ffffff;
+  --el-button-active-text-color: #ffffff;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.el-button--primary:not(.is-plain):not(.is-link):not(.is-text):hover,
+.el-button--primary:not(.is-plain):not(.is-link):not(.is-text):focus,
+.el-button--success:not(.is-plain):not(.is-link):not(.is-text):hover,
+.el-button--success:not(.is-plain):not(.is-link):not(.is-text):focus,
+.el-button--warning:not(.is-plain):not(.is-link):not(.is-text):hover,
+.el-button--warning:not(.is-plain):not(.is-link):not(.is-text):focus,
+.el-button--danger:not(.is-plain):not(.is-link):not(.is-text):hover,
+.el-button--danger:not(.is-plain):not(.is-link):not(.is-text):focus,
+.el-button--info:not(.is-plain):not(.is-link):not(.is-text):hover,
+.el-button--info:not(.is-plain):not(.is-link):not(.is-text):focus {
+  color: #ffffff;
+}
+
+/* disabled 实心按钮：默认是浅色底(light-5)+半透明白字，浅底白字几乎看不见。
+   改为深色底(dark-2)+不透明白字，看不清的重灾区 */
+.el-button--primary.is-disabled:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--success.is-disabled:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--warning.is-disabled:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--danger.is-disabled:not(.is-plain):not(.is-link):not(.is-text),
+.el-button--info.is-disabled:not(.is-plain):not(.is-link):not(.is-text) {
+  --el-button-disabled-bg-color: var(--el-color-primary-dark-2);
+  --el-button-disabled-border-color: transparent;
+  --el-button-disabled-text-color: rgba(255, 255, 255, 0.85);
+  background: var(--el-color-primary-dark-2);
+  color: rgba(255, 255, 255, 0.85);
+}
+
 /* plain 按钮的 hover/active：把边框+背景色都加深，确保浅底深字场景清晰可读 */
 .el-button.is-plain:hover,
 .el-button.is-plain:focus {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
-  background: #fff;
+  background: var(--adm-card-bg, #fff);
 }
 
 .el-button.is-plain.el-button--success:hover,

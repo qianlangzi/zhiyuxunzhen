@@ -146,7 +146,7 @@ onMounted(loadList)
         <template #empty>
           <div class="empty-tip">暂无题库记录</div>
         </template>
-        <el-table-column prop="questionType" label="题型" width="100" />
+        <el-table-column prop="questionType" label="题型" width="116" show-overflow-tooltip />
         <el-table-column prop="department" label="科室" width="140" />
         <el-table-column prop="knowledgeTag" label="知识点" width="160">
           <template #default="{ row }">

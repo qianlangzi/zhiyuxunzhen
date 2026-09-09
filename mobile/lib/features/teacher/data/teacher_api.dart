@@ -570,12 +570,11 @@ class TeacherApi {
     }
   }
 
-  /// AI 病例质检
-  Future<ApiResponse<Map<String, dynamic>>> getQualityCheck(int caseId) async {
+  /// 病例广场公开详情（患者画像 + 知识点等，教师点击卡片查看）
+  Future<ApiResponse<Map<String, dynamic>>> getMarketDetail(int id) async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
-        '/api/v1/teacher/ai/quality-check/$caseId',
-        options: _aiOptions,
+        '/api/v1/case-market/$id',
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {
@@ -583,19 +582,7 @@ class TeacherApi {
     }
   }
 
-  /// AI 自动生成练习题
-  Future<ApiResponse<Map<String, dynamic>>> getPracticeQuestions(
-      int caseId) async {
-    try {
-      final resp = await _dio.get<Map<String, dynamic>>(
-        '/api/v1/teacher/ai/practice-questions/$caseId',
-        options: _aiOptions,
-      );
-      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
-    } on DioException catch (e) {
-      return ApiResponse(code: -1, message: _mapError(e));
-    }
-  }
+  /// 引用病例到我的病例库（后端复制为独立副本，返回新病例 ID）
 
   // ========= 学情诊断报告 =========
 
@@ -721,6 +708,17 @@ class TeacherApi {
     }
   }
 
+  /// 教材库科室列表（与学生端教材中心同源，供教材库动态筛选）
+  Future<ApiResponse<List<dynamic>>> getTextbookLibraryDepartments() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/teacher/textbooks/library/departments');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 下架教材
   Future<ApiResponse<void>> deleteTextbook(int id) async {
     try {
@@ -803,17 +801,56 @@ class TeacherApi {
     }
   }
 
-  /// 全部基础题库（含所有人的题目）
+  /// 全部基础题库（含所有人的题目，支持科室/知识点/难度/题型筛选 + 关键字搜索）
   Future<ApiResponse<Map<String, dynamic>>> getAllQuestions({
     int pageNum = 1,
     int pageSize = 20,
+    String? department,
+    String? knowledgeTag,
+    int? difficulty,
+    String? questionType,
+    String? keyword,
   }) async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/questions/all',
-        queryParameters: {'pageNum': pageNum, 'pageSize': pageSize},
+        queryParameters: {
+          'pageNum': pageNum,
+          'pageSize': pageSize,
+          if (department != null && department.isNotEmpty)
+            'department': department,
+          if (knowledgeTag != null && knowledgeTag.isNotEmpty)
+            'knowledgeTag': knowledgeTag,
+          if (difficulty != null) 'difficulty': difficulty,
+          if (questionType != null && questionType.isNotEmpty)
+            'questionType': questionType,
+          if (keyword != null && keyword.trim().isNotEmpty)
+            'keyword': keyword.trim(),
+        },
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 题库科室列表（与学生端同源，供全部题库筛选项）
+  Future<ApiResponse<List<dynamic>>> getQuestionDepartments() async {
+    try {
+      final resp = await _dio
+          .get<Map<String, dynamic>>('/api/v1/teacher/questions/departments');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 题库知识点列表（与学生端同源，供全部题库筛选项）
+  Future<ApiResponse<List<dynamic>>> getQuestionKnowledgeTags() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+          '/api/v1/teacher/questions/knowledge-tags');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>);
     } on DioException catch (e) {
       return ApiResponse(code: -1, message: _mapError(e));
     }

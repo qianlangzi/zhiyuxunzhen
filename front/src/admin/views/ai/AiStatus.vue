@@ -492,15 +492,22 @@ onMounted(() => {
   gap: 16px;
 }
 
+/* 本页多数卡片不带内部 padding class，统一给呼吸空间，避免内容贴着盒子边框 */
 .surface-card {
+  padding: 16px 18px;
   margin-bottom: 14px;
+}
+
+/* 提示条类自带布局，去掉重复 padding，由各自规则控制 */
+.surface-card.offline-tip,
+.surface-card.baseline-banner {
+  padding: 14px 16px;
 }
 
 .offline-tip {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 16px;
 }
 
 .offline-icon {
@@ -530,7 +537,7 @@ onMounted(() => {
 }
 
 .health-card {
-  padding: 16px;
+  /* padding 继承 .surface-card 的 16px 18px */
 }
 
 .health-grid {
@@ -679,8 +686,8 @@ onMounted(() => {
 .src-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 12px 14px;
   border: 1px solid var(--zy-line);
   border-radius: 12px;
 }
@@ -711,7 +718,7 @@ onMounted(() => {
 
 /* 最近模型事件 */
 .events-card {
-  padding: 16px;
+  /* padding 继承 .surface-card 的 16px 18px */
 }
 
 .events-head {

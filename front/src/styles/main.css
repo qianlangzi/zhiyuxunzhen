@@ -188,6 +188,15 @@ li {
   font-weight: 700;
 }
 
+/* 断根修复：.admin-page-head span / .zy-page-head span 等页头小字规则
+   会命中 Element Plus 按钮的内层 <span>，把按钮文字染成 muted 灰
+   （深底按钮灰字灾难的根因）。按钮内 span 一律继承按钮自身颜色。
+   !important 防御 dev HMR / 生产构建下的样式顺序漂移 */
+.zy-button span,
+.el-button span {
+  color: inherit !important;
+}
+
 .el-button:not(.is-disabled) {
   transition: box-shadow 160ms ease-out, transform 160ms ease-out, background 160ms ease-out, color 160ms ease-out;
 }

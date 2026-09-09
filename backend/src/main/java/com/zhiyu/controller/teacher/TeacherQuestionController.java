@@ -2,6 +2,7 @@ package com.zhiyu.controller.teacher;
 
 import com.zhiyu.common.R;
 import com.zhiyu.common.result.PageResult;
+import com.zhiyu.service.PracticeQuestionService;
 import com.zhiyu.service.TeacherQuestionService;
 import com.zhiyu.service.dto.TeacherQuestionCreateDTO;
 import com.zhiyu.vo.TeacherQuestionVO;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
  * 教师端-基础题库录入（提交管理端审核）
  */
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class TeacherQuestionController {
 
     private final TeacherQuestionService teacherQuestionService;
+    private final PracticeQuestionService practiceQuestionService;
 
     @Operation(summary = "创建基础题（草稿）")
     @PostMapping
@@ -66,13 +70,31 @@ public class TeacherQuestionController {
         return R.ok(teacherQuestionService.myQuestions(pageNum, pageSize, adminAuditStatus));
     }
 
-    @Operation(summary = "全部基础题库（含所有人的题目，可按审核状态筛选）")
+    @Operation(summary = "全部基础题库（含所有人的题目，支持审核状态/科室/知识点/难度/题型筛选 + 关键字搜索）")
     @GetMapping("/all")
     public R<PageResult<TeacherQuestionVO>> allList(
             @RequestParam(defaultValue = "1") Integer pageNum,
             @RequestParam(defaultValue = "10") Integer pageSize,
-            @RequestParam(required = false) Integer adminAuditStatus) {
-        return R.ok(teacherQuestionService.allQuestions(pageNum, pageSize, adminAuditStatus));
+            @RequestParam(required = false) Integer adminAuditStatus,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String knowledgeTag,
+            @RequestParam(required = false) Integer difficulty,
+            @RequestParam(required = false) String questionType,
+            @RequestParam(required = false) String keyword) {
+        return R.ok(teacherQuestionService.allQuestions(pageNum, pageSize, adminAuditStatus,
+                department, knowledgeTag, difficulty, questionType, keyword));
+    }
+
+    @Operation(summary = "题库科室列表（与学生端同源，带进程内缓存）")
+    @GetMapping("/departments")
+    public R<List<String>> departments() {
+        return R.ok(practiceQuestionService.departments());
+    }
+
+    @Operation(summary = "题库知识点列表（与学生端同源，带进程内缓存）")
+    @GetMapping("/knowledge-tags")
+    public R<List<String>> knowledgeTags() {
+        return R.ok(practiceQuestionService.knowledgeTags());
     }
 
     @Operation(summary = "题库公开详情（全部题库中查看他人题目）")

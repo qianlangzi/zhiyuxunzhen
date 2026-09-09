@@ -8,9 +8,14 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/network/page_parser.dart';
+import '../../student/textbook/textbook_center_screen.dart';
 import '../data/teacher_service.dart';
 
-/// 教师端 · 教材管理（上传电子书 + 我的教材）
+/// 教师端 · 教材管理（上传电子书 + 我的教材 + 教材库）
+///
+/// 「教材库」Tab 与学生端教材中心共用 [TextbookCenterView]（封面 / 搜索 /
+/// 科室筛选 / 在线阅读完全一致），数据源注入教师自己的
+/// /api/v1/teacher/textbooks/library 接口（权限拦截决定教师不能调学生端接口）。
 class TeacherTextbookScreen extends ConsumerStatefulWidget {
   const TeacherTextbookScreen({super.key});
 
@@ -21,7 +26,7 @@ class TeacherTextbookScreen extends ConsumerStatefulWidget {
 class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
   List<Map<String, dynamic>> _list = [];
   bool _isLoading = true;
-  /// 0=我的教材（自己上传，可下架） 1=教材库（平台全部已上架教材，含他人上传）
+  /// 0=我的教材（自己上传，可下架） 1=教材库（平台全部已上架教材，与学生端一致）
   int _scope = 0;
 
   @override
@@ -31,9 +36,7 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
   }
 
   Future<void> _load() async {
-    final data = _scope == 0
-        ? await TeacherService().getMyTextbooks(pageSize: 50)
-        : await TeacherService().getTextbookLibrary(pageSize: 100);
+    final data = await TeacherService().getMyTextbooks(pageSize: 50);
     if (!mounted) return;
     setState(() {
       // 后端 PageResult 字段是 list，统一走 PageParser 兼容解析
@@ -44,11 +47,7 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
 
   void _switchScope(int scope) {
     if (_scope == scope) return;
-    setState(() {
-      _scope = scope;
-      _isLoading = true;
-    });
-    _load();
+    setState(() => _scope = scope);
   }
 
   Future<void> _delete(int id) async {
@@ -88,35 +87,57 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
                   : null,
             ),
             _buildScopeBar(context),
+            // IndexedStack 保持两个 Tab 的状态：教材库浏览位置 / 我的教材列表不因切换丢失
             Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : _list.isEmpty
-                      ? _buildEmpty(context)
-                      : RefreshIndicator(
-                          onRefresh: _load,
-                          child: ListView.separated(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                            itemCount: _list.length,
-                            separatorBuilder: (_, __) => const SizedBox(height: 10),
-                            itemBuilder: (context, i) => _TextbookRow(
-                              item: _list[i],
-                              showMineBadge: _scope == 1,
-                              onDelete: _scope == 0
-                                  ? () {
-                                      final id = (_list[i]['id'] as num?)?.toInt();
-                                      if (id != null) _delete(id);
-                                    }
-                                  : null,
-                            ),
-                          ),
-                        ),
+              child: IndexedStack(
+                index: _scope,
+                children: [
+                  _buildMineList(),
+                  TextbookCenterView(
+                    fetchPage: ({required int pageNum, required int pageSize,
+                        String? department, String? keyword}) =>
+                        TeacherService().getTextbookLibrary(
+                      pageNum: pageNum,
+                      pageSize: pageSize,
+                      department: department,
+                      keyword: keyword,
+                    ),
+                    fetchDepartments: () =>
+                        TeacherService().getTextbookLibraryDepartments(),
+                    // 学生端作答链路对教师不可用，教师端详情不展示「去刷对应基础题」
+                    showPracticeAction: false,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 我的教材列表（Tab 0）
+  Widget _buildMineList() {
+    return _isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : _list.isEmpty
+            ? _buildEmpty(context)
+            : RefreshIndicator(
+                onRefresh: _load,
+                child: ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                  itemCount: _list.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) => _TextbookRow(
+                    item: _list[i],
+                    onDelete: () {
+                      final id = (_list[i]['id'] as num?)?.toInt();
+                      if (id != null) _delete(id);
+                    },
+                  ),
+                ),
+              );
   }
 
   /// 双 Tab：我的教材 / 教材库
@@ -201,17 +222,13 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
 class _TextbookRow extends StatelessWidget {
   const _TextbookRow({
     required this.item,
-    this.showMineBadge = false,
     this.onDelete,
   });
   final Map<String, dynamic> item;
-  /// 教材库视图下标注「我上传的」
-  final bool showMineBadge;
   final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final mine = item['mine'] == true;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -243,19 +260,6 @@ class _TextbookRow extends StatelessWidget {
                       child: SerifText(item['title'] as String? ?? '未命名',
                           fontSize: 14),
                     ),
-                    if (showMineBadge && mine)
-                      Container(
-                        margin: const EdgeInsets.only(left: 6),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.mossTintOf(context),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                        child: MonoText('我上传的',
-                            fontSize: 9,
-                            color: AppColors.primaryOf(context)),
-                      ),
                   ],
                 ),
                 const SizedBox(height: 4),

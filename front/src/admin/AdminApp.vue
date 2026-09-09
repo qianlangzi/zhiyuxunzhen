@@ -366,25 +366,33 @@ async function toggleFullscreen(): Promise<void> {
   position: relative;
 }
 
-/* 二级菜单容器：用更浅一档背景区分，营造层级 */
-.adm-menu :deep(.el-menu .el-menu) {
+/* ---------- 二级菜单（inline 展开）---------- */
+/* 注意：inline 子菜单自身就是一个 .el-menu（单层），必须直接命中 .el-menu--inline，
+   否则露出 Element Plus 默认白底，浅色文字会看不清 */
+.adm-menu :deep(.el-menu--inline) {
   padding: 4px 0 6px;
-  background: rgba(0, 0, 0, 0.18);
-  border-radius: 10px;
   margin: 0 12px 6px;
+  border-radius: 10px;
+  background-color: rgba(0, 0, 0, 0.22) !important;
 }
 
-/* 二级菜单项：缩进 + 左侧细线指示 */
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item) {
+/* 二级菜单项：缩进 + 圆点指示。字色比一级更亮，保证深底上突出 */
+.adm-menu :deep(.el-menu--inline .el-menu-item) {
   position: relative;
   height: 38px;
   margin: 1px 6px;
   padding-left: 42px !important;
   font-size: 13px;
   border-radius: 6px;
+  color: rgba(226, 240, 243, 0.8);
 }
 
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item)::before {
+.adm-menu :deep(.el-menu--inline .el-menu-item:hover) {
+  background: var(--adm-sidebar-hover);
+  color: #ffffff;
+}
+
+.adm-menu :deep(.el-menu--inline .el-menu-item)::before {
   content: '';
   position: absolute;
   left: 22px;
@@ -394,24 +402,22 @@ async function toggleFullscreen(): Promise<void> {
   height: 6px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.35;
+  opacity: 0.4;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
-/* 二级菜单 hover：圆点变实心放大 */
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item:hover)::before {
-  opacity: 0.7;
+.adm-menu :deep(.el-menu--inline .el-menu-item:hover)::before {
+  opacity: 0.75;
   transform: translateY(-50%) scale(1.15);
 }
 
-/* 二级菜单激活态：圆点变成实心高亮 */
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item.is-active) {
+.adm-menu :deep(.el-menu--inline .el-menu-item.is-active) {
   background: var(--adm-sidebar-active);
   color: var(--adm-sidebar-active-ink);
   font-weight: 600;
 }
 
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item.is-active)::before {
+.adm-menu :deep(.el-menu--inline .el-menu-item.is-active)::before {
   opacity: 1;
   background: var(--adm-sidebar-active-ink);
   transform: translateY(-50%) scale(1.25);
