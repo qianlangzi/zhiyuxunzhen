@@ -29,9 +29,11 @@ export default defineConfig(({ mode }) => {
           // 不 rewrite：后端 Controller 路径含 /api/v1 前缀（context-path=/），
           // 保留 /api 原样转发，否则 /api/v1/auth/login 会变成 /v1/auth/login 导致 404
         },
-        '/ai': {
+        '/ai/': {
           target: env.VITE_AI_BASE || 'http://ai:8000',
           changeOrigin: true,
+          // 不带尾斜杠的 /ai 前缀会误伤管理端路由 /ai-config/*（直接刷新时被代理到 AI 中台 404），
+          // 所以 key 必须写成 '/ai/'：/ai/config/status 仍命中，/ai-config/status 不再误伤
           rewrite: (path) => path.replace(/^\/ai/, '')
         }
       }
