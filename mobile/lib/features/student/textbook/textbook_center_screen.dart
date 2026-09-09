@@ -257,12 +257,22 @@ class _TextbookCenterViewState extends ConsumerState<TextbookCenterView> {
     } else {
       setState(() => _loadingMore = true);
     }
-    final data = await StudentService().getTextbooks(
-      pageNum: _pageNum,
-      pageSize: _pageSize,
-      department: _filterKeyword,
-      keyword: _query.trim().isEmpty ? null : _query.trim(),
-    );
+    // 数据源可注入：学生端默认走 /api/v1/student/textbooks；教师端教材库 Tab
+    // 注入 TeacherService 的 /teacher/textbooks/library。此前这里写死了学生端
+    // 接口，教师 token 被权限拦截导致教师端教材库恒为空——必须优先用注入源。
+    final data = widget.fetchPage != null
+        ? await widget.fetchPage!(
+            pageNum: _pageNum,
+            pageSize: _pageSize,
+            department: _filterKeyword,
+            keyword: _query.trim().isEmpty ? null : _query.trim(),
+          )
+        : await StudentService().getTextbooks(
+            pageNum: _pageNum,
+            pageSize: _pageSize,
+            department: _filterKeyword,
+            keyword: _query.trim().isEmpty ? null : _query.trim(),
+          );
     if (!mounted) return;
     final list = (data?['list'] as List<dynamic>?)
             ?.cast<Map<String, dynamic>>() ??

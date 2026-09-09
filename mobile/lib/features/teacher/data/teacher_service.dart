@@ -1024,6 +1024,7 @@ class TeacherService {
     int? difficulty,
     String? questionType,
     String? keyword,
+    String order = 'desc',
   }) async {
     if (_isMock) return null;
     final resp = await _api.getAllQuestions(
@@ -1034,6 +1035,7 @@ class TeacherService {
       difficulty: difficulty,
       questionType: questionType,
       keyword: keyword,
+      order: order,
     );
     if (!resp.isSuccess) {
       log('getAllQuestions failed: ${resp.message}', name: 'teacher_service');
@@ -1085,6 +1087,18 @@ class TeacherService {
     final resp = await _api.getQuestionDetail(id);
     if (!resp.isSuccess) {
       log('getQuestionDetail failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 题库公开详情（全部题库中查看他人题目）
+  Future<Map<String, dynamic>?> getPublicQuestionDetail(int id) async {
+    if (_isMock) return null;
+    final resp = await _api.getPublicQuestion(id);
+    if (!resp.isSuccess) {
+      log('getPublicQuestionDetail failed: ${resp.message}',
+          name: 'teacher_service');
       return null;
     }
     return resp.data;

@@ -36,6 +36,7 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
 
     private final PracticeQuestionMapper questionMapper;
     private final TextbookMapper textbookMapper;
+    private final com.zhiyu.mapper.SysUserMapper sysUserMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -110,15 +111,16 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
     public PageResult<TeacherQuestionVO> myQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus) {
         Long teacherId = UserContext.requireUserId();
         return query(pageNum, pageSize, adminAuditStatus, true, teacherId,
-                null, null, null, null, null);
+                null, null, null, null, null, false);
     }
 
     @Override
     public PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus,
                                                       String department, String knowledgeTag, Integer difficulty,
-                                                      String questionType, String keyword) {
+                                                      String questionType, String keyword, String order) {
         return query(pageNum, pageSize, adminAuditStatus, false, null,
-                department, knowledgeTag, difficulty, questionType, keyword);
+                department, knowledgeTag, difficulty, questionType, keyword,
+                "asc".equalsIgnoreCase(order));
     }
 
     /**
@@ -126,11 +128,12 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
      *
      * @param onlyMine  是否仅查本人创建的题目
      * @param teacherId 仅本人时当前教师 id
+     * @param ascending 发布时间是否升序（false = 最新优先）
      */
     private PageResult<TeacherQuestionVO> query(Integer pageNum, Integer pageSize,
                                                 Integer adminAuditStatus, boolean onlyMine, Long teacherId,
                                                 String department, String knowledgeTag, Integer difficulty,
-                                                String questionType, String keyword) {
+                                                String questionType, String keyword, boolean ascending) {
         Page<PracticeQuestion> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<PracticeQuestion> wrapper = new LambdaQueryWrapper<PracticeQuestion>()
                 .eq(onlyMine, PracticeQuestion::getSubmitterId, onlyMine ? teacherId : null)
@@ -139,8 +142,12 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
                 .eq(StringUtils.hasText(knowledgeTag), PracticeQuestion::getKnowledgeTag, knowledgeTag)
                 .eq(difficulty != null, PracticeQuestion::getDifficulty, difficulty)
                 .eq(StringUtils.hasText(questionType), PracticeQuestion::getQuestionType, questionType)
-                .like(StringUtils.hasText(keyword), PracticeQuestion::getTitle, keyword)
-                .orderByDesc(PracticeQuestion::getCreatedAt);
+                .like(StringUtils.hasText(keyword), PracticeQuestion::getTitle, keyword);
+        if (ascending) {
+            wrapper.orderByAsc(PracticeQuestion::getCreatedAt);
+        } else {
+            wrapper.orderByDesc(PracticeQuestion::getCreatedAt);
+        }
         questionMapper.selectPage(page, wrapper);
 
         List<Long> tbIds = page.getRecords().stream()
@@ -150,8 +157,24 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
                         new LambdaQueryWrapper<Textbook>().in(Textbook::getId, tbIds))
                 .stream().collect(Collectors.toMap(Textbook::getId, Textbook::getTitle, (a, b) -> a));
 
+        // 批量取提交人姓名，避免 N+1（全部题库展示作者）
+        List<Long> submitterIds = page.getRecords().stream()
+                .map(PracticeQuestion::getSubmitterId)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        java.util.Map<Long, String> creatorMap = submitterIds.isEmpty() ? Collections.emptyMap()
+                : sysUserMapper.selectList(
+                        new LambdaQueryWrapper<com.zhiyu.entity.SysUser>()
+                                .in(com.zhiyu.entity.SysUser::getId, submitterIds)
+                                .select(com.zhiyu.entity.SysUser::getId, com.zhiyu.entity.SysUser::getRealName))
+                .stream()
+                .filter(u -> u.getRealName() != null && !u.getRealName().isBlank())
+                .collect(Collectors.toMap(com.zhiyu.entity.SysUser::getId,
+                        com.zhiyu.entity.SysUser::getRealName, (a, b) -> a));
+
         List<TeacherQuestionVO> list = page.getRecords().stream()
-                .map(q -> toVO(q, q.getSourceTextbookId() == null ? null : tbMap.get(q.getSourceTextbookId())))
+                .map(q -> toVO(q,
+                        q.getSourceTextbookId() == null ? null : tbMap.get(q.getSourceTextbookId()),
+                        q.getSubmitterId() == null ? null : creatorMap.get(q.getSubmitterId())))
                 .collect(Collectors.toList());
         return PageResult.of(page, list);
     }
@@ -178,7 +201,12 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
             Textbook tb = textbookMapper.selectById(q.getSourceTextbookId());
             tbTitle = tb == null ? null : tb.getTitle();
         }
-        return toVO(q, tbTitle);
+        String creatorName = null;
+        if (q.getSubmitterId() != null) {
+            com.zhiyu.entity.SysUser u = sysUserMapper.selectById(q.getSubmitterId());
+            creatorName = u == null ? null : u.getRealName();
+        }
+        return toVO(q, tbTitle, creatorName);
     }
 
     // ==================== 私有工具 ====================
@@ -227,7 +255,7 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
         }
     }
 
-    private TeacherQuestionVO toVO(PracticeQuestion q, String tbTitle) {
+    private TeacherQuestionVO toVO(PracticeQuestion q, String tbTitle, String creatorName) {
         List<String> options = Collections.emptyList();
         if (StringUtils.hasText(q.getOptionsJson())) {
             try {
@@ -253,6 +281,7 @@ public class TeacherQuestionServiceImpl implements TeacherQuestionService {
                 .sourceTextbookTitle(tbTitle)
                 .adminAuditStatus(q.getAdminAuditStatus())
                 .rejectReason(q.getRejectReason())
+                .creatorName(creatorName)
                 .createdAt(q.getCreatedAt())
                 .build();
     }

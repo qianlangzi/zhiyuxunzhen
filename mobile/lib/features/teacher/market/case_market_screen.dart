@@ -8,6 +8,7 @@ import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
 import '../../../core/network/page_parser.dart';
+import 'case_market_detail_screen.dart';
 
 /// 病例广场
 class CaseMarketScreen extends ConsumerStatefulWidget {
@@ -81,7 +82,8 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
     _loadCases();
   }
 
-  /// 查看病例详情：拉取患者画像 + 知识点等（老师设置的具体内容）
+  /// 查看病例详情：进入结构化详情子页（患者画像按中文字段分区展示，
+  /// 不再以底部弹层吐原始 JSON）
   Future<void> _openDetail(_CaseData c) async {
     if (c.caseId == null || _detailLoading) return;
     setState(() => _detailLoading = true);
@@ -92,147 +94,23 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
       AppFeedback.error(context, '病例详情加载失败');
       return;
     }
-    _showDetailSheet(c, detail);
-  }
-
-  void _showDetailSheet(_CaseData c, Map<String, dynamic> detail) {
-    final profile = detail['patientProfile'] as String? ?? '';
-    final tagsRaw = detail['knowledgeTags'];
-    final tags = tagsRaw is List
-        ? tagsRaw.map((e) => e.toString().trim()).where((t) => t.isNotEmpty).toList()
-        : c.tags;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.bgOf(context),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
-      ),
-      builder: (ctx) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.72,
-        maxChildSize: 0.9,
-        builder: (ctx, scrollController) => Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.ruleOf(context),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      detail['title'] as String? ?? c.title,
-                      style: TextStyle(
-                        fontFamily: 'NotoSerifSC',
-                        fontFamilyFallback: [
-                          'Songti SC',
-                          'STSong',
-                          'Noto Serif CJK SC',
-                          'Source Han Serif SC'
-                        ],
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textOf(context),
-                        height: 1.35,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  AppChip(label: c.dept, type: ChipType.indigo, fontSize: 10),
-                ],
-              ),
-              const SizedBox(height: 6),
-              MonoText(
-                '${c.difficulty} · ${detail['creatorName'] as String? ?? c.author} · '
-                '引用 ${detail['referenceCount'] as num? ?? c.refs} · '
-                '★ ${(detail['ratingAvg'] as num?)?.toStringAsFixed(1) ?? c.rating.toStringAsFixed(1)}',
-                fontSize: 11,
-                color: AppColors.text3Of(context),
-              ),
-              Divider(height: 20, color: AppColors.ruleOf(context)),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: [
-                    if (tags.isNotEmpty) ...[
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: tags
-                            .map((t) => AppChip(label: t, type: ChipType.moss, fontSize: 10))
-                            .toList(),
-                      ),
-                      const SizedBox(height: 14),
-                    ],
-                    MonoText('患者画像 / 病例内容',
-                        fontSize: 11, color: AppColors.text3Of(context)),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceOf(context),
-                        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                      ),
-                      child: Text(
-                        profile.isNotEmpty ? profile : '暂无患者画像内容',
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.7,
-                          color: profile.isNotEmpty
-                              ? AppColors.textOf(context)
-                              : AppColors.text4Of(context),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // 引用入口（与卡片上的「引用」一致，弹层内可直接操作）
-              AppPrimaryButton(
-                label: '引用到我的病例库',
-                fullWidth: true,
-                onPressed: () async {
-                  final ok = await AppFeedback.confirm(
-                    ctx,
-                    title: '引用病例',
-                    content:
-                        '引用后将生成独立副本到你的病例库，可基于副本设置班级变量。原病例后续修改不影响本副本。',
-                    confirmText: '引用',
-                  );
-                  if (!ok || !ctx.mounted) return;
-                  Navigator.of(ctx).pop();
-                  if (!mounted) return;
-                  final newId = await TeacherService().quoteCase(c.caseId!);
-                  if (!mounted) return;
-                  if (newId == null) {
-                    AppFeedback.error(context, '引用失败，请稍后重试');
-                    return;
-                  }
-                  AppFeedback.success(context, '已引用到我的病例库 · 病例 #$newId');
-                  // 引用后直接进入编辑模式：配置台按副本 ID 回填，可改可保存可发布
-                  context.pushNamed(RouteNames.spConfig, extra: {'caseId': newId});
-                },
-              ),
-            ],
-          ),
+    // 详情页自行刷新（进入后按 caseId 重新拉取，保证引用数/评分为最新）
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CaseMarketDetailScreen(
+          caseId: c.caseId!,
+          title: detail['title'] as String? ?? c.title,
+          department: c.dept,
+          difficulty: c.difficulty,
+          author: detail['creatorName'] as String? ?? c.author,
+          refs: (detail['referenceCount'] as num?)?.toInt() ?? c.refs,
+          rating: (detail['ratingAvg'] as num?)?.toDouble() ?? c.rating,
+          tags: c.tags,
         ),
       ),
     );
+    // 引用可能改变了引用数，回来后刷新列表
+    if (mounted) _loadCases();
   }
 
   Future<void> _openSearch() async {

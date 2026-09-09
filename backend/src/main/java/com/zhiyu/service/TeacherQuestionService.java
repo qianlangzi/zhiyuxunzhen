@@ -38,10 +38,12 @@ public interface TeacherQuestionService {
 
     /**
      * 全部题库列表（含所有人已录入题目；支持审核状态 / 科室 / 知识点 / 难度 / 题型筛选 + 关键字搜索）
+     *
+     * @param order 发布时间排序方向：asc=最早优先，desc（默认）=最新优先
      */
     PageResult<TeacherQuestionVO> allQuestions(Integer pageNum, Integer pageSize, Integer adminAuditStatus,
                                                String department, String knowledgeTag, Integer difficulty,
-                                               String questionType, String keyword);
+                                               String questionType, String keyword, String order);
 
     /**
      * 我的题目详情

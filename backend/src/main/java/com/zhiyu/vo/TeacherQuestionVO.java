@@ -45,5 +45,8 @@ public class TeacherQuestionVO {
     /** 管理端驳回复核意见 */
     private String rejectReason;
 
+    /** 提交人姓名（全部题库展示作者用） */
+    private String creatorName;
+
     private LocalDateTime createdAt;
 }

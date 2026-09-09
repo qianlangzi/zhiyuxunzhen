@@ -801,7 +801,7 @@ class TeacherApi {
     }
   }
 
-  /// 全部基础题库（含所有人的题目，支持科室/知识点/难度/题型筛选 + 关键字搜索）
+  /// 全部基础题库（含所有人的题目，支持科室/知识点/难度/题型筛选 + 关键字搜索 + 发布时间排序）
   Future<ApiResponse<Map<String, dynamic>>> getAllQuestions({
     int pageNum = 1,
     int pageSize = 20,
@@ -810,6 +810,7 @@ class TeacherApi {
     int? difficulty,
     String? questionType,
     String? keyword,
+    String order = 'desc',
   }) async {
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
@@ -826,6 +827,7 @@ class TeacherApi {
             'questionType': questionType,
           if (keyword != null && keyword.trim().isNotEmpty)
             'keyword': keyword.trim(),
+          'order': order,
         },
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);

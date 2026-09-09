@@ -10,6 +10,7 @@ import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
 import '../../../core/network/page_parser.dart';
+import 'question_public_detail_screen.dart';
 
 /// 题目审核状态（后端 adminAuditStatus）
 enum QuestionStatus {
@@ -443,6 +444,9 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
   String? _questionType;
   String _keyword = '';
 
+  /// 发布时间排序：desc=最新优先（默认） asc=最早优先
+  String _order = 'desc';
+
   /// 筛选面板展开状态（默认收起，与学生端一致）
   bool _showFilters = false;
 
@@ -527,6 +531,7 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
       difficulty: _difficulty,
       questionType: _questionType,
       keyword: _keyword.trim().isEmpty ? null : _keyword.trim(),
+      order: _order,
     );
     if (!mounted) return;
     final list = PageParser.mapListOf(data);
@@ -554,6 +559,9 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
     return Column(
       children: [
         _buildToolbar(),
+        // 常显快筛行：发布时间排序 + 科室分类（此前筛选全藏在 tune 面板里，
+        // 用户感知不到分类能力，现把最常用的排序/科室平铺出来）
+        _buildQuickBar(),
         AnimatedSize(
           duration: const Duration(milliseconds: 180),
           curve: Curves.easeOut,
@@ -663,19 +671,108 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
     );
   }
 
-  // ---------- 筛选面板（与学生端题库一致的行式 chips） ----------
+  /// 常显快筛行：排序（最新发布/最早发布）+ 科室横向分类 chips
+  Widget _buildQuickBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 6),
+      child: Row(
+        children: [
+          // 排序切换
+          GestureDetector(
+            onTap: () {
+              setState(() => _order = _order == 'desc' ? 'asc' : 'desc');
+              _loadFirst();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceOf(context),
+                border: Border.all(color: AppColors.primaryOf(context)),
+                borderRadius: BorderRadius.circular(AppRadius.full),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _order == 'desc'
+                        ? Icons.arrow_downward_rounded
+                        : Icons.arrow_upward_rounded,
+                    size: 13,
+                    color: AppColors.primaryOf(context),
+                  ),
+                  const SizedBox(width: 4),
+                  MonoText(
+                    _order == 'desc' ? '最新发布' : '最早发布',
+                    fontSize: 11,
+                    color: AppColors.primaryOf(context),
+                    weight: FontWeight.w600,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // 科室分类（横向滚动，服务端过滤）
+          Expanded(
+            child: _departments.isEmpty
+                ? const SizedBox.shrink()
+                : ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _departments.length + 1,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (context, i) {
+                      final dept = i == 0 ? null : _departments[i - 1];
+                      final active = _department == dept;
+                      return GestureDetector(
+                        onTap: () {
+                          if (_department == dept) return;
+                          setState(() {
+                            _department = dept;
+                            _knowledgeTag = null;
+                          });
+                          _loadFirst();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: active
+                                ? AppColors.primaryOf(context)
+                                : AppColors.surfaceOf(context),
+                            border: Border.all(
+                              color: active
+                                  ? AppColors.primaryOf(context)
+                                  : AppColors.ruleOf(context),
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.full),
+                          ),
+                          child: Center(
+                            child: Text(
+                              dept ?? '全部科室',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: active
+                                    ? AppColors.onPrimaryOf(context)
+                                    : AppColors.text2Of(context),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------- 筛选面板（知识点/难度/题型；科室已平铺到快筛行） ----------
   Widget _buildFilterPanel() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _filterRow('科室', _departments, (v) {
-          setState(() {
-            _department = v;
-            _knowledgeTag = null;
-          });
-          _applyFilters();
-        }, _department),
-        const SizedBox(height: 6),
         _filterRow('知识点', _knowledgeTags, (v) {
           setState(() => _knowledgeTag = v);
           _applyFilters();
@@ -834,7 +931,7 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
     );
   }
 
-  // ---------- 题目卡片（题干 + 选项 + 答案/解析） ----------
+  // ---------- 题目卡片（题干 + 选项 + 答案/解析；点击进详情子页） ----------
   Widget _questionCard(Map<String, dynamic> q) {
     final difficulty = (q['difficulty'] as num?)?.toInt() ?? 2;
     final difficultyLabel =
@@ -854,100 +951,119 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
     final answer = q['answer'] as String? ?? '';
     final explanation = q['explanation'] as String? ?? '';
     final dept = q['department'] as String? ?? '';
+    final creator = q['creatorName'] as String? ?? '';
+    final createdAt = _formatTime(q['createdAt']);
+    final questionId = (q['id'] as num?)?.toInt();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context),
-        border: Border.all(color: AppColors.surfaceEdgeOf(context)),
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        boxShadow: AppShadow.card(context),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (questionNo.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8, top: 2),
-                  child: MonoText(questionNo,
-                      fontSize: 11,
-                      color: AppColors.primaryOf(context),
-                      weight: FontWeight.w700),
-                ),
-              AppChip(label: typeLabel, fontSize: 10),
-              const SizedBox(width: 6),
-              AppChip(label: difficultyLabel, type: ChipType.amber, fontSize: 10),
-              if (dept.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Expanded(
-                  child: MonoText(dept,
-                      fontSize: 10, color: AppColors.text4Of(context)),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 13.5,
-              height: 1.55,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textOf(context),
-            ),
-          ),
-          if (options.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (var i = 0; i < options.length; i++)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 3),
-                child: Text(
-                  '${String.fromCharCode(65 + i)}. ${options[i]}',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.5,
-                    color: AppColors.text2Of(context),
-                  ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: questionId == null
+          ? null
+          : () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      QuestionPublicDetailScreen(questionId: questionId),
                 ),
               ),
-          ],
-          if (_showAnswers && (answer.isNotEmpty || explanation.isNotEmpty)) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: AppColors.mossTintOf(context),
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (answer.isNotEmpty)
-                    MonoText('答案：$answer',
-                        fontSize: 11.5,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          boxShadow: AppShadow.card(context),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (questionNo.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8, top: 2),
+                    child: MonoText(questionNo,
+                        fontSize: 11,
                         color: AppColors.primaryOf(context),
-                        weight: FontWeight.w600),
-                  if (explanation.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      '解析：$explanation',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        height: 1.55,
-                        color: AppColors.text2Of(context),
-                      ),
-                    ),
-                  ],
+                        weight: FontWeight.w700),
+                  ),
+                AppChip(label: typeLabel, fontSize: 10),
+                const SizedBox(width: 6),
+                AppChip(label: difficultyLabel, type: ChipType.amber, fontSize: 10),
+                if (dept.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: MonoText(dept,
+                        fontSize: 10, color: AppColors.text4Of(context)),
+                  ),
                 ],
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.55,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textOf(context),
               ),
             ),
+            if (creator.isNotEmpty || createdAt.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              MonoText(
+                [
+                  if (creator.isNotEmpty) '作者 $creator',
+                  if (createdAt.isNotEmpty) '发布于 $createdAt',
+                ].join(' · '),
+                fontSize: 10,
+                color: AppColors.text3Of(context),
+              ),
+            ],
+            if (options.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              // 列表只展示题干/作者等概览，选项与答案解析收进详情子页，
+              // 避免整页被平铺的长答案刷屏
+              MonoText('点击查看选项与答案解析',
+                  fontSize: 10, color: AppColors.text4Of(context)),
+            ],
+            if (_showAnswers && (answer.isNotEmpty || explanation.isNotEmpty)) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.mossTintOf(context),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (answer.isNotEmpty)
+                      MonoText('答案：$answer',
+                          fontSize: 11.5,
+                          color: AppColors.primaryOf(context),
+                          weight: FontWeight.w600),
+                    if (explanation.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '解析：$explanation',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          height: 1.55,
+                          color: AppColors.text2Of(context),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

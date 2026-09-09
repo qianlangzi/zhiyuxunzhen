@@ -70,7 +70,7 @@ public class TeacherQuestionController {
         return R.ok(teacherQuestionService.myQuestions(pageNum, pageSize, adminAuditStatus));
     }
 
-    @Operation(summary = "全部基础题库（含所有人的题目，支持审核状态/科室/知识点/难度/题型筛选 + 关键字搜索）")
+    @Operation(summary = "全部基础题库（含所有人的题目，支持审核状态/科室/知识点/难度/题型筛选 + 关键字搜索 + 发布时间排序）")
     @GetMapping("/all")
     public R<PageResult<TeacherQuestionVO>> allList(
             @RequestParam(defaultValue = "1") Integer pageNum,
@@ -80,9 +80,10 @@ public class TeacherQuestionController {
             @RequestParam(required = false) String knowledgeTag,
             @RequestParam(required = false) Integer difficulty,
             @RequestParam(required = false) String questionType,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false, defaultValue = "desc") String order) {
         return R.ok(teacherQuestionService.allQuestions(pageNum, pageSize, adminAuditStatus,
-                department, knowledgeTag, difficulty, questionType, keyword));
+                department, knowledgeTag, difficulty, questionType, keyword, order));
     }
 
     @Operation(summary = "题库科室列表（与学生端同源，带进程内缓存）")
