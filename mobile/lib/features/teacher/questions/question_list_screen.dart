@@ -438,6 +438,10 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
   int _pageNum = 1;
   int _total = 0;
 
+  /// 加载失败原因（null=无错）。区分「接口/网络失败」与「真的没数据」，
+  /// 否则后端不可达时页面只会显示一个误导性的空态（看似空白）。
+  String? _error;
+
   String? _department;
   String? _knowledgeTag;
   int? _difficulty;
@@ -483,10 +487,17 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
 
   /// 筛选项元数据：教师端专用接口（与学生端题库同源数据，带缓存）
   Future<void> _loadFilterMeta() async {
-    final results = await Future.wait([
-      TeacherService().getQuestionDepartments(),
-      TeacherService().getQuestionKnowledgeTags(),
-    ]);
+    List<List<String>> results;
+    try {
+      results = await Future.wait([
+        TeacherService().getQuestionDepartments(),
+        TeacherService().getQuestionKnowledgeTags(),
+      ]);
+    } catch (e) {
+      // 筛选项加载失败不阻塞主列表，仅静默降级为无筛选项
+      debugPrint('loadQuestionFilterMeta error: $e');
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _departments = results[0];
@@ -496,19 +507,44 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
 
   Future<void> _loadFirst({bool jumpToTop = true}) async {
     if (jumpToTop && _scroll.hasClients) _scroll.jumpTo(0);
-    setState(() => _initialLoading = true);
-    final data = await TeacherService().getAllQuestions(
-      pageNum: 1,
-      pageSize: _pageSize,
-      department: _department,
-      knowledgeTag: _knowledgeTag,
-      difficulty: _difficulty,
-      questionType: _questionType,
-      keyword: _keyword.trim().isEmpty ? null : _keyword.trim(),
-    );
+    setState(() {
+      _initialLoading = true;
+      _error = null;
+    });
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getAllQuestions(
+        pageNum: 1,
+        pageSize: _pageSize,
+        department: _department,
+        knowledgeTag: _knowledgeTag,
+        difficulty: _difficulty,
+        questionType: _questionType,
+        keyword: _keyword.trim().isEmpty ? null : _keyword.trim(),
+      );
+    } catch (e) {
+      // 防御性兜底：api 层只捕 DioException，非 JSON 响应（如网关 HTML 错误页）
+      // 抛出的 FormatException 等会穿透到这里；不接住就会卡死在加载态（白屏）。
+      debugPrint('loadAllQuestions error: $e');
+      if (!mounted) return;
+      setState(() {
+        _initialLoading = false;
+        _loadingMore = false;
+        _error = '网络异常，题目加载失败';
+      });
+      return;
+    }
     if (!mounted) return;
+    if (data == null) {
+      setState(() {
+        _initialLoading = false;
+        _loadingMore = false;
+        _error = '题库加载失败，请检查网络后重试';
+      });
+      return;
+    }
     final list = PageParser.mapListOf(data);
-    final total = (data?['total'] as num?)?.toInt() ?? 0;
+    final total = (data['total'] as num?)?.toInt() ?? 0;
     setState(() {
       _pageNum = 1;
       _items = list;
@@ -523,16 +559,25 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
     if (_loadingMore || !_hasMore || _items.isEmpty) return;
     setState(() => _loadingMore = true);
     final next = _pageNum + 1;
-    final data = await TeacherService().getAllQuestions(
-      pageNum: next,
-      pageSize: _pageSize,
-      department: _department,
-      knowledgeTag: _knowledgeTag,
-      difficulty: _difficulty,
-      questionType: _questionType,
-      keyword: _keyword.trim().isEmpty ? null : _keyword.trim(),
-      order: _order,
-    );
+    Map<String, dynamic>? data;
+    try {
+      data = await TeacherService().getAllQuestions(
+        pageNum: next,
+        pageSize: _pageSize,
+        department: _department,
+        knowledgeTag: _knowledgeTag,
+        difficulty: _difficulty,
+        questionType: _questionType,
+        keyword: _keyword.trim().isEmpty ? null : _keyword.trim(),
+        order: _order,
+      );
+    } catch (e) {
+      debugPrint('loadMoreQuestions error: $e');
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+      AppFeedback.error(context, '加载更多失败，请重试');
+      return;
+    }
     if (!mounted) return;
     final list = PageParser.mapListOf(data);
     final total = (data?['total'] as num?)?.toInt() ?? _total;
@@ -577,18 +622,21 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
               ? const Center(child: CircularProgressIndicator())
               : RefreshIndicator(
                   onRefresh: () => _loadFirst(jumpToTop: false),
-                  child: _items.isEmpty
-                      ? _buildEmpty()
-                      : ListView.builder(
-                          controller: _scroll,
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-                          itemCount: _items.length + 1,
-                          itemBuilder: (context, i) {
-                            if (i == _items.length) return _buildFooter();
-                            return _questionCard(_items[i]);
-                          },
-                        ),
+                  child: _error != null && _items.isEmpty
+                      ? _buildError()
+                      : _items.isEmpty
+                          ? _buildEmpty()
+                          : ListView.builder(
+                              controller: _scroll,
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 4, 20, 40),
+                              itemCount: _items.length + 1,
+                              itemBuilder: (context, i) {
+                                if (i == _items.length) return _buildFooter();
+                                return _questionCard(_items[i]);
+                              },
+                            ),
                 ),
         ),
       ],
@@ -908,6 +956,31 @@ class _PublicBankViewState extends ConsumerState<_PublicBankView> {
       );
     }
     return const SizedBox(height: 24);
+  }
+
+  /// 加载失败态：明确告知原因 + 一键重试（下拉刷新同样可用）
+  Widget _buildError() {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        const SizedBox(height: 110),
+        Icon(Icons.cloud_off_rounded,
+            size: 48, color: AppColors.text4Of(context)),
+        const SizedBox(height: 12),
+        Center(
+          child: SerifText(_error ?? '加载失败',
+              fontSize: 15, color: AppColors.text2Of(context)),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: AppGhostButton(
+            label: '重新加载',
+            icon: const Icon(Icons.refresh_rounded, size: 16),
+            onPressed: () => _loadFirst(),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildEmpty() {
