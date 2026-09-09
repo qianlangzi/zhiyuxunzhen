@@ -10,6 +10,42 @@ class TeacherService {
 
   bool get _isMock => ApiConfig.useMockAuth;
 
+  // ==================== 筛选元数据静态缓存（照学生端 StudentService 模式） ====================
+  //
+  // 科室/知识点这类筛选元数据几乎不变，此前每次进教材管理/病例广场/基础题库
+  // 页面都要打一次接口（后端还要查一次库），是"跳转过来慢半拍"的主要来源。
+  // 统一 5min 静态缓存；对应资源发生增删时主动失效（见各 invalidate 方法）。
+  static const Duration _metaCacheTtl = Duration(minutes: 5);
+
+  static List<String>? _marketDeptCache;
+  static DateTime? _marketDeptCacheAt;
+  static List<String>? _tbDeptCache;
+  static DateTime? _tbDeptCacheAt;
+  static List<String>? _qDeptCache;
+  static DateTime? _qDeptCacheAt;
+  static List<String>? _qTagCache;
+  static DateTime? _qTagCacheAt;
+
+  static List<String>? _hitMetaCache(
+      List<String>? cache, DateTime? at, Duration ttl) {
+    if (cache == null || at == null || DateTime.now().difference(at) > ttl) {
+      return null;
+    }
+    return List<String>.of(cache); // 副本返回，防止调用方修改污染缓存
+  }
+
+  /// 上架/下架教材后调用（新教材可能带来新科室，下架可能删掉唯一科室）
+  static void invalidateTextbookMeta() {
+    _tbDeptCache = null;
+    _tbDeptCacheAt = null;
+  }
+
+  /// 创建/更新病例后调用
+  static void invalidateMarketMeta() {
+    _marketDeptCache = null;
+    _marketDeptCacheAt = null;
+  }
+
   // ==================== 病例多模态素材 ====================
 
   /// 上传病例素材（图片/PDF/音频/视频）
@@ -141,6 +177,7 @@ class TeacherService {
       log('createCaseId failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
+    invalidateMarketMeta(); // 新病例可能带来新科室
     return resp.data;
   }
 
@@ -223,17 +260,22 @@ class TeacherService {
     return resp.data;
   }
 
-  /// 病例广场在售科室列表（动态去重）
+  /// 病例广场在售科室列表（动态去重，5min 静态缓存）
   Future<List<String>> getMarketDepartments() async {
+    final hit = _hitMetaCache(_marketDeptCache, _marketDeptCacheAt, _metaCacheTtl);
+    if (hit != null) return hit;
     if (_isMock) return const [];
     final resp = await _api.getMarketDepartments();
     if (!resp.isSuccess || resp.data == null) return const [];
-    return resp.data!
+    final list = resp.data!
         .map((e) => e.toString().trim())
         .where((d) => d.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
+    _marketDeptCache = list;
+    _marketDeptCacheAt = DateTime.now();
+    return List<String>.of(list);
   }
 
   /// 引用公开病例到我的病例库，返回新病例 ID
@@ -887,6 +929,7 @@ class TeacherService {
       log('createTextbook failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
+    invalidateTextbookMeta(); // 新教材可能带来新科室
     return resp.data;
   }
 
@@ -926,17 +969,22 @@ class TeacherService {
     return resp.data;
   }
 
-  /// 教材库科室列表（动态筛选用）
+  /// 教材库科室列表（动态筛选用，5min 静态缓存；上架/下架时主动失效）
   Future<List<String>> getTextbookLibraryDepartments() async {
+    final hit = _hitMetaCache(_tbDeptCache, _tbDeptCacheAt, _metaCacheTtl);
+    if (hit != null) return hit;
     if (_isMock) return const [];
     final resp = await _api.getTextbookLibraryDepartments();
     if (!resp.isSuccess || resp.data == null) return const [];
-    return resp.data!
+    final list = resp.data!
         .map((e) => e.toString().trim())
         .where((d) => d.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
+    _tbDeptCache = list;
+    _tbDeptCacheAt = DateTime.now();
+    return List<String>.of(list);
   }
 
   /// 下架教材
@@ -947,6 +995,7 @@ class TeacherService {
       log('deleteTextbook failed: ${resp.message}', name: 'teacher_service');
       return false;
     }
+    invalidateTextbookMeta(); // 下架可能删掉唯一科室
     return true;
   }
 
@@ -1044,30 +1093,40 @@ class TeacherService {
     return resp.data;
   }
 
-  /// 题库科室列表（筛选用）
+  /// 题库科室列表（筛选用，5min 静态缓存）
   Future<List<String>> getQuestionDepartments() async {
+    final hit = _hitMetaCache(_qDeptCache, _qDeptCacheAt, _metaCacheTtl);
+    if (hit != null) return hit;
     if (_isMock) return const [];
     final resp = await _api.getQuestionDepartments();
     if (!resp.isSuccess || resp.data == null) return const [];
-    return resp.data!
+    final list = resp.data!
         .map((e) => e.toString().trim())
         .where((d) => d.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
+    _qDeptCache = list;
+    _qDeptCacheAt = DateTime.now();
+    return List<String>.of(list);
   }
 
-  /// 题库知识点列表（筛选用）
+  /// 题库知识点列表（筛选用，5min 静态缓存）
   Future<List<String>> getQuestionKnowledgeTags() async {
+    final hit = _hitMetaCache(_qTagCache, _qTagCacheAt, _metaCacheTtl);
+    if (hit != null) return hit;
     if (_isMock) return const [];
     final resp = await _api.getQuestionKnowledgeTags();
     if (!resp.isSuccess || resp.data == null) return const [];
-    return resp.data!
+    final list = resp.data!
         .map((e) => e.toString().trim())
         .where((d) => d.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
+    _qTagCache = list;
+    _qTagCacheAt = DateTime.now();
+    return List<String>.of(list);
   }
 
   /// 题库公开详情（全部题库中查看他人题目）

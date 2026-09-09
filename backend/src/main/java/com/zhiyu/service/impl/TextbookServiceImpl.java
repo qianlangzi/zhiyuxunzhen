@@ -32,6 +32,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TextbookServiceImpl implements TextbookService {
 
+    /** 科室元数据进程内缓存 TTL：教材中心每次进入都会拉一次科室列表，缓存避免重复查库 */
+    private static final long META_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private static volatile List<String> departmentsCache;
+    private static volatile long departmentsCacheAt;
+
     private final TextbookMapper textbookMapper;
     private final ObjectMapper objectMapper;
     private final PdfCoverService pdfCoverService;
@@ -88,6 +93,7 @@ public class TextbookServiceImpl implements TextbookService {
         tb.setPageCount(dto.getPageCount() == null ? 0 : dto.getPageCount());
         tb.setStatus(1);
         textbookMapper.insert(tb);
+        evictDepartmentsCache();
         if (tb.getTextbookNo() == null || tb.getTextbookNo().isBlank()) {
             tb.setTextbookNo(String.format("JC%06d", tb.getId()));
             textbookMapper.updateById(tb);
@@ -121,11 +127,16 @@ public class TextbookServiceImpl implements TextbookService {
         }
         tb.setStatus(0);
         textbookMapper.updateById(tb);
+        evictDepartmentsCache();
     }
 
     @Override
     public List<String> departments() {
-        return textbookMapper.selectList(
+        List<String> cached = departmentsCache;
+        if (cached != null && System.currentTimeMillis() - departmentsCacheAt < META_CACHE_TTL_MS) {
+            return cached;
+        }
+        List<String> list = textbookMapper.selectList(
                         new LambdaQueryWrapper<Textbook>()
                                 .eq(Textbook::getStatus, 1)
                                 .isNotNull(Textbook::getDepartment)
@@ -135,6 +146,15 @@ public class TextbookServiceImpl implements TextbookService {
                 .map(Textbook::getDepartment)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toList());
+        departmentsCache = list;
+        departmentsCacheAt = System.currentTimeMillis();
+        return list;
+    }
+
+    /** 上架/下架教材后调用（新教材可能带来新科室，下架可能删掉唯一科室） */
+    private static void evictDepartmentsCache() {
+        departmentsCache = null;
+        departmentsCacheAt = 0L;
     }
 
     private TextbookVO toVO(Textbook tb) {

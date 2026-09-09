@@ -36,6 +36,17 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CaseMarketServiceImpl implements CaseMarketService {
 
+    /** 病例审核通过/状态变化后调用：新科室可能进入广场 */
+    public static void evictDepartmentsCache() {
+        departmentsCache = null;
+        departmentsCacheAt = 0L;
+    }
+
+    /** 广场科室列表 TTL 缓存：真病例量小但每次进广场都查库，缓存后最多 5min 延迟（与学生端科室策略一致） */
+    private static final long DEPT_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private static volatile List<String> departmentsCache;
+    private static volatile long departmentsCacheAt;
+
     private final SpCaseConfigMapper caseMapper;
     private final SysUserMapper userMapper;
     private final ChatSessionMapper sessionMapper;
@@ -156,6 +167,10 @@ public class CaseMarketServiceImpl implements CaseMarketService {
 
     @Override
     public List<String> departments() {
+        List<String> cached = departmentsCache;
+        if (cached != null && System.currentTimeMillis() - departmentsCacheAt < DEPT_CACHE_TTL_MS) {
+            return cached;
+        }
         // 只取科室列，避免把 patient_profile 等大字段拉进内存
         List<SpCaseConfig> rows = caseMapper.selectList(
                 new LambdaQueryWrapper<SpCaseConfig>()
@@ -165,13 +180,16 @@ public class CaseMarketServiceImpl implements CaseMarketService {
                         .eq(SpCaseConfig::getStatus, 1)
                         // 与 list() 同口径：问答式条目（无 case_no）不参与科室下发
                         .isNotNull(SpCaseConfig::getCaseNo));
-        return rows.stream()
+        List<String> list = rows.stream()
                 .map(SpCaseConfig::getDepartment)
                 .filter(StringUtils::hasText)
                 .map(String::trim)
                 .distinct()
                 .sorted()
                 .collect(Collectors.toList());
+        departmentsCache = list;
+        departmentsCacheAt = System.currentTimeMillis();
+        return list;
     }
 
     @Override

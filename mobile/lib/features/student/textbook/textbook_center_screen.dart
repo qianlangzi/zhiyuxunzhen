@@ -217,8 +217,9 @@ class _TextbookCenterViewState extends ConsumerState<TextbookCenterView> {
   }
 
   Future<void> _init() async {
-    await _loadDepartments();
-    await _load(reset: true);
+    // 科室筛选与首页教材无依赖，串行 await 会让页面加载时间翻倍，
+    // 这里并行拉取（学生端教材中心与教师端教材库共同受益）
+    await Future.wait([_loadDepartments(), _load(reset: true)]);
   }
 
   void _onScroll() {

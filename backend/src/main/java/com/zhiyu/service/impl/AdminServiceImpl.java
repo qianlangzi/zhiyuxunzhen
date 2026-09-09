@@ -355,6 +355,8 @@ public class AdminServiceImpl implements AdminService {
 
         caseConfig.setAdminAuditStatus(2);
         caseConfigMapper.updateById(caseConfig);
+        // 审核通过后病例可能进入广场并带来新科室，失效广场科室缓存
+        CaseMarketServiceImpl.evictDepartmentsCache();
 
         String afterJson = toJson(Map.of("adminAuditStatus", 2));
 
@@ -374,6 +376,8 @@ public class AdminServiceImpl implements AdminService {
 
         caseConfig.setAdminAuditStatus(3);
         caseConfigMapper.updateById(caseConfig);
+        // 已通过病例被驳回会退出广场，同样失效广场科室缓存
+        CaseMarketServiceImpl.evictDepartmentsCache();
 
         String afterJson = toJson(Map.of("adminAuditStatus", 3));
 
