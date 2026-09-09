@@ -9,6 +9,7 @@ import {
   type TeacherAuditDetail,
   type TeacherAuditItem,
 } from '../../api/teacherAudit'
+import { fmtDateTime, tableDateTime } from '../../utils/format'
 import AuditStatusFilter from './AuditStatusFilter.vue'
 
 const list = ref<TeacherAuditItem[]>([])
@@ -164,7 +165,7 @@ onMounted(loadList)
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="createdAt" label="提交时间" width="170" />
+      <el-table-column prop="createdAt" label="提交时间" width="160" :formatter="tableDateTime" />
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="primary" link @click="openDetail(row.userId)">
@@ -224,8 +225,8 @@ onMounted(loadList)
             <span>入职年级 <b>{{ detail.grade || '-' }}</b></span>
             <span>班级 <b>{{ detail.className || '-' }}</b></span>
             <span>证书编号 <b>{{ detail.teacherCertificateNo || '-' }}</b></span>
-            <span>最近登录 <b>{{ detail.lastLoginAt || '-' }}</b></span>
-            <span>注册时间 <b>{{ detail.createdAt || '-' }}</b></span>
+            <span>最近登录 <b>{{ fmtDateTime(detail.lastLoginAt) }}</b></span>
+            <span>注册时间 <b>{{ fmtDateTime(detail.createdAt) }}</b></span>
           </div>
 
           <h3 class="detail-title">资质证书</h3>

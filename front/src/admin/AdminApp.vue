@@ -121,7 +121,7 @@ async function toggleFullscreen(): Promise<void> {
       <div class="adm-brand">
         <img :src="brandLogo" alt="智愈寻真" />
         <div v-show="!appStore.sidebarCollapsed" class="adm-brand-text">
-          <strong>知语寻真</strong>
+          <strong>智愈寻真</strong>
           <span>管理控制台</span>
         </div>
       </div>
@@ -338,25 +338,115 @@ async function toggleFullscreen(): Promise<void> {
   color: var(--adm-sidebar-ink);
 }
 
+/* 一级菜单激活态：左侧高亮条 + 青蓝色背景 */
 .adm-menu :deep(.el-menu-item.is-active) {
+  position: relative;
   background: var(--adm-sidebar-active);
   color: var(--adm-sidebar-active-ink);
   font-weight: 600;
+}
+
+.adm-menu :deep(.el-menu-item.is-active)::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--adm-sidebar-active-ink);
 }
 
 .adm-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
   color: var(--adm-sidebar-ink);
 }
 
-.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item) {
-  padding-left: 44px !important;
-  font-size: 13px;
+/* 一级菜单标题左侧留出高亮条空间 */
+.adm-menu :deep(.el-sub-menu__title) {
+  position: relative;
 }
 
+/* 二级菜单容器：用更浅一档背景区分，营造层级 */
+.adm-menu :deep(.el-menu .el-menu) {
+  padding: 4px 0 6px;
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 10px;
+  margin: 0 12px 6px;
+}
+
+/* 二级菜单项：缩进 + 左侧细线指示 */
+.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item) {
+  position: relative;
+  height: 38px;
+  margin: 1px 6px;
+  padding-left: 42px !important;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
+.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item)::before {
+  content: '';
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.35;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+/* 二级菜单 hover：圆点变实心放大 */
+.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item:hover)::before {
+  opacity: 0.7;
+  transform: translateY(-50%) scale(1.15);
+}
+
+/* 二级菜单激活态：圆点变成实心高亮 */
+.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item.is-active) {
+  background: var(--adm-sidebar-active);
+  color: var(--adm-sidebar-active-ink);
+  font-weight: 600;
+}
+
+.adm-menu :deep(.el-menu.el-menu--inline .el-menu-item.is-active)::before {
+  opacity: 1;
+  background: var(--adm-sidebar-active-ink);
+  transform: translateY(-50%) scale(1.25);
+}
+
+/* 一级菜单折叠时（侧栏收起）：图标居中且按钮紧凑 */
 .adm-menu.el-menu--collapse :deep(.el-menu-item),
 .adm-menu.el-menu--collapse :deep(.el-sub-menu__title) {
   margin: 2px 10px;
   padding: 0 16px;
+}
+
+/* 折叠态下的二级菜单（el-popper 浮层） */
+.adm-menu :deep(.el-menu--popup) {
+  padding: 4px;
+  background: var(--adm-sidebar-bg-deep) !important;
+  border: 1px solid var(--adm-sidebar-line);
+  border-radius: 10px;
+}
+
+.adm-menu :deep(.el-menu--popup .el-menu-item) {
+  height: 38px;
+  margin: 1px 0;
+  padding-left: 16px !important;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.adm-menu :deep(.el-menu--popup .el-menu-item:hover) {
+  background: var(--adm-sidebar-hover);
+}
+
+.adm-menu :deep(.el-menu--popup .el-menu-item.is-active) {
+  background: var(--adm-sidebar-active);
+  color: var(--adm-sidebar-active-ink);
 }
 
 .adm-collapse-btn {

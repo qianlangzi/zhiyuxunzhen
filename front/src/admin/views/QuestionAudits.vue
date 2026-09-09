@@ -9,6 +9,7 @@ import {
   type QuestionAuditDetail,
   type QuestionAuditItem,
 } from '../api/questionAudit'
+import { tableDateTime } from '../utils/format'
 import AuditStatusFilter from './audit/AuditStatusFilter.vue'
 
 // ---------- 列表与分页 ----------
@@ -166,7 +167,7 @@ onMounted(loadList)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="提交时间" width="170" />
+        <el-table-column prop="createdAt" label="提交时间" width="160" :formatter="tableDateTime" />
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button

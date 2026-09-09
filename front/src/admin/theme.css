@@ -41,6 +41,33 @@
   --el-color-primary-light-9: #dfebf0;
   --el-color-primary-dark-2: #0c3d4a;
 
+  /* Success：拉深到品牌墨绿色，保证浅底/深底均能清晰可读 */
+  --el-color-success: #1f7a55;
+  --el-color-success-light-3: #52a07d;
+  --el-color-success-light-5: #84bfa1;
+  --el-color-success-light-7: #b3d8c1;
+  --el-color-success-light-8: #cfe6d8;
+  --el-color-success-light-9: #e6f2ec;
+  --el-color-success-dark-2: #175d40;
+
+  /* Warning：拉深（避免深绿底 + 浅黄字看不见） */
+  --el-color-warning: #b86b1a;
+  --el-color-warning-light-3: #d29155;
+  --el-color-warning-light-5: #e3b181;
+  --el-color-warning-light-7: #eecda9;
+  --el-color-warning-light-8: #f4ddc2;
+  --el-color-warning-light-9: #faeddb;
+  --el-color-warning-dark-2: #8d5213;
+
+  /* Danger：微调 */
+  --el-color-danger: #c2413a;
+  --el-color-danger-light-3: #d6736e;
+  --el-color-danger-light-5: #e29c98;
+  --el-color-danger-light-7: #ecc3c1;
+  --el-color-danger-light-8: #f3d8d7;
+  --el-color-danger-light-9: #faeceb;
+  --el-color-danger-dark-2: #962f2a;
+
   --el-border-radius-base: 8px;
   --el-border-radius-small: 6px;
 }
@@ -159,6 +186,35 @@ html.dark .adm-card:hover {
 /* ---------- Element Plus 微调 ---------- */
 .el-button {
   font-weight: 500;
+}
+
+/* plain 按钮的 hover/active：把边框+背景色都加深，确保浅底深字场景清晰可读 */
+.el-button.is-plain:hover,
+.el-button.is-plain:focus {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
+  background: #fff;
+}
+
+.el-button.is-plain.el-button--success:hover,
+.el-button.is-plain.el-button--success:focus {
+  border-color: var(--el-color-success);
+  color: var(--el-color-success-dark-2);
+  background: var(--el-color-success-light-9);
+}
+
+.el-button.is-plain.el-button--warning:hover,
+.el-button.is-plain.el-button--warning:focus {
+  border-color: var(--el-color-warning);
+  color: var(--el-color-warning-dark-2);
+  background: var(--el-color-warning-light-9);
+}
+
+.el-button.is-plain.el-button--danger:hover,
+.el-button.is-plain.el-button--danger:focus {
+  border-color: var(--el-color-danger);
+  color: var(--el-color-danger-dark-2);
+  background: var(--el-color-danger-light-9);
 }
 
 .el-table {

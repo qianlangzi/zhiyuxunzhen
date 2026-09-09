@@ -11,6 +11,7 @@ import {
   type TextbookItem,
   type IngestTaskDetail,
 } from '../api/textbookManage'
+import { fmtDateTime } from '../utils/format'
 
 // ---------- 列表与分页 ----------
 const listRef = ref<TextbookItem[]>([])
@@ -189,20 +190,33 @@ onBeforeUnmount(() => window.clearInterval(statusTimer))
 
 <template>
   <main class="admin-page">
+    <!-- 页头 -->
+    <section class="admin-page-head">
+      <div>
+        <span>教材管理</span>
+        <h1>教材上传、入库与上下架</h1>
+      </div>
+      <div class="head-actions">
+        <el-button round @click="loadList" :loading="loading">
+          <el-icon style="margin-right: 4px"><Refresh /></el-icon>刷新
+        </el-button>
+      </div>
+    </section>
+
     <section class="surface-card audit-panel">
-      <el-table v-loading="loading" :data="listRef" stripe>
+      <el-table v-loading="loading" :data="listRef" stripe class="textbook-table">
         <template #empty>
           <div class="empty-tip">暂无教材，请先上传</div>
         </template>
         <el-table-column prop="title" label="教材标题" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="department" label="学科" width="140" />
-        <el-table-column prop="author" label="作者" width="140">
+        <el-table-column prop="department" label="学科" width="110" />
+        <el-table-column prop="author" label="作者" min-width="130" show-overflow-tooltip>
           <template #default="{ row }">
             {{ row.author || '-' }}
           </template>
         </el-table-column>
-        <el-table-column prop="creatorName" label="上传教师" width="120" />
-        <el-table-column label="状态" width="120">
+        <el-table-column prop="creatorName" label="上传教师" width="110" />
+        <el-table-column label="状态" width="92">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)" effect="plain">
               {{ statusLabel(row.status) }}
@@ -216,44 +230,50 @@ onBeforeUnmount(() => window.clearInterval(statusTimer))
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="最近入库时间" width="170">
+        <el-table-column label="最近入库时间" width="150">
           <template #default="{ row }">
-            {{ row.lastIngestAt || '-' }}
+            <span class="time-cell">{{ fmtDateTime(row.lastIngestAt) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="失败原因" min-width="220" show-overflow-tooltip>
+        <el-table-column label="失败原因" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
-            <span v-if="row.ingestStatus === IngestStatus.FAILED">{{ row.ingestError || 'AI 未返回具体原因' }}</span>
-            <span v-else>-</span>
+            <span v-if="row.ingestStatus === IngestStatus.FAILED" class="err-text">{{ row.ingestError || 'AI 未返回具体原因' }}</span>
+            <span v-else class="muted-dash">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openDetail(row)">
-              查看详情
-            </el-button>
-            <el-button size="small" type="info" link @click="openTaskDetail(row)">
-              任务详情
-            </el-button>
-            <el-button
-              size="small"
-              type="primary"
-              link
-              :loading="ingestLoadingId === row.id"
-              :disabled="row.ingestStatus === IngestStatus.PROCESSING"
-              @click="handleIngest(row)"
-            >
-              {{ row.ingestStatus === IngestStatus.FAILED ? '重试入库' : row.ingestStatus === IngestStatus.DONE ? '重新入库' : '入向量库' }}
-            </el-button>
-            <el-button
-              size="small"
-              :type="row.status === TextbookStatus.ON_SHELF ? 'danger' : 'success'"
-              link
-              :loading="togglingId === row.id"
-              @click="handleToggle(row)"
-            >
-              {{ row.status === TextbookStatus.ON_SHELF ? '下架' : '上架' }}
-            </el-button>
+            <div class="op-stack">
+              <div class="op-row">
+                <el-button size="small" type="primary" link @click="openDetail(row)">
+                  查看详情
+                </el-button>
+                <el-button size="small" link @click="openTaskDetail(row)">
+                  任务详情
+                </el-button>
+              </div>
+              <div class="op-row">
+                <el-button
+                  size="small"
+                  type="primary"
+                  link
+                  :loading="ingestLoadingId === row.id"
+                  :disabled="row.ingestStatus === IngestStatus.PROCESSING"
+                  @click="handleIngest(row)"
+                >
+                  {{ row.ingestStatus === IngestStatus.FAILED ? '重试入库' : row.ingestStatus === IngestStatus.DONE ? '重新入库' : '入向量库' }}
+                </el-button>
+                <el-button
+                  size="small"
+                  :type="row.status === TextbookStatus.ON_SHELF ? 'danger' : 'success'"
+                  link
+                  :loading="togglingId === row.id"
+                  @click="handleToggle(row)"
+                >
+                  {{ row.status === TextbookStatus.ON_SHELF ? '下架' : '上架' }}
+                </el-button>
+              </div>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -304,11 +324,11 @@ onBeforeUnmount(() => window.clearInterval(statusTimer))
           <span>出版社 <b>{{ detailRow.publisher || '-' }}</b></span>
           <span>页数 <b>{{ detailRow.pageCount ?? '-' }}</b></span>
           <span>上传教师 <b>{{ detailRow.creatorName || '-' }}</b></span>
-          <span>入库时间 <b>{{ detailRow.lastIngestAt || '-' }}</b></span>
+          <span>入库时间 <b>{{ fmtDateTime(detailRow.lastIngestAt) }}</b></span>
           <span>入库次数 <b>{{ detailRow.ingestRetryCount ?? '-' }}</b></span>
           <span>最近任务ID <b class="mono-sm">{{ detailRow.ingestionId || '-' }}</b></span>
           <span v-if="detailRow.ingestStatus === IngestStatus.FAILED">失败原因 <b class="error-text">{{ detailRow.ingestError || 'AI 未返回具体原因' }}</b></span>
-          <span>上传时间 <b>{{ detailRow.createdAt || '-' }}</b></span>
+          <span>上传时间 <b>{{ fmtDateTime(detailRow.createdAt) }}</b></span>
         </div>
 
         <template v-if="detailRow.description">
@@ -370,6 +390,52 @@ onBeforeUnmount(() => window.clearInterval(statusTimer))
 <style scoped>
 .audit-panel {
   padding: 12px;
+}
+
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 表格列宽收紧，避免作者名挤到下一列；行高加大两像素避免行内按钮顶到边框 */
+.textbook-table :deep(.el-table__cell) {
+  padding: 10px 0;
+}
+
+.time-cell {
+  color: var(--zy-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.muted-dash {
+  color: var(--zy-soft);
+}
+
+.err-text {
+  color: var(--el-color-danger);
+  font-size: 12.5px;
+}
+
+/* 操作列：按钮换两行展示，避免一行 4 个按钮挤在一起 */
+.op-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.op-stack .op-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
+.op-stack .el-button.is-link {
+  padding: 2px 6px;
+  font-size: 13px;
 }
 
 .empty-tip {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { listAuditLogs, type AuditLogItem } from '../api/auditLog'
+import { fmtDateTime } from '../utils/format'
 
 const logs = ref<AuditLogItem[]>([])
 const total = ref(0)
@@ -35,10 +36,7 @@ const filteredLogs = () => {
   )
 }
 
-const formatTime = (iso: string) => {
-  if (!iso) return '-'
-  return iso.replace('T', ' ').slice(0, 16)
-}
+const formatTime = (iso: string | null) => fmtDateTime(iso)
 
 const handlerSizeChange = () => {
   pager.pageNum = 1

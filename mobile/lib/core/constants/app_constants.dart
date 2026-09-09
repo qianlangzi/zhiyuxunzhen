@@ -11,7 +11,7 @@ class AppConstants {
   static const String appName = '智愈寻真';
 
   /// 应用版本
-  static const String appVersion = '2.1.0';
+  static const String appVersion = '1.0.0';
 
   /// 医学免责声明
   static const String medicalDisclaimer =

@@ -19,6 +19,7 @@ import '../providers/auth_provider.dart';
 import '../presentation/widgets/role_segment.dart';
 import '../presentation/widgets/auth_field.dart';
 import '../presentation/widgets/captcha_widget.dart';
+import '../presentation/widgets/agreement_checkbox.dart';
 
 /// 独立注册页
 ///
@@ -55,6 +56,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   UserRole _role = UserRole.student;
   String? _grade; // 学生年级下拉值
+  bool _agreedTerms = false;
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _submitting = false;
@@ -197,6 +199,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   Future<void> _submit() async {
     if (_submitting) return;
     if (!_formKey.currentState!.validate()) return;
+    if (!_agreedTerms) {
+      AppFeedback.error(context, '请先阅读并同意《用户协议》和《隐私政策》');
+      return;
+    }
     // 校验图形验证码
     final captcha = _captchaKey.currentState?.current();
     if (captcha == null) {
@@ -770,10 +776,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         border: Border(top: BorderSide(color: AppColors.ruleOf(context))),
       ),
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      child: AppPrimaryButton(
-        label: _submitting ? '注册中…' : '注 册',
-        fullWidth: true,
-        onPressed: _submitting ? null : _submit,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AgreementCheckbox(
+            agreed: _agreedTerms,
+            onChanged: (v) => setState(() => _agreedTerms = v),
+            accentColor: _roleColor,
+          ),
+          const SizedBox(height: 10),
+          AppPrimaryButton(
+            label: _submitting ? '注册中…' : '注 册',
+            fullWidth: true,
+            onPressed: _submitting ? null : _submit,
+          ),
+        ],
       ),
     );
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { fmtDateTime } from '../utils/format'
 import * as echarts from 'echarts/core'
 import { LineChart } from 'echarts/charts'
 import {
@@ -240,10 +241,7 @@ function handleResize(): void {
   trendChart?.resize()
 }
 
-const formatTime = (iso: string) => {
-  if (!iso) return '-'
-  return iso.replace('T', ' ').slice(0, 16)
-}
+const formatTime = (iso: string | null) => fmtDateTime(iso)
 
 /** 合并待审教师与待审病例，渲染到「待办审核」面板 */
 const pendingItems = computed(() => {

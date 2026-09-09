@@ -62,7 +62,7 @@ async function handleLogin(): Promise<void> {
       <div class="login-brand">
         <img :src="brandLogo" alt="" />
         <div>
-          <strong>知语寻真</strong>
+          <strong>智愈寻真</strong>
           <span>管理控制台</span>
         </div>
       </div>

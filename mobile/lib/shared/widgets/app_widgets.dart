@@ -1222,20 +1222,14 @@ class AiGeneratedNote extends StatelessWidget {
 // 免责声明
 // ============================================================
 
-/// 医学免责声明条
+/// 医学免责声明条（居中一行小灰字，无容器装饰）
 class MedicalDisclaimer extends StatelessWidget {
 const   MedicalDisclaimer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(top: 24),
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceOf(context).withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        boxShadow: AppShadow.card(context),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
       child: Text(
         AppConstants.medicalDisclaimer,
         textAlign: TextAlign.center,

@@ -9,6 +9,7 @@ import {
   type CaseAuditDetail,
   type CaseAuditItem,
 } from '../../api/teacherAudit'
+import { fmtDateTime, tableDateTime } from '../../utils/format'
 import AuditStatusFilter from './AuditStatusFilter.vue'
 
 const list = ref<CaseAuditItem[]>([])
@@ -177,7 +178,7 @@ onMounted(loadList)
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="createdAt" label="提交时间" width="170" />
+      <el-table-column prop="createdAt" label="提交时间" width="160" :formatter="tableDateTime" />
       <el-table-column label="操作" width="220" fixed="right">
         <template #default="{ row }">
           <el-button size="small" type="primary" link @click="openDetail(row.caseId)">
@@ -226,7 +227,7 @@ onMounted(loadList)
                 {{ auditStatusMap(detail.adminAuditStatus).text }}
               </el-tag>
               <span>发布者：{{ detail.creatorName || detail.creatorId }}</span>
-              <span>提交时间：{{ detail.createdAt }}</span>
+              <span>提交时间：{{ fmtDateTime(detail.createdAt) }}</span>
             </div>
           </div>
 

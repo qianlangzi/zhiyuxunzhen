@@ -6,6 +6,7 @@ import {
   saveSysConfig,
   type SysConfigItem,
 } from '../api/sysConfig'
+import { fmtDateTime } from '../utils/format'
 
 /** 配置类型 → 中文说明 */
 const TYPE_LABEL: Record<string, string> = {
@@ -113,7 +114,7 @@ onMounted(loadList)
         </el-table-column>
         <el-table-column label="最近更新" width="160">
           <template #default="{ row }">
-            {{ row.updatedAt ? row.updatedAt.replace('T', ' ').slice(0, 16) : '-' }}
+            {{ fmtDateTime(row.updatedAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120" fixed="right">

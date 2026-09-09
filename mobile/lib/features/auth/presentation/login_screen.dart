@@ -17,6 +17,7 @@ import '../data/auth_service.dart';
 import '../presentation/widgets/role_segment.dart';
 import '../presentation/widgets/auth_field.dart';
 import '../presentation/widgets/captcha_widget.dart';
+import '../presentation/widgets/agreement_checkbox.dart';
 
 /// 登录方式
 enum _LoginMethod { password, code }
@@ -51,6 +52,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _codeCtl = TextEditingController();
 
   bool _obscure = true;
+  bool _agreedTerms = false;
   int _countdown = 0;
   bool _sendingCode = false;
   bool _loggingIn = false;
@@ -139,6 +141,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     if (_loggingIn) return;
     if (!_formKey.currentState!.validate()) return;
+    if (!_agreedTerms) {
+      AppFeedback.error(context, '请先阅读并同意《用户协议》和《隐私政策》');
+      return;
+    }
     setState(() => _loggingIn = true);
 
     late final ({UserModel? user, String? token, String? refreshToken, String? error}) result;
@@ -475,6 +481,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                   const SizedBox(height: 22),
                   _buildLoginButton(),
+                  const SizedBox(height: 14),
+                  AgreementCheckbox(
+                    agreed: _agreedTerms,
+                    onChanged: (v) => setState(() => _agreedTerms = v),
+                    accentColor: _roleColor,
+                  ),
                 ],
               ),
             ),

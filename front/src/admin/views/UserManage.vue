@@ -16,6 +16,7 @@ import {
   type AdminUserStats,
   type ImportResult,
 } from '../api/user'
+import { fmtDateTime } from '../utils/format'
 
 // ---------- 统计 ----------
 const stats = ref<AdminUserStats | null>(null)
@@ -97,8 +98,7 @@ function onResetFilters(): void {
 }
 
 function fmtTime(v: string | null): string {
-  if (!v) return '—'
-  return v.replace('T', ' ').slice(0, 16)
+  return fmtDateTime(v)
 }
 
 // ---------- 单条操作 ----------
