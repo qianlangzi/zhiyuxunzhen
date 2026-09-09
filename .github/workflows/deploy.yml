@@ -16,6 +16,9 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
+          # 2C4G 服务器冷构建 ai 镜像（pip 解析+下载）可达 10 分钟以上，
+          # 默认 command_timeout=10m 会把 build 中途杀掉造成「CI 失败+容器未更新」
+          command_timeout: 60m
           script: |
             set -e
             cd /opt/zhiyu-new
@@ -29,7 +32,7 @@ jobs:
             git log --oneline -1
             docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile web up -d --build
             # build cache 曾堆积 11.6GB（磁盘 79%），每次部署清理悬挂缓存
-            docker builder prune -f
+            docker builder prune -f --filter "until=168h"
             echo "===== 部署后自检 ====="
             docker inspect zhiyu-backend --format 'backend StartedAt: {{.State.StartedAt}}'
             docker logs zhiyu-backend --since 3m 2>&1 | grep -iE "Migrating|Started ZhiyuApplication" | tail -5 || true
