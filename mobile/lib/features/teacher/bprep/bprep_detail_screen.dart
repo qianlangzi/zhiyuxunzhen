@@ -15,6 +15,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 教案工作台（医学教案创作）
 ///
@@ -35,6 +36,7 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
   bool _isLoading = true;
   bool _saving = false;
   bool _exporting = false;
+  bool _publishing = false;
   stt.SpeechToText? _speech;
   bool _isListening = false;
   String _saveStatus = ''; // '' | 保存中… | 已自动保存 | 保存失败
@@ -796,11 +798,7 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
   // ========= 关联病例（病历大厅引用） =========
   Future<void> _pickCase() async {
     final cases = await TeacherService().getCaseList();
-    final raw = ((cases?['records'] as List<dynamic>?) ??
-            (cases?['list'] as List<dynamic>?) ??
-            const [])
-        .map((e) => (e as Map).cast<String, dynamic>())
-        .toList();
+    final raw = PageParser.mapListOf(cases);
     if (!mounted) return;
     if (raw.isEmpty) {
       AppFeedback.info(context, '暂无可用病例，请先到「我的病例」创建或从病例广场引用');
@@ -968,6 +966,8 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
                         _buildCaseCard(detail),
                         const SizedBox(height: 12),
                         _buildMaterialsCard(detail),
+                        const SizedBox(height: 12),
+                        _buildPublishCard(),
                         const SizedBox(height: 12),
                         _buildExportCard(),
                       ],
@@ -1362,6 +1362,78 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
     );
   }
 
+  // ========= 发布到班级 =========
+  ///
+  /// 打通教师端 → 学生端的资料/作业链路：后端 publish 接口按班级成员
+  /// 写 lesson_publish（资料任务）+ 作业实例，学生端「待办」即可看到。
+  Future<void> _publishFlow() async {
+    if (_publishing) return;
+    final classes = await TeacherService().getMyClasses();
+    if (!mounted) return;
+    if (classes.isEmpty) {
+      AppFeedback.info(context, '暂无班级，请先到「班级管理」创建班级');
+      return;
+    }
+    final materials = (_detail?['materials'] as List<dynamic>? ?? const [])
+        .whereType<Map>()
+        .length;
+    final hasCase =
+        _detail?['caseId'] != null || (_detail?['case'] as Map?)?.isNotEmpty == true;
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PublishSheet(
+        lessonId: widget.lessonId,
+        lessonTitle: _detail?['title'] as String? ?? '未命名教案',
+        classes: classes,
+        hasMaterials: materials > 0,
+        hasCase: hasCase,
+      ),
+    );
+    if (ok != true || !mounted) return;
+    AppFeedback.success(context, '发布成功，学生端待办已更新');
+    _load();
+  }
+
+  Widget _buildPublishCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+            color: AppColors.primaryOf(context).withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.send_rounded,
+                  size: 16, color: AppColors.primaryOf(context)),
+              const SizedBox(width: 6),
+              SerifText('发布到班级', fontSize: 13.5),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '把本备课的课件资料 / 病例 / 作业下发给所选班级，学生端「待办」实时可见，完成后自动回传状态。',
+            style: TextStyle(
+                fontSize: 11.5, height: 1.5, color: AppColors.text3Of(context)),
+          ),
+          const SizedBox(height: 10),
+          AppPrimaryButton(
+            label: _publishing ? '发布中…' : '选择班级并发布',
+            fullWidth: true,
+            icon: const Icon(Icons.groups_rounded, size: 15),
+            onPressed: _publishing ? null : _publishFlow,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildExportCard() {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1389,6 +1461,363 @@ class _BprepDetailScreenState extends ConsumerState<BprepDetailScreen> {
             onPressed: _exporting ? null : _export,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 发布到班级 · 底部弹窗：班级多选 + 发布模式 + 作业信息
+///
+/// 调 `POST /teacher/lessons/{id}/publish`：
+/// - materialOnly=true 仅发资料（学生待办出现资料任务，可标记完成）
+/// - materialOnly=false 资料+病例+作业一并下发（生成作业实例）
+class _PublishSheet extends StatefulWidget {
+  const _PublishSheet({
+    required this.lessonId,
+    required this.lessonTitle,
+    required this.classes,
+    required this.hasMaterials,
+    required this.hasCase,
+  });
+
+  final int lessonId;
+  final String lessonTitle;
+  final List<Map<String, dynamic>> classes;
+  final bool hasMaterials;
+  final bool hasCase;
+
+  @override
+  State<_PublishSheet> createState() => _PublishSheetState();
+}
+
+class _PublishSheetState extends State<_PublishSheet> {
+  final Set<int> _selected = {};
+  bool _materialOnly = true;
+  bool _submitting = false;
+  DateTime? _deadline;
+  late final TextEditingController _titleCtl =
+      TextEditingController(text: widget.lessonTitle);
+
+  @override
+  void dispose() {
+    _titleCtl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_selected.isEmpty) {
+      AppFeedback.info(context, '请至少选择一个班级');
+      return;
+    }
+    if (!_materialOnly && _titleCtl.text.trim().isEmpty) {
+      AppFeedback.info(context, '请填写作业标题');
+      return;
+    }
+    setState(() => _submitting = true);
+    final ok = await TeacherService().publishLesson(widget.lessonId, {
+      'classIds': _selected.toList(),
+      'materialOnly': _materialOnly,
+      if (!_materialOnly) ...{
+        'assignmentTitle': _titleCtl.text.trim(),
+        'requireMedicalRecord': widget.hasCase,
+      },
+      if (_deadline != null) 'deadline': _deadline!.toIso8601String(),
+    });
+    if (!mounted) return;
+    setState(() => _submitting = false);
+    if (ok) {
+      Navigator.of(context).pop(true);
+    } else {
+      AppFeedback.error(context, '发布失败，请稍后重试');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.82),
+        decoration: BoxDecoration(
+          color: AppColors.bgOf(context),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 14),
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.ruleOf(context),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: SerifText('发布到班级', fontSize: 16),
+              ),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                  children: [
+                    MonoText('选择班级（可多选）',
+                        fontSize: 11, color: AppColors.text3Of(context)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: widget.classes.map((c) {
+                        final id = (c['id'] as num?)?.toInt() ?? 0;
+                        final name =
+                            (c['name'] as String?)?.trim() ?? '未命名班级';
+                        final active = _selected.contains(id);
+                        return GestureDetector(
+                          onTap: () => setState(() {
+                            if (active) {
+                              _selected.remove(id);
+                            } else {
+                              _selected.add(id);
+                            }
+                          }),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? AppColors.primaryOf(context)
+                                  : AppColors.surfaceOf(context),
+                              border: Border.all(
+                                color: active
+                                    ? AppColors.primaryOf(context)
+                                    : AppColors.ruleOf(context),
+                              ),
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.full),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (active)
+                                  Padding(
+                                    padding:
+                                        const EdgeInsets.only(right: 4),
+                                    child: Icon(Icons.check_rounded,
+                                        size: 14,
+                                        color:
+                                            AppColors.onPrimaryOf(context)),
+                                  ),
+                                Text(name,
+                                    style: TextStyle(
+                                        fontSize: 12.5,
+                                        color: active
+                                            ? AppColors.onPrimaryOf(context)
+                                            : AppColors.text2Of(context))),
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    MonoText('发布内容',
+                        fontSize: 11, color: AppColors.text3Of(context)),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _modeCard(
+                            '仅发资料',
+                            widget.hasMaterials ? '课件资料发给学生自学' : '本备课暂无资料',
+                            enabled: widget.hasMaterials,
+                            active: _materialOnly,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _modeCard(
+                            '资料 + 病例 + 作业',
+                            widget.hasCase ? '生成作业，学生端待办可见' : '未关联病例，仅资料生效',
+                            enabled: true,
+                            active: !_materialOnly,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (!_materialOnly) ...[
+                      const SizedBox(height: 14),
+                      MonoText('作业标题',
+                          fontSize: 11, color: AppColors.text3Of(context)),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: _titleCtl,
+                        style: TextStyle(
+                            fontSize: 13, color: AppColors.textOf(context)),
+                        decoration: _inputDecoration('如：冠心病章节课后作业'),
+                      ),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate:
+                                _deadline ?? now.add(const Duration(days: 7)),
+                            firstDate: now,
+                            lastDate: now.add(const Duration(days: 365)),
+                          );
+                          if (picked != null) {
+                            setState(() => _deadline = picked);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceOf(context),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.sm),
+                            border: Border.all(
+                                color: AppColors.ruleOf(context)),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.event_outlined,
+                                  size: 16,
+                                  color: AppColors.text3Of(context)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _deadline == null
+                                      ? '截止日期（可选）'
+                                      : '截止：${_deadline!.year}-${_deadline!.month.toString().padLeft(2, '0')}-${_deadline!.day.toString().padLeft(2, '0')}',
+                                  style: TextStyle(
+                                      fontSize: 12.5,
+                                      color: _deadline == null
+                                          ? AppColors.text4Of(context)
+                                          : AppColors.textOf(context)),
+                                ),
+                              ),
+                              if (_deadline != null)
+                                GestureDetector(
+                                  onTap: () =>
+                                      setState(() => _deadline = null),
+                                  child: Icon(Icons.close_rounded,
+                                      size: 14,
+                                      color: AppColors.text4Of(context)),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+                child: AppPrimaryButton(
+                  label: _submitting
+                      ? '发布中…'
+                      : _selected.isEmpty
+                          ? '请先选择班级'
+                          : '发布（已选 ${_selected.length} 个班级）',
+                  fullWidth: true,
+                  onPressed: _submitting || _selected.isEmpty ? null : _submit,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _modeCard(String title, String subtitle,
+      {required bool enabled, required bool active}) {
+    return GestureDetector(
+      onTap: enabled ? () => setState(() => _materialOnly = title == '仅发资料') : null,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.mossTintOf(context)
+              : AppColors.surfaceOf(context),
+          border: Border.all(
+            color: active
+                ? AppColors.primaryOf(context)
+                : AppColors.ruleOf(context),
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(title,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: enabled
+                              ? AppColors.textOf(context)
+                              : AppColors.text4Of(context))),
+                ),
+                Icon(
+                  active
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_off,
+                  size: 15,
+                  color: active
+                      ? AppColors.primaryOf(context)
+                      : AppColors.text4Of(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 3),
+            Text(subtitle,
+                style: TextStyle(
+                    fontSize: 10.5, color: AppColors.text3Of(context))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  InputDecoration _inputDecoration(String hint) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle:
+          TextStyle(fontSize: 12.5, color: AppColors.text4Of(context)),
+      filled: true,
+      fillColor: AppColors.surfaceOf(context),
+      isDense: true,
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderSide: BorderSide(color: AppColors.ruleOf(context)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderSide: BorderSide(color: AppColors.ruleOf(context)),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        borderSide:
+            BorderSide(color: AppColors.primaryOf(context), width: 1.2),
       ),
     );
   }

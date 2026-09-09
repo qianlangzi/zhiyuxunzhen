@@ -7,6 +7,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/network/page_parser.dart';
 import '../data/teacher_service.dart';
 
 /// 教师端 · 教材管理（上传电子书 + 我的教材）
@@ -20,6 +21,8 @@ class TeacherTextbookScreen extends ConsumerStatefulWidget {
 class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
   List<Map<String, dynamic>> _list = [];
   bool _isLoading = true;
+  /// 0=我的教材（自己上传，可下架） 1=教材库（平台全部已上架教材，含他人上传）
+  int _scope = 0;
 
   @override
   void initState() {
@@ -28,12 +31,35 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
   }
 
   Future<void> _load() async {
-    final data = await TeacherService().getMyTextbooks(pageSize: 50);
+    final data = _scope == 0
+        ? await TeacherService().getMyTextbooks(pageSize: 50)
+        : await TeacherService().getTextbookLibrary(pageSize: 100);
     if (!mounted) return;
     setState(() {
-      _list = (data?['list'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+      // 后端 PageResult 字段是 list，统一走 PageParser 兼容解析
+      _list = PageParser.mapListOf(data);
       _isLoading = false;
     });
+  }
+
+  void _switchScope(int scope) {
+    if (_scope == scope) return;
+    setState(() {
+      _scope = scope;
+      _isLoading = true;
+    });
+    _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await TeacherService().deleteTextbook(id);
+    if (!mounted) return;
+    if (ok) {
+      AppFeedback.success(context, '教材已下架');
+      _load();
+    } else {
+      AppFeedback.error(context, '下架失败，请重试');
+    }
   }
 
   @override
@@ -49,41 +75,42 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
               onBack: () => context.canPop()
                   ? context.pop()
                   : context.goNamed(RouteNames.teacherHome),
-              action: AppIconButton(
-                icon: const Icon(Icons.add, size: 22),
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const TextbookUploadScreen()),
-                  );
-                  _load();
-                },
-              ),
+              action: _scope == 0
+                  ? AppIconButton(
+                      icon: const Icon(Icons.add, size: 22),
+                      onPressed: () async {
+                        await Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const TextbookUploadScreen()),
+                        );
+                        _load();
+                      },
+                    )
+                  : null,
             ),
+            _buildScopeBar(context),
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _list.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.menu_book_outlined,
-                                  size: 48, color: AppColors.text4Of(context)),
-                              const SizedBox(height: 12),
-                              SerifText('暂无教材', fontSize: 15,
-                                  color: AppColors.text2Of(context)),
-                              const SizedBox(height: 4),
-                              Text('点击右上角 + 上传医学电子书',
-                                  style: TextStyle(
-                                      fontSize: 12, color: AppColors.text4Of(context))),
-                            ],
+                      ? _buildEmpty(context)
+                      : RefreshIndicator(
+                          onRefresh: _load,
+                          child: ListView.separated(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+                            itemCount: _list.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 10),
+                            itemBuilder: (context, i) => _TextbookRow(
+                              item: _list[i],
+                              showMineBadge: _scope == 1,
+                              onDelete: _scope == 0
+                                  ? () {
+                                      final id = (_list[i]['id'] as num?)?.toInt();
+                                      if (id != null) _delete(id);
+                                    }
+                                  : null,
+                            ),
                           ),
-                        )
-                      : ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
-                          itemCount: _list.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (context, i) => _TextbookRow(item: _list[i]),
                         ),
             ),
           ],
@@ -91,14 +118,100 @@ class _TeacherTextbookScreenState extends ConsumerState<TeacherTextbookScreen> {
       ),
     );
   }
+
+  /// 双 Tab：我的教材 / 教材库
+  Widget _buildScopeBar(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 2, 20, 8),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppColors.paper2Of(context),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: Row(
+          children: List.generate(2, (i) {
+            final active = _scope == i;
+            final label = i == 0 ? '我的教材' : '教材库';
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => _switchScope(i),
+                behavior: HitTestBehavior.opaque,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.surfaceOf(context) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    boxShadow: active ? AppShadow.lifted(context) : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                        color: active
+                            ? AppColors.primaryOf(context)
+                            : AppColors.text3Of(context),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
+    final mine = _scope == 0;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          const SizedBox(height: 140),
+          Center(
+            child: Column(
+              children: [
+                Icon(Icons.menu_book_outlined,
+                    size: 48, color: AppColors.text4Of(context)),
+                const SizedBox(height: 12),
+                SerifText(mine ? '暂无教材' : '教材库暂无内容', fontSize: 15,
+                    color: AppColors.text2Of(context)),
+                const SizedBox(height: 4),
+                Text(
+                  mine ? '点击右上角 + 上传医学电子书' : '平台上还没有已上架的教材',
+                  style:
+                      TextStyle(fontSize: 12, color: AppColors.text4Of(context)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _TextbookRow extends StatelessWidget {
-  const _TextbookRow({required this.item});
+  const _TextbookRow({
+    required this.item,
+    this.showMineBadge = false,
+    this.onDelete,
+  });
   final Map<String, dynamic> item;
+  /// 教材库视图下标注「我上传的」
+  final bool showMineBadge;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final mine = item['mine'] == true;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -124,7 +237,27 @@ class _TextbookRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SerifText(item['title'] as String? ?? '未命名', fontSize: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SerifText(item['title'] as String? ?? '未命名',
+                          fontSize: 14),
+                    ),
+                    if (showMineBadge && mine)
+                      Container(
+                        margin: const EdgeInsets.only(left: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.mossTintOf(context),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: MonoText('我上传的',
+                            fontSize: 9,
+                            color: AppColors.primaryOf(context)),
+                      ),
+                  ],
+                ),
                 const SizedBox(height: 4),
                 MonoText(
                   '${item['department'] ?? '综合'} · ${item['chapterCount'] ?? 0} 章',
@@ -134,7 +267,18 @@ class _TextbookRow extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.check_circle, size: 18, color: AppColors.primary),
+          if (onDelete != null)
+            GestureDetector(
+              onTap: onDelete,
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Icon(Icons.remove_circle_outline,
+                    size: 18, color: AppColors.text4Of(context)),
+              ),
+            )
+          else
+            Icon(Icons.check_circle, size: 18, color: AppColors.primary),
         ],
       ),
     );

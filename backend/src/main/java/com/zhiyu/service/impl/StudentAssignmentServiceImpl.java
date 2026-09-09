@@ -20,6 +20,7 @@ import com.zhiyu.entity.PracticeQuestion;
 import com.zhiyu.entity.SpCaseConfig;
 import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.entity.Textbook;
+import com.zhiyu.entity.LessonMaterial;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentItemMapper;
 import com.zhiyu.mapper.AssignmentItemProgressMapper;
@@ -30,6 +31,7 @@ import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.SysUserMapper;
 import com.zhiyu.mapper.TeachingClassMapper;
 import com.zhiyu.mapper.TextbookMapper;
+import com.zhiyu.mapper.LessonMaterialMapper;
 import com.zhiyu.service.FormatCheckService;
 import com.zhiyu.service.StudentAssignmentService;
 import com.zhiyu.service.dto.PracticeSubmitDTO;
@@ -83,6 +85,7 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
     private final SpCaseConfigMapper caseMapper;
     private final PracticeQuestionMapper questionMapper;
     private final TextbookMapper textbookMapper;
+    private final LessonMaterialMapper lessonMaterialMapper;
     private final FormatCheckService formatCheckService;
     private final ObjectMapper objectMapper;
     private final AiPlatformClient aiPlatformClient;
@@ -278,6 +281,15 @@ public class StudentAssignmentServiceImpl implements StudentAssignmentService {
                 b.textbookTitle(t == null ? null : t.getTitle());
                 b.textbookFileUrl(t == null ? null : t.getFileUrl());
                 b.readingScope(item.getReadingScope());
+            }
+            case "MATERIAL" -> {
+                LessonMaterial m = item.getLessonMaterialId() == null
+                        ? null
+                        : lessonMaterialMapper.selectById(item.getLessonMaterialId());
+                b.lessonMaterialId(item.getLessonMaterialId());
+                b.materialTitle(m == null ? null : m.getTitle());
+                b.materialFileUrl(m == null ? null : m.getFileUrl());
+                b.materialType(m == null ? null : m.getMaterialType());
             }
             default -> { }
         }

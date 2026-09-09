@@ -9,6 +9,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../student/data/student_service.dart';
 import 'practice_answer_screen.dart';
 import 'reading_task_screen.dart';
+import 'material_view_screen.dart';
 
 /// 待办作业详情（组合任务包：任务项清单；存量单病例：直接问诊 + 提交大病历）
 class TodoAssignmentDetailScreen extends ConsumerStatefulWidget {
@@ -300,6 +301,7 @@ class _TodoAssignmentDetailScreenState
     final (icon, color, bg) = switch (type) {
       'CASE' => (Icons.medical_services_outlined, AppColors.vermilionOf(context), AppColors.vermilionSoftOf(context)),
       'PRACTICE' => (Icons.quiz_outlined, AppColors.indigoOf(context), AppColors.indigoSoftOf(context)),
+      'MATERIAL' => (Icons.attach_file_rounded, AppColors.moss3Of(context), AppColors.mossTintOf(context)),
       _ => (Icons.menu_book_outlined, AppColors.amberOf(context), AppColors.amberSoftOf(context)),
     };
     return Container(
@@ -413,9 +415,43 @@ class _TodoAssignmentDetailScreenState
             ),
           ],
         );
+      case 'MATERIAL':
+        return Row(
+          children: [
+            Expanded(
+              child: AppPrimaryButton(
+                label: '查看资料',
+                icon: const Icon(Icons.attach_file_rounded, size: 13),
+                small: true,
+                fullWidth: true,
+                onPressed: () => _openMaterial(item),
+              ),
+            ),
+          ],
+        );
       default:
         return const SizedBox.shrink();
     }
+  }
+
+  /// 打开资料附件（pdf/图片进阅读器，mp4/mp3 内建播放）
+  void _openMaterial(Map<String, dynamic> item) {
+    final url = (item['materialFileUrl'] as String?) ?? '';
+    if (url.isEmpty) {
+      AppFeedback.info(context, '资料文件缺失，请联系老师');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MaterialViewScreen(
+          title: (item['title'] as String?)?.isNotEmpty == true
+              ? item['title'] as String
+              : (item['materialTitle'] as String? ?? '学习资料'),
+          fileUrl: url,
+          materialType: (item['materialType'] as String?) ?? '',
+        ),
+      ),
+    ).then((_) => _load());
   }
 
   String _subtitle(Map<String, dynamic> item) {
@@ -431,6 +467,9 @@ class _TodoAssignmentDetailScreenState
         final scope = (item['readingScope'] as String?) ?? '';
         final book = (item['textbookTitle'] as String?) ?? '';
         return '${book}${scope.isNotEmpty ? ' · $scope' : ''}';
+      case 'MATERIAL':
+        final type = ((item['materialType'] as String?) ?? '').toUpperCase();
+        return '${item['materialTitle'] ?? ''}${type.isNotEmpty ? ' · $type' : ''}';
       default:
         return '';
     }
@@ -440,6 +479,7 @@ class _TodoAssignmentDetailScreenState
     return switch (type) {
       'CASE' => 'SP 病例问诊',
       'PRACTICE' => '基础练习',
+      'MATERIAL' => '学习资料',
       _ => '阅读任务',
     };
   }

@@ -279,15 +279,6 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        // 每日病历批阅台：AI 初筛 + 复核 + 班级缺陷热力图
-        _SubToolCard(
-          icon: Icons.assignment_turned_in_rounded,
-          color: AppColors.moss3Of(context),
-          title: '每日病历批阅台',
-          subtitle: 'AI 初筛 · 复核 · 缺陷热力',
-          route: RouteNames.teacherMrConsole,
-        ),
       ],
     );
   }

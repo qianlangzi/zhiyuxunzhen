@@ -7,6 +7,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 新建作业（组合任务包向导）
 ///
@@ -43,6 +44,15 @@ class _ItemDraft {
         textbookId = textbookId,
         textbookTitle = textbookTitle;
 
+  _ItemDraft.material({
+    required this.title,
+    required int materialId,
+    required String materialTitle,
+    this.materialType = '',
+  })  : itemType = 'MATERIAL',
+        lessonMaterialId = materialId,
+        materialTitle = materialTitle;
+
   final String itemType;
   String title;
   int? caseId;
@@ -51,6 +61,9 @@ class _ItemDraft {
   int? textbookId;
   String? textbookTitle;
   String readingScope = '';
+  int? lessonMaterialId;
+  String? materialTitle;
+  String materialType = '';
 
   String get summary {
     switch (itemType) {
@@ -61,6 +74,8 @@ class _ItemDraft {
       case 'READING':
         final scope = readingScope.trim().isEmpty ? '' : ' · $readingScope';
         return '${textbookTitle ?? ''}$scope';
+      case 'MATERIAL':
+        return materialTitle ?? '';
       default:
         return '';
     }
@@ -226,6 +241,18 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
                   _pickTextbook();
                 },
               ),
+              const SizedBox(height: 10),
+              _typeOption(
+                icon: Icons.attach_file_rounded,
+                title: '学习资料',
+                subtitle: '附带备课课件（PDF/PPT/视频/音频）',
+                color: AppColors.moss3Of(context),
+                bg: AppColors.mossTintOf(context),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _pickMaterial();
+                },
+              ),
             ],
           ),
         ),
@@ -327,6 +354,22 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
     }
   }
 
+  // ---------- 选备课资料附件 ----------
+  Future<void> _pickMaterial() async {
+    final selected = await showModalBottomSheet<_ItemDraft>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgOf(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (ctx) => const _MaterialPickerSheet(),
+    );
+    if (selected != null) {
+      setState(() => _items.add(selected));
+    }
+  }
+
   // ========= 发放 =========
   Future<void> _submit() async {
     final title = _titleCtrl.text.trim();
@@ -394,6 +437,8 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
               'textbookId': it.textbookId,
               'readingScope': it.readingScope.trim().isEmpty ? null : it.readingScope.trim(),
             };
+          case 'MATERIAL':
+            return {...base, 'lessonMaterialId': it.lessonMaterialId};
           default:
             return base;
         }
@@ -835,6 +880,7 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
     final (icon, color, bg) = switch (it.itemType) {
       'CASE' => (Icons.medical_services_outlined, AppColors.vermilionOf(context), AppColors.vermilionSoftOf(context)),
       'PRACTICE' => (Icons.quiz_outlined, AppColors.indigoOf(context), AppColors.indigoSoftOf(context)),
+      'MATERIAL' => (Icons.attach_file_rounded, AppColors.moss3Of(context), AppColors.mossTintOf(context)),
       _ => (Icons.menu_book_outlined, AppColors.amberOf(context), AppColors.amberSoftOf(context)),
     };
     return Container(
@@ -886,6 +932,7 @@ class _AssignmentCreateScreenState extends ConsumerState<AssignmentCreateScreen>
     return switch (type) {
       'CASE' => 'SP 病例问诊',
       'PRACTICE' => '基础练习',
+      'MATERIAL' => '学习资料',
       _ => '阅读任务',
     };
   }
@@ -990,16 +1037,8 @@ class _CasePickerSheetState extends State<_CasePickerSheet> {
     final market = await TeacherService().getMarketList();
     if (!mounted) return;
     setState(() {
-      _mine = ((mine?['records'] as List<dynamic>?) ??
-              (mine?['list'] as List<dynamic>?) ??
-              const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList();
-      _market = ((market?['records'] as List<dynamic>?) ??
-              (market?['cases'] as List<dynamic>?) ??
-              const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList();
+      _mine = PageParser.mapListOf(mine);
+      _market = PageParser.mapListOf(market);
       _loading = false;
     });
   }
@@ -1202,11 +1241,7 @@ class _QuestionPickerSheetState extends State<_QuestionPickerSheet> {
     final data = await TeacherService().getMyQuestions(pageSize: 200);
     if (!mounted) return;
     setState(() {
-      _questions = ((data?['records'] as List<dynamic>?) ??
-              (data?['list'] as List<dynamic>?) ??
-              const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList();
+      _questions = PageParser.mapListOf(data);
       _loading = false;
     });
   }
@@ -1416,14 +1451,12 @@ class _TextbookPickerSheetState extends State<_TextbookPickerSheet> {
   }
 
   Future<void> _load() async {
-    final data = await TeacherService().getMyTextbooks(pageSize: 100);
+    // 组卷关联教材走「教材库」：平台上全部已上架教材都能引用，
+    // 不再局限于自己上传的（此前教师没传过教材时这里恒为空）
+    final data = await TeacherService().getTextbookLibrary(pageSize: 100);
     if (!mounted) return;
     setState(() {
-      _textbooks = ((data?['list'] as List<dynamic>?) ??
-              (data?['records'] as List<dynamic>?) ??
-              const [])
-          .map((e) => (e as Map).cast<String, dynamic>())
-          .toList();
+      _textbooks = PageParser.mapListOf(data);
       _loading = false;
     });
   }
@@ -1583,6 +1616,201 @@ class _TextbookPickerSheetState extends State<_TextbookPickerSheet> {
                           },
                   ),
                 ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 备课资料选择器：跨教案平铺展示本人全部上传的课件资料，
+/// 选中后作为 MATERIAL 任务项随作业下发（学生端可查看）。
+class _MaterialPickerSheet extends StatefulWidget {
+  const _MaterialPickerSheet();
+
+  @override
+  State<_MaterialPickerSheet> createState() => _MaterialPickerSheetState();
+}
+
+class _MaterialPickerSheetState extends State<_MaterialPickerSheet> {
+  List<Map<String, dynamic>> _materials = [];
+  bool _loading = true;
+  int? _selectedId;
+
+  static const _typeIcons = {
+    'pdf': Icons.picture_as_pdf_outlined,
+    'ppt': Icons.slideshow_rounded,
+    'mp4': Icons.movie_outlined,
+    'mp3': Icons.headphones_rounded,
+    'image': Icons.image_outlined,
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final list = await TeacherService().getMyMaterials();
+    if (!mounted) return;
+    setState(() {
+      _materials = list;
+      _loading = false;
+    });
+  }
+
+  IconData _iconOf(String? type) =>
+      _typeIcons[(type ?? '').toLowerCase()] ?? Icons.attach_file_rounded;
+
+  String _typeLabel(String? type) {
+    switch ((type ?? '').toLowerCase()) {
+      case 'pdf':
+        return 'PDF 文档';
+      case 'ppt':
+        return 'PPT 课件';
+      case 'mp4':
+        return '视频';
+      case 'mp3':
+        return '音频';
+      case 'image':
+        return '图片';
+      default:
+        return '资料';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.85,
+      maxChildSize: 0.92,
+      builder: (ctx, scrollController) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.ruleOf(context),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SerifText('选择学习资料', fontSize: 17),
+                const SizedBox(height: 4),
+                MonoText('从你的备课资料中选择，随作业下发给学生查看', fontSize: 11,
+                    color: AppColors.text3Of(context)),
+                Divider(height: 20, color: AppColors.ruleOf(context)),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _materials.isEmpty
+                    ? Center(
+                        child: MonoText('暂无备课资料，请先在「备课」里上传课件',
+                            fontSize: 12, color: AppColors.text4Of(context)),
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                        itemCount: _materials.length,
+                        itemBuilder: (ctx, i) {
+                          final m = _materials[i];
+                          final id = (m['materialId'] as num?)?.toInt() ?? 0;
+                          final title = m['title'] as String? ?? '未命名资料';
+                          final type = m['materialType'] as String?;
+                          final lessonTitle = m['lessonTitle'] as String? ?? '';
+                          final selected = id == _selectedId;
+                          return PressableScale(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedId = id),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? AppColors.mossTintOf(context)
+                                      : AppColors.surfaceOf(context),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                  border: Border.all(
+                                    color: selected
+                                        ? AppColors.primaryOf(context)
+                                        : AppColors.surfaceEdgeOf(context),
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      selected
+                                          ? Icons.check_circle_rounded
+                                          : _iconOf(type),
+                                      size: 18,
+                                      color: selected
+                                          ? AppColors.primaryOf(context)
+                                          : AppColors.text3Of(context),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(title,
+                                              style: TextStyle(
+                                                  fontSize: 13.5,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: AppColors.textOf(context))),
+                                          const SizedBox(height: 2),
+                                          MonoText(
+                                            lessonTitle.isEmpty
+                                                ? _typeLabel(type)
+                                                : '${_typeLabel(type)} · $lessonTitle',
+                                            fontSize: 10,
+                                            color: AppColors.text3Of(context),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 12),
+              child: AppPrimaryButton(
+                label: '确定添加',
+                fullWidth: true,
+                onPressed: _selectedId == null
+                    ? null
+                    : () {
+                        final m = _materials.firstWhere((e) =>
+                            ((e['materialId'] as num?)?.toInt() ?? 0) ==
+                            _selectedId);
+                        Navigator.of(context).pop(_ItemDraft.material(
+                          title: '',
+                          materialId: _selectedId!,
+                          materialTitle: m['title'] as String? ?? '',
+                          materialType:
+                              (m['materialType'] as String? ?? '').toLowerCase(),
+                        ));
+                      },
               ),
             ),
           ),

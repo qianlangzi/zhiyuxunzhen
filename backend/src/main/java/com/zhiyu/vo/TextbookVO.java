@@ -30,4 +30,6 @@ public class TextbookVO {
     private Integer pageCount;
     /** 向量化入库状态：0未入库 1处理中(后台整理) 2已入库 3失败 */
     private Integer ingestStatus;
+    /** 是否由当前登录教师创建（教材库列表用于打「我上传的」徽章；我的教材列表恒为 true） */
+    private Boolean mine;
 }

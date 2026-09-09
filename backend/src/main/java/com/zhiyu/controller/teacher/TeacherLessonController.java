@@ -126,6 +126,12 @@ public class TeacherLessonController {
         return R.ok();
     }
 
+    /** 我的全部备课资料（跨教案平铺，供作业创建时选择资料附件） */
+    @GetMapping("/materials")
+    public R<List<Map<String, Object>>> myMaterials() {
+        return R.ok(lessonService.listMyMaterials());
+    }
+
     /** 发布备课：materialOnly=true 仅发资料；否则资料+病例+作业一并下发 */
     @PostMapping("/{id}/publish")
     public R<Void> publish(@PathVariable Long id, @Valid @RequestBody LessonPublishDTO req) {

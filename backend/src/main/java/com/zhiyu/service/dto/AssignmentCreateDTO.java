@@ -87,5 +87,8 @@ public class AssignmentCreateDTO {
 
         /** READING:阅读范围（章节/页码范围） */
         private String readingScope;
+
+        /** MATERIAL:备课资料ID(lesson_material.id)，须为本教师备课下的资料 */
+        private Long lessonMaterialId;
     }
 }

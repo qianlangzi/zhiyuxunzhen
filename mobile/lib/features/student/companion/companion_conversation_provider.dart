@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/student_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 学伴会话（历史列表项）
 class CompanionConversation {
@@ -148,7 +149,7 @@ class CompanionConversationNotifier
   List<CompanionConversation> _parseList(Map<String, dynamic>? data) {
     if (data == null) return const [];
     final list =
-        (data['list'] as List?) ?? (data['records'] as List?) ?? const [];
+        PageParser.listOf(data);
     return list
         .whereType<Map>()
         .cast<Map<String, dynamic>>()

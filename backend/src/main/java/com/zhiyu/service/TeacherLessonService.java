@@ -73,6 +73,9 @@ public interface TeacherLessonService {
     /** 删除课件资料 */
     void removeMaterial(Long lessonId, Long materialId);
 
+    /** 我的全部备课资料（跨教案平铺，供作业创建时选择「资料附件」任务项） */
+    List<Map<String, Object>> listMyMaterials();
+
     /** 发布备课（materialOnly=1 仅发资料；否则创建作业一并下发） */
     void publish(Long lessonId, LessonPublishDTO req);
 

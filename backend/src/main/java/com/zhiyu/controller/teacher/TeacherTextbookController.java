@@ -110,6 +110,16 @@ public class TeacherTextbookController {
         return R.ok(textbookService.myList(pageNum, pageSize));
     }
 
+    @Operation(summary = "教材库（平台上全部已上架教材，含他人上传，mine 字段标注是否本人创建）")
+    @GetMapping("/library")
+    public R<PageResult<TextbookVO>> library(
+            @RequestParam(defaultValue = "1") Integer pageNum,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String keyword) {
+        return R.ok(textbookService.page(pageNum, pageSize, department, keyword));
+    }
+
     @Operation(summary = "下架教材")
     @DeleteMapping("/{id}")
     public R<Void> delete(@PathVariable Long id) {

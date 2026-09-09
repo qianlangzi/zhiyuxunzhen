@@ -138,6 +138,22 @@ public class TextbookServiceImpl implements TextbookService {
     }
 
     private TextbookVO toVO(Textbook tb) {
+        return toVO(tb, null);
+    }
+
+    /**
+     * @param mineOverride 非空时直接采用；为空时按当前登录用户是否为创建者推断
+     */
+    private TextbookVO toVO(Textbook tb, Boolean mineOverride) {
+        Boolean mine = mineOverride;
+        if (mine == null) {
+            try {
+                Long uid = UserContext.requireUserId();
+                mine = uid != null && Objects.equals(tb.getCreatorId(), uid);
+            } catch (Exception e) { // noqa - 未登录等场景降级为不标注
+                mine = Boolean.FALSE;
+            }
+        }
         return TextbookVO.builder()
                 .id(tb.getId())
                 .textbookNo(tb.getTextbookNo())
@@ -153,6 +169,7 @@ public class TextbookServiceImpl implements TextbookService {
                 .chapterCount(tb.getChapterCount())
                 .pageCount(tb.getPageCount())
                 .ingestStatus(tb.getIngestStatus())
+                .mine(mine)
                 .build();
     }
 

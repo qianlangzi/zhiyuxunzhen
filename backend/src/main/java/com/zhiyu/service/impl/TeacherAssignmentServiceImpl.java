@@ -20,11 +20,15 @@ import com.zhiyu.entity.SysUser;
 import com.zhiyu.entity.TeacherClassAuthorization;
 import com.zhiyu.entity.TeachingClass;
 import com.zhiyu.entity.Textbook;
+import com.zhiyu.entity.LessonMaterial;
+import com.zhiyu.entity.LessonPlan;
 import com.zhiyu.mapper.AssignmentInstanceMapper;
 import com.zhiyu.mapper.AssignmentItemMapper;
 import com.zhiyu.mapper.AssignmentItemProgressMapper;
 import com.zhiyu.mapper.AssignmentMapper;
 import com.zhiyu.mapper.AssignmentTargetClassMapper;
+import com.zhiyu.mapper.LessonMaterialMapper;
+import com.zhiyu.mapper.LessonPlanMapper;
 import com.zhiyu.mapper.PracticeQuestionMapper;
 import com.zhiyu.mapper.SpCaseConfigMapper;
 import com.zhiyu.mapper.StudentClassMembershipMapper;
@@ -79,6 +83,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final PracticeQuestionMapper questionMapper;
     private final TextbookMapper textbookMapper;
     private final StudentClassMembershipMapper membershipMapper;
+    private final LessonMaterialMapper lessonMaterialMapper;
+    private final LessonPlanMapper lessonPlanMapper;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -151,6 +157,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     ai.setTextbookId(item.getTextbookId());
                     ai.setReadingScope(item.getReadingScope());
                 }
+                case "MATERIAL" -> ai.setLessonMaterialId(item.getLessonMaterialId());
                 default -> throw new BizException(ResultCode.VALIDATION_FAILED, "不支持的任务项类型: " + item.getItemType());
             }
             items.add(ai);
@@ -323,6 +330,20 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     throw new BizException(ResultCode.FORBIDDEN, "只能使用本人上传或已上架的教材");
                 }
             }
+            case "MATERIAL" -> {
+                if (item.getLessonMaterialId() == null) {
+                    throw new BizException(ResultCode.VALIDATION_FAILED, "资料任务项必须选择备课资料");
+                }
+                LessonMaterial m = lessonMaterialMapper.selectById(item.getLessonMaterialId());
+                if (m == null || (m.getIsDeleted() != null && m.getIsDeleted() == 1)) {
+                    throw new BizException(ResultCode.VALIDATION_FAILED, "备课资料不存在或已删除");
+                }
+                // 材料必须挂在本教师的备课下
+                LessonPlan plan = lessonPlanMapper.selectById(m.getLessonId());
+                if (plan == null || !teacherId.equals(plan.getTeacherId())) {
+                    throw new BizException(ResultCode.FORBIDDEN, "只能使用本人备课下的资料");
+                }
+            }
             default -> throw new BizException(ResultCode.VALIDATION_FAILED, "不支持的任务项类型: " + item.getItemType());
         }
     }
@@ -341,6 +362,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             case "READING" -> {
                 Textbook t = textbookMapper.selectById(item.getTextbookId());
                 yield "阅读任务" + (t != null ? " · " + t.getTitle() : "");
+            }
+            case "MATERIAL" -> {
+                LessonMaterial m = lessonMaterialMapper.selectById(item.getLessonMaterialId());
+                yield "学习资料" + (m != null ? " · " + m.getTitle() : "");
             }
             default -> "任务";
         };

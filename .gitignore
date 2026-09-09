@@ -154,3 +154,6 @@ mobile/errors.txt
 
 # ===== 敏感内部文档（永不入库）=====
 /docs/服务器问题交接文档.md
+
+# ===== 本地 SSH 服务器凭据（含明文密码，严禁提交）=====
+/.server_ssh_credentials

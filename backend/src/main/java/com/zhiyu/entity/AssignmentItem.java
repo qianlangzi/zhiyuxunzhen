@@ -44,6 +44,9 @@ public class AssignmentItem extends BaseEntity {
     /** READING:阅读范围(章节/页码范围) */
     private String readingScope;
 
+    /** MATERIAL:备课资料ID(lesson_material.id) */
+    private Long lessonMaterialId;
+
     @TableLogic
     private Integer isDeleted;
 }

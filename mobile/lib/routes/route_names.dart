@@ -65,7 +65,6 @@ class RouteNames {
   static const teacherProfile = 'teacherProfile';
   static const profileEditTeacher = 'profileEditTeacher';
   static const teacherTextbook = 'teacherTextbook';
-  static const teacherMrConsole = 'teacherMrConsole';
   static const teacherQuestions = 'teacherQuestions';
   static const teacherQuestionEdit = 'teacherQuestionEdit';
   static const bprep = 'bprep';

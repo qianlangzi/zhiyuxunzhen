@@ -5,6 +5,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
 import '../data/student_api.dart';
+import '../../../core/network/page_parser.dart';
 
 /// AI 学伴记忆管理页（P1-2）
 /// 查看 AI 从对话中抽取的长期记忆，支持单条删除 / 一键清空。
@@ -40,12 +41,13 @@ class _MemoryManageScreenState extends ConsumerState<MemoryManageScreen> {
     if (!mounted) return;
     final data = resp.data;
     if (resp.code == 0 && data != null) {
-      final records = data['records'];
       setState(() {
         _items
           ..clear()
-          ..addAll(records is List ? records.cast<Map<String, dynamic>>() : []);
-        _total = (data['total'] as num?)?.toInt() ?? _items.length;
+          ..addAll(PageParser.mapListOf(data));
+        _total = PageParser.totalOf(data) > 0
+            ? PageParser.totalOf(data)
+            : _items.length;
         _loading = false;
       });
     } else {

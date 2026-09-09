@@ -7,6 +7,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../data/student_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 学生·批阅申诉（P2-1）
 ///
@@ -86,8 +87,7 @@ class _StudentAppealsScreenState extends ConsumerState<StudentAppealsScreen> {
     List<dynamic>? candidates = [];
     try {
       final page = await StudentService().getMyAssignments(pageNum: 1, pageSize: 50);
-      final records = page?['records'];
-      if (records is List) candidates = records;
+      candidates = PageParser.listOf(page);
     } catch (e) {
       debugPrint('loadAssignments error: $e');
     }

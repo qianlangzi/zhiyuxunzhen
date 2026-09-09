@@ -7,6 +7,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 题目审核状态（后端 adminAuditStatus）
 enum QuestionStatus {
@@ -78,8 +79,8 @@ class _QuestionListScreenState extends ConsumerState<QuestionListScreen> {
         : await TeacherService().getAllQuestions(pageSize: 100);
     if (!mounted) return;
     setState(() {
-      _list =
-          (data?['records'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
+      // 后端 PageResult 字段是 list（不是 records），统一走 PageParser 兼容解析
+      _list = PageParser.mapListOf(data);
       _isLoading = false;
     });
   }

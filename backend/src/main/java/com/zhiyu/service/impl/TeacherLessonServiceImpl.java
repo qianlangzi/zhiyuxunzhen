@@ -893,6 +893,35 @@ public class TeacherLessonServiceImpl implements TeacherLessonService {
         materialMapper.deleteById(m.getId());
     }
 
+    @Override
+    public List<Map<String, Object>> listMyMaterials() {
+        Long teacherId = UserContext.requireUserId();
+        // 只查本人备课下的资料，按上传时间倒序
+        List<LessonPlan> plans = lessonPlanMapper.selectList(
+                new LambdaQueryWrapper<LessonPlan>().eq(LessonPlan::getTeacherId, teacherId));
+        if (plans.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, String> lessonTitle = plans.stream()
+                .collect(Collectors.toMap(LessonPlan::getId, p ->
+                        p.getTitle() == null ? "未命名教案" : p.getTitle()));
+        List<LessonMaterial> materials = materialMapper.selectList(
+                new LambdaQueryWrapper<LessonMaterial>()
+                        .in(LessonMaterial::getLessonId, plans.stream().map(LessonPlan::getId).toList())
+                        .orderByDesc(LessonMaterial::getId));
+        return materials.stream().map(m -> {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("materialId", m.getId());
+            row.put("title", m.getTitle());
+            row.put("materialType", m.getMaterialType());
+            row.put("fileUrl", m.getFileUrl());
+            row.put("durationSec", m.getDurationSec());
+            row.put("lessonId", m.getLessonId());
+            row.put("lessonTitle", lessonTitle.getOrDefault(m.getLessonId(), ""));
+            return row;
+        }).collect(Collectors.toList());
+    }
+
     // ---------------- 发布闭环 ----------------
 
     @Override

@@ -7,6 +7,7 @@ import '../../../shared/widgets/app_widgets.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../data/teacher_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 我的病例（草稿箱 · 抖音发布链路式管理）
 ///
@@ -55,11 +56,8 @@ class _MyCasesScreenState extends ConsumerState<MyCasesScreen> {
       data = null;
     }
     if (!mounted) return;
-    final raw = (data?['records'] as List<dynamic>?) ??
-        (data?['list'] as List<dynamic>?) ??
-        const [];
     setState(() {
-      _all = raw.map((e) => (e as Map).cast<String, dynamic>()).toList();
+      _all = PageParser.mapListOf(data);
       // 若数据为空且请求异常，判定为加载失败，用错误态而非空态
       _error = data == null && _all.isEmpty;
       _loading = false;

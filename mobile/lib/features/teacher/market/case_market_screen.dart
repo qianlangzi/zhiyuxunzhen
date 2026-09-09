@@ -7,6 +7,7 @@ import '../../../shared/utils/feedback.dart';
 import '../../../routes/route_names.dart';
 import '../../../core/constants/app_constants.dart';
 import '../data/teacher_service.dart';
+import '../../../core/network/page_parser.dart';
 
 /// 病例广场
 class CaseMarketScreen extends ConsumerStatefulWidget {
@@ -62,20 +63,12 @@ class _CaseMarketScreenState extends ConsumerState<CaseMarketScreen> {
     }
     if (mounted) {
       setState(() {
-        List<dynamic>? raw;
-        if (data != null) {
-          // 后端分页结构 records；兼容旧字段 cases
-          raw = (data['records'] as List<dynamic>?) ??
-              (data['cases'] as List<dynamic>?);
-        }
-        // 仅当后端返回了非空列表才用真实数据，否则保留默认展示（供离线/无数据时预览）
-        if (raw != null && raw.isNotEmpty) {
-          _cases = raw
-              .map((c) => _CaseData.fromJson(c as Map<String, dynamic>))
-              .toList();
-        } else {
-          _cases.clear();
-        }
+        // 后端 PageResult 字段是 list，统一走 PageParser 兼容解析
+        final raw = PageParser.listOf(data);
+        _cases = raw
+            .whereType<Map>()
+            .map((c) => _CaseData.fromJson(c.cast<String, dynamic>()))
+            .toList();
         _isLoading = false;
       });
     }

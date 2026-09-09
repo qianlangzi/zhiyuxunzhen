@@ -309,6 +309,20 @@ class TeacherService {
 
   // ========= 班级管理（教师自建 / 重命名 / 解散 / 成员 / 邀请） =========
 
+  /// 我的全部备课资料（跨教案平铺，作业创建时选资料附件用）
+  Future<List<Map<String, dynamic>>> getMyMaterials() async {
+    if (_isMock) return const [];
+    final resp = await _api.getMyMaterials();
+    if (!resp.isSuccess) {
+      log('getMyMaterials failed: ${resp.message}', name: 'teacher_service');
+      return const [];
+    }
+    return (resp.data ?? const [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+  }
+
   /// 我的班级列表（含 inviteCode/teacherId）
   Future<List<Map<String, dynamic>>> getMyClasses() async {
     if (_isMock) return [];
@@ -898,6 +912,27 @@ class TeacherService {
         await _api.getMyTextbooks(pageNum: pageNum, pageSize: pageSize);
     if (!resp.isSuccess) {
       log('getMyTextbooks failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data;
+  }
+
+  /// 教材库（平台全部已上架教材，含他人上传）
+  Future<Map<String, dynamic>?> getTextbookLibrary({
+    int pageNum = 1,
+    int pageSize = 50,
+    String? department,
+    String? keyword,
+  }) async {
+    if (_isMock) return null;
+    final resp = await _api.getTextbookLibrary(
+      pageNum: pageNum,
+      pageSize: pageSize,
+      department: department,
+      keyword: keyword,
+    );
+    if (!resp.isSuccess) {
+      log('getTextbookLibrary failed: ${resp.message}', name: 'teacher_service');
       return null;
     }
     return resp.data;

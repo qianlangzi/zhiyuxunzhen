@@ -14,6 +14,7 @@ import '../../../core/constants/app_constants.dart';
 import '../data/student_service.dart';
 import 'companion_conversation_provider.dart';
 import 'companion_history_drawer.dart';
+import '../../../core/network/page_parser.dart';
 
 /// AI 学伴页（P1-2，学习陪伴）
 /// 平辈陪伴式对话，角色区别于 SP（标准病人）：闲聊 + 基于学生错题/进度给策略建议。
@@ -519,9 +520,8 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   Future<void> _loadMessages(int convId) async {
     final data = await StudentService().getCompanionMessages(convId, pageSize: 50);
     if (!mounted) return;
-    final raw = (data?['list'] as List<dynamic>?) ??
-        (data?['records'] as List<dynamic>?);
-    if (raw != null && raw.isNotEmpty) {
+    final raw = PageParser.listOf(data);
+    if (raw.isNotEmpty) {
       final loaded = raw
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))

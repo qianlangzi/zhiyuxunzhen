@@ -258,6 +258,18 @@ class TeacherApi {
 
   // ========= 班级管理（教师自建 / 重命名 / 解散 / 成员 / 邀请） =========
 
+  /// 我的全部备课资料（跨教案平铺，作业创建时选资料附件用）
+  Future<ApiResponse<List<dynamic>>> getMyMaterials() async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/lessons/materials',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 我的班级列表（data 为数组，含 inviteCode/teacherId）
   Future<ApiResponse<List<dynamic>>> getMyClasses() async {
     try {
@@ -679,6 +691,29 @@ class TeacherApi {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/v1/teacher/textbooks',
         queryParameters: {'pageNum': pageNum, 'pageSize': pageSize},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 教材库（平台全部已上架教材，含他人上传，供教师浏览/引用）
+  Future<ApiResponse<Map<String, dynamic>>> getTextbookLibrary({
+    int pageNum = 1,
+    int pageSize = 50,
+    String? department,
+    String? keyword,
+  }) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/teacher/textbooks/library',
+        queryParameters: {
+          'pageNum': pageNum,
+          'pageSize': pageSize,
+          if (department != null && department.isNotEmpty) 'department': department,
+          if (keyword != null && keyword.isNotEmpty) 'keyword': keyword,
+        },
       );
       return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
     } on DioException catch (e) {

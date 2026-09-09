@@ -41,7 +41,6 @@ import '../features/student/growth/training_overview_screen.dart';
 import '../features/student/assignments/todo_assignments_screen.dart';
 import '../features/student/assignments/todo_assignment_detail_screen.dart';
 import '../features/common/profile/profile_edit_screen.dart';
-import '../features/teacher/daily_mr/teacher_mr_console_screen.dart';
 import '../features/teacher/home/teacher_home_screen.dart';
 import '../features/teacher/case_config/sp_config_screen.dart';
 import '../features/teacher/case_config/my_cases_screen.dart';
@@ -613,11 +612,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.teacherTextbook,
         path: '/teacher/textbooks',
         builder: (context, state) => TeacherTextbookScreen(),
-      ),
-      GoRoute(
-        name: RouteNames.teacherMrConsole,
-        path: '/teacher/daily-mr',
-        builder: (context, state) => const TeacherMrConsoleScreen(),
       ),
       GoRoute(
         name: RouteNames.teacherQuestions,

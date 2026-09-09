@@ -43,4 +43,10 @@ public class StudentItemDetailVO {
     private String textbookTitle;
     private String textbookFileUrl;
     private String readingScope;
+
+    /** MATERIAL:备课资料附件（pdf/ppt/mp4/mp3/image） */
+    private Long lessonMaterialId;
+    private String materialTitle;
+    private String materialFileUrl;
+    private String materialType;
 }
