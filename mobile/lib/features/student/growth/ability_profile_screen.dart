@@ -10,12 +10,12 @@ import '../../../shared/widgets/paper_surfaces.dart';
 import '../data/student_service.dart';
 import 'growth_stats.dart';
 import 'widgets/ability_radar.dart';
-import 'widgets/weakness_list_card.dart';
 
 /// 能力画像子页（成长页二级页）
 ///
-/// 成长页瘦身后的下沉内容：OSCE 六维雷达 + 最强/最弱对比 +
-/// 薄弱知识点 Top（含 AI 诊断入口 → 薄弱点推荐页补练）。
+/// 职责收敛：只讲「能力长什么样」—— OSCE 六维雷达 + 最强/最弱对比。
+/// 薄弱知识点 Top 及 AI 补练入口统一收敛到「学习档案」
+/// （此前两页各挂一份 WeaknessListCard，同一份内容重复出现）。
 class AbilityProfileScreen extends ConsumerStatefulWidget {
   const AbilityProfileScreen({super.key});
 
@@ -26,7 +26,6 @@ class AbilityProfileScreen extends ConsumerStatefulWidget {
 
 class _AbilityProfileScreenState extends ConsumerState<AbilityProfileScreen> {
   GrowthStats _stats = GrowthStats.fromOverview(null);
-  List<dynamic> _weaknesses = const [];
   bool _isLoading = true;
 
   @override
@@ -36,14 +35,10 @@ class _AbilityProfileScreenState extends ConsumerState<AbilityProfileScreen> {
   }
 
   Future<void> _load() async {
-    final results = await Future.wait([
-      StudentService().getReportOverview(),
-      StudentService().getWeaknesses(),
-    ]);
+    final data = await StudentService().getReportOverview();
     if (!mounted) return;
     setState(() {
-      _stats = GrowthStats.fromOverview(results[0] as Map<String, dynamic>?);
-      _weaknesses = results[1] as List<dynamic>? ?? const [];
+      _stats = GrowthStats.fromOverview(data);
       _isLoading = false;
     });
   }
@@ -70,10 +65,53 @@ class _AbilityProfileScreenState extends ConsumerState<AbilityProfileScreen> {
             const SizedBox(height: 16),
           ] else
             _buildEmpty(context),
-          WeaknessListCard(
-            weaknesses: _weaknesses,
-            onAiDiagnosis: () => context.pushNamed(RouteNames.recommendation),
+          _buildWeaknessGuide(context),
+        ],
+      ),
+    );
+  }
+
+  /// 薄弱知识点已收敛到学习档案，这里只留一行轻量指引（不做重复内容）
+  Widget _buildWeaknessGuide(BuildContext context) {
+    return PaperCard(
+      tint: AppColors.vermilionOf(context),
+      tintStrength: 0.5,
+      radius: AppRadius.lg,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      onTap: () => context.pushNamed(RouteNames.learningArchive),
+      child: Row(
+        children: [
+          GradientIconBadge(
+            icon: Icons.psychology_outlined,
+            color: AppColors.vermilionOf(context),
+            size: 34,
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '薄弱知识点在哪？',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textOf(context),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '去学习档案查看薄弱点 Top 与 AI 补练计划',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.text4Of(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Icon(Icons.chevron_right,
+              size: 18, color: AppColors.text4Of(context)),
         ],
       ),
     );

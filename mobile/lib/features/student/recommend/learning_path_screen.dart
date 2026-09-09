@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -29,12 +31,14 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
-  Future<void> _load() async {
+  /// [refresh] false 时后端优先返回 24h 内缓存（进页秒开）；
+  /// true 强制重调 AI（仅「重新生成路径」按钮触发，约需 20~60 秒）。
+  Future<void> _load({bool refresh = false}) async {
     setState(() {
       _isLoading = true;
       _error = null;
     });
-    final data = await StudentService().generateLearningPath();
+    final data = await StudentService().generateLearningPath(refresh: refresh);
     if (!mounted) return;
     // 先算真实步数（不能依赖 _steps：_path 此刻还没更新，会永远埋成 0）
     final stepCount =
@@ -46,7 +50,9 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
     });
     // 试用埋点（P2-3）：记录路径生成动作
     StudentService().track('learning_path_generate',
-        detail: data == null ? 'failed' : 'steps=$stepCount');
+        detail: data == null
+            ? 'failed'
+            : '${refresh ? 'regenerate' : 'cached'} steps=$stepCount');
   }
 
   List<dynamic> get _steps =>
@@ -97,7 +103,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
             ),
             Expanded(
               child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const _PathLoadingView()
                   : _error != null
                       ? _buildError()
                       : _buildBody(),
@@ -125,7 +131,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
             AppPrimaryButton(
               label: '重新生成',
               small: true,
-              onPressed: _load,
+              onPressed: () => _load(refresh: true),
             ),
           ],
         ),
@@ -135,7 +141,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
 
   Widget _buildBody() {
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _load(),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         children: [
@@ -158,7 +164,7 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
           const SizedBox(height: 20),
           Center(
             child: OutlinedButton.icon(
-              onPressed: _load,
+              onPressed: () => _load(refresh: true),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryOf(context),
                 side: BorderSide(color: AppColors.surfaceEdgeOf(context)),
@@ -532,6 +538,89 @@ class _LearningPathScreenState extends ConsumerState<LearningPathScreen> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// 学习路径生成中的分阶段加载视图
+///
+/// AI 全量生成实测 20~60 秒，裸转圈会被误解为「卡死打不开」。
+/// 这里按生成流程轮播阶段提示 + 明确告知耗时预期，体感从「无响应」变「在干活」。
+class _PathLoadingView extends StatefulWidget {
+  const _PathLoadingView();
+
+  @override
+  State<_PathLoadingView> createState() => _PathLoadingViewState();
+}
+
+class _PathLoadingViewState extends State<_PathLoadingView> {
+  static const _stages = <(IconData, String)>[
+    (Icons.person_search_rounded, '正在分析你的薄弱知识点与近期错题…'),
+    (Icons.menu_book_rounded, '正在检索匹配的教材章节与候选病例…'),
+    (Icons.route_rounded, '正在规划「诊断 → 复习 → 病例」递进路径…'),
+  ];
+
+  int _index = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 7), (t) {
+      if (mounted) setState(() => _index = (_index + 1) % _stages.length);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, text) = _stages[_index];
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: AppColors.primaryOf(context).withValues(alpha: 0.35),
+                  ),
+                ),
+                Icon(icon, size: 28, color: AppColors.primaryOf(context)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              child: Text(
+                text,
+                key: ValueKey(_index),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 13.5, height: 1.6,
+                    color: AppColors.text2Of(context)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'AI 全量生成约需 20~60 秒，生成结果 24 小时内秒开',
+              style: TextStyle(
+                  fontSize: 11, color: AppColors.text4Of(context)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

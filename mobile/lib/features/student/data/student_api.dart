@@ -399,10 +399,14 @@ class StudentApi {
   }
 
   /// 生成学习路径（为当前登录学生，服务端自动组装事实快照）
-  Future<ApiResponse<Map<String, dynamic>>> generateLearningPath() async {
+  /// [refresh] 为 false 时后端优先返回 24h 内缓存（秒开），
+  /// true 时强制重新调 AI 生成（用户显式点「重新生成路径」才用）。
+  Future<ApiResponse<Map<String, dynamic>>> generateLearningPath(
+      {bool refresh = false}) async {
     try {
       final resp = await _dio.post<Map<String, dynamic>>(
         '/api/v1/student/learning-path/generate',
+        queryParameters: refresh ? {'refresh': true} : null,
         options: _aiOptions,
       );
       return ApiResponse.fromJson(

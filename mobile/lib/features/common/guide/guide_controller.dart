@@ -24,7 +24,15 @@ class GuideState {
 
 /// 新手指引控制器
 ///
-/// 已完成记录存 SharedPreferences（key: guide_completed_tours_v1），每条只播一次。
+/// ## 播放策略（2026-09 拍板）
+/// **只在用户首次使用 App 时自动播放一轮**（速览 → 当前 Tab 引导 →
+/// 首启会话内各二级页引导）。任何一条引导「播完或跳过」都会写入全局
+/// 开关 [ _autoDisabled ]，此后**所有自动引导永久静默**——
+/// 不管是新 Tab、新二级页还是重启 App，都不再弹；
+/// 唯一的再入口是「设置 / 我的」页里的手动重看（[replay]）。
+///
+/// 已看过明细存 SharedPreferences（key: guide_completed_tours_v1），
+/// 全局开关存 guide_auto_disabled_v1。
 ///
 /// ## 曾经踩过的坑（勿回退）
 /// 1. **必须在判空前 `await ensureLoaded()`**。否则冷启动读盘还没回来，
@@ -32,14 +40,18 @@ class GuideState {
 /// 2. **延迟回调里不能复用旧的 tabId**。用户可能在 520ms 等待期内切走，
 ///    于是播错 Tab 的引导。统一改由 [bindTabResolver] 实时取当前 Tab。
 /// 3. **finish 后立刻 await 写盘**，不能 fire-and-forget。
+/// 4. **老用户兼容**：读盘时只要 `_done` 非空就视为老用户，直接置位
+///    全局开关——保证升级到本版本的存量用户不再被弹任何引导。
 class GuideController extends StateNotifier<GuideState> {
   GuideController() : super(const GuideState()) {
     _initFuture = _load();
   }
 
   static const _prefsKey = 'guide_completed_tours_v1';
+  static const _autoDisabledKey = 'guide_auto_disabled_v1';
 
   final Set<String> _done = {};
+  bool _autoDisabled = false;
   late final Future<void> _initFuture;
   GuideRole? _role;
 
@@ -56,6 +68,9 @@ class GuideController extends StateNotifier<GuideState> {
       final prefs = await SharedPreferences.getInstance();
       final list = prefs.getStringList(_prefsKey);
       if (list != null) _done.addAll(list);
+      // 老用户（看过任意一条引导）直接全局静默，升级不干扰
+      _autoDisabled =
+          prefs.getBool(_autoDisabledKey) ?? _done.isNotEmpty;
     } catch (_) {
       // 读盘失败按「没看过」处理，最坏多播一次，不影响主流程
     }
@@ -65,6 +80,7 @@ class GuideController extends StateNotifier<GuideState> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(_prefsKey, _done.toList());
+      await prefs.setBool(_autoDisabledKey, _autoDisabled);
     } catch (_) {}
   }
 
@@ -73,14 +89,15 @@ class GuideController extends StateNotifier<GuideState> {
 
   void unbindTabResolver() => _tabResolver = null;
 
-  /// 进入某个 Tab 时调用
+  /// 进入某个 Tab 时调用（自动播放入口，受全局开关约束）
   ///
-  /// 未看过速览 → 先播速览，速览正常走完再播本 Tab 引导；
-  /// 点「跳过」则本轮全部取消，且后续不再打扰。
+  /// 首启会话内：未看过速览 → 先播速览，速览正常走完再播本 Tab 引导；
+  /// 点「跳过」则本轮全部取消，且此后永久静默。
   Future<void> enterTab(GuideRole role, String tabId) async {
     final token = ++_tabToken;
     await ensureLoaded();
     if (!mounted || token != _tabToken) return;
+    if (_autoDisabled) return;
 
     _role = role;
     if (state.active) return;
@@ -110,6 +127,8 @@ class GuideController extends StateNotifier<GuideState> {
   Future<void> enterPage(String pageId) async {
     await ensureLoaded();
     if (!mounted || state.active) return;
+    // 全局开关已置位（首启轮播完/跳过）→ 二级页引导也永久静默
+    if (_autoDisabled) return;
     final tour = GuideTours.pageOf(pageId);
     if (tour == null || _done.contains(tour.id)) return;
     state = GuideState(tour: tour);
@@ -140,8 +159,11 @@ class GuideController extends StateNotifier<GuideState> {
 
   /// 结束当前引导
   ///
-  /// [continuePending] 为 true 时，速览结束后会继续播「当前所在 Tab」的引导；
-  /// Tab 由 resolver 实时取，避免用户中途切 Tab 导致播错。
+  /// [continuePending] 为 true 时，速览结束后会继续播「当前所在 Tab」的引导
+  /// （仅首启会话内有效）；Tab 由 resolver 实时取，避免用户中途切 Tab 导致播错。
+  ///
+  /// **任何一条引导播完或跳过都会置位全局开关**：此后所有自动引导永久静默，
+  /// 只有「设置 / 我的」里的手动重看才会再来一轮。
   Future<void> finish({required bool continuePending}) async {
     final tour = state.tour;
     final id = tour?.id;
@@ -150,9 +172,10 @@ class GuideController extends StateNotifier<GuideState> {
     if (id == null) return;
 
     _done.add(id);
+    // 全局一次性开关：首启轮结束后不再自动打扰（含跳过的情况）
+    _autoDisabled = true;
 
     // 跳过开屏速览 = 连本轮 Tab 引导一起视为已读。
-    // 否则只取消本轮续播，二次进 Tab 还会再弹，违背「跳过 = 不想被打扰」。
     if (!continuePending && tour!.intro && role != null) {
       final tabId = _tabResolver?.call();
       final tabTour = tabId == null ? null : GuideTours.of(role, tabId);
@@ -167,12 +190,14 @@ class GuideController extends StateNotifier<GuideState> {
         if (!mounted) return;
         final tabId = _tabResolver?.call();
         if (tabId == null) return;
+        // 首启会话的续播：直接走内部 _startTab，绕过全局开关检查
         _startTab(role, tabId);
       });
     }
   }
 
-  /// 重看：清空该角色的完成记录，从速览重新开始
+  /// 手动重看（设置 / 我的页入口）：清空该角色的完成记录与全局开关，
+  /// 从速览重新开始一轮；本轮走完（或跳过）后再次全局静默。
   ///
   /// 注意：记录被清空后，只有用户完整看完（或跳过）才会重新写回，
   /// 中途杀掉 App 下次仍会重播，这是有意为之。
@@ -180,6 +205,7 @@ class GuideController extends StateNotifier<GuideState> {
     state = const GuideState();
     final prefix = role == GuideRole.student ? 'student_' : 'teacher_';
     _done.removeWhere((id) => id.startsWith(prefix));
+    _autoDisabled = false;
     await _persist();
 
     _role = role;

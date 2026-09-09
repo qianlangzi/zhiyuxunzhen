@@ -175,7 +175,6 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
         label: '待复盘',
         color: AppColors.vermilionOf(context),
         meta: pending > 0 ? '$pending 条错题待处理' : '错题已全部清零',
-        badge: pending,
         onTap: () => context.pushNamed(RouteNames.mistakeBook),
       ),
       GrowthEntryItem(

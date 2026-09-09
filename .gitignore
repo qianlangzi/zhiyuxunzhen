@@ -157,3 +157,6 @@ mobile/errors.txt
 
 # ===== 本地 SSH 服务器凭据（含明文密码，严禁提交）=====
 /.server_ssh_credentials
+
+# ===== APK / 移动端构建产物（体积大，勿提交；移动端本地打包）=====
+*.apk

@@ -366,9 +366,11 @@ class StudentService {
   }
 
   /// 生成学习路径（服务端自动组装本人事实快照，返回结构化路径）
-  Future<Map<String, dynamic>?> generateLearningPath() async {
+  ///
+  /// [refresh] false 时后端优先返回缓存（进页秒开）；true 强制重生成。
+  Future<Map<String, dynamic>?> generateLearningPath({bool refresh = false}) async {
     if (_isMock) return null;
-    final resp = await _api.generateLearningPath();
+    final resp = await _api.generateLearningPath(refresh: refresh);
     if (!resp.isSuccess) {
       log('generateLearningPath failed: ${resp.message}', name: 'student_service');
       return null;

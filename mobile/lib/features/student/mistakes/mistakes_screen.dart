@@ -120,8 +120,9 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
     );
   }
 
-  /// 状态统计 —— 三张小卡：左侧色条 + 数字着色；
-  /// 计数为 0 时整体弱化为灰，不再整卡铺满色晕。
+  /// 状态统计 —— 三张小卡：数字 + 圆点标签，整体居中；
+  /// 计数为 0 时整体弱化为灰。内容用 SizedBox 撑满卡宽再居中，
+  /// 避免 PaperCard Stack 松约束下 Column 收缩后贴左。
   Widget _buildStatusRow(int unreviewed, int reviewed, int mastered) {
     return Row(
       children: [
@@ -136,37 +137,55 @@ class _MistakeBookScreenState extends ConsumerState<MistakeBookScreen> {
 
   Widget _statusCard(String label, int count, Color color) {
     final hasData = count > 0;
+    final activeColor = hasData ? color : AppColors.text4Of(context);
     return Expanded(
       child: PaperCard(
-        tint: hasData ? color : AppColors.text4Of(context),
-        tintStrength: hasData ? 0.45 : 0.18,
+        tint: activeColor,
+        tintStrength: hasData ? 0.4 : 0.15,
         radius: AppRadius.lg,
-        padding: const EdgeInsets.symmetric(vertical: 13),
-        accent: hasData ? color : null,
-        child: Column(
-          children: [
-            Text(
-              '$count',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                height: 1.1,
-                fontFamily: 'JetBrainsMono',
-                fontFamilyFallback: kCjkMonoFallback,
-                color: hasData ? color : AppColors.text4Of(context),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            children: [
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w700,
+                  height: 1.1,
+                  fontFamily: 'JetBrainsMono',
+                  fontFamilyFallback: kCjkMonoFallback,
+                  color: activeColor,
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: hasData
-                    ? AppColors.text3Of(context)
-                    : AppColors.text4Of(context),
+              const SizedBox(height: 4),
+              // 圆点 + 标签：颜色状态一眼可辨，替代原来的左侧色条
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: activeColor,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: hasData
+                          ? AppColors.text3Of(context)
+                          : AppColors.text4Of(context),
+                    ),
+                  ),
+                ],
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

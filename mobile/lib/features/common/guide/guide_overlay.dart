@@ -85,13 +85,19 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
     final tour = state.tour!;
     _playCardEntrance('${tour.id}#${state.step}');
 
-    return AnimatedBuilder(
-      animation: _pulse,
-      builder: (context, _) {
-        // 每帧重测锚点：滚动 / 懒加载 / 转场时洞都能平滑跟住
-        _syncHole(GuideAnchorRegistry.rectOf(step.anchor));
-        return _buildLayer(context, state, step);
-      },
+    // 铁律：引导层挂在 MaterialApp.builder 的 Stack 里，不在任何 Material
+    // 祖先之下 —— 没有这层透明 Material，Text 会退化成 Flutter 的
+    // 「黄色双下划线」诊断样式（2026-09 修复的旧 bug，勿删）。
+    return Material(
+      type: MaterialType.transparency,
+      child: AnimatedBuilder(
+        animation: _pulse,
+        builder: (context, _) {
+          // 每帧重测锚点：滚动 / 懒加载 / 转场时洞都能平滑跟住
+          _syncHole(GuideAnchorRegistry.rectOf(step.anchor));
+          return _buildLayer(context, state, step);
+        },
+      ),
     );
   }
 
@@ -241,15 +247,17 @@ class _GuideOverlayState extends ConsumerState<GuideOverlay>
       child: ClipRRect(
         borderRadius: shape,
         child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+          // 大模糊 + 低不透明度底色才有「磨砂玻璃」；
+          // 底色 alpha 一旦超过 0.8 就退化成纯白实心卡（旧版踩过的坑）。
+          filter: ui.ImageFilter.blur(sigmaX: 34, sigmaY: 34),
           child: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  surface.withValues(alpha: isDark ? 0.80 : 0.88),
-                  surface.withValues(alpha: isDark ? 0.64 : 0.74),
+                  surface.withValues(alpha: isDark ? 0.60 : 0.68),
+                  surface.withValues(alpha: isDark ? 0.46 : 0.54),
                 ],
               ),
             ),
