@@ -108,7 +108,7 @@ class _LogoHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.full),
           ),
           child: MonoText(
-            'v${AppConstants.appVersion} · 企业级可上线版',
+            'Version ${AppConstants.appVersion}',
             fontSize: 11,
             color: AppColors.text2Of(context),
           ),
@@ -123,12 +123,12 @@ class _FeatureIntro extends StatelessWidget {
   const _FeatureIntro();
 
   static const _features = [
-    '多模态 AI 问诊训练：沉浸式虚拟病人，支持影像判读与圈画',
-    '临床思维决策树：实时呈现已问、已排除、遗漏与检查成本',
-    'OSCE 四维能力雷达图：病史采集 · 诊断逻辑 · 沟通 · 人文',
-    '每日一例 / 学习热力图 / 错题本：高频低压力日常训练',
-    'AI 复盘报告与个性化补救路径：教材页码溯源、递进训练',
-    '教师零代码病例配置、智能批阅与班级学情看板',
+    '虚拟病人问诊训练：支持对话问诊与影像判读',
+    '临床思维决策树：呈现已问、已排除与遗漏项目',
+    'OSCE 四维能力评估：病史采集、诊断逻辑、沟通、人文',
+    '每日一例 / 学习热力图 / 错题本：日常训练记录',
+    'AI 复盘报告：训练结果分析与补充练习建议',
+    '教师端：病例配置、作业批阅与班级学情查看',
   ];
 
   @override
@@ -139,9 +139,9 @@ class _FeatureIntro extends StatelessWidget {
         const AppSectionHeader(title: '功能简介'),
         const SizedBox(height: 4),
      Text(
-          '智愈寻真是面向高校一流内科学建设的「教-学-管」三位一体 AI 训练平台，'
-          '融合大模型、RAG 知识库与智能体编排，打通虚拟病人训练、临床思维评估、'
-          '作业批阅与学情分析。',
+          '智愈寻真是一款面向内科学教学的临床思维训练应用，'
+          '提供虚拟病人问诊训练、临床思维评估、作业练习与学情记录等功能，'
+          '供医学生及带教教师在教学场景中使用。',
           style: TextStyle(
             fontSize: 13,
             height: 1.7,
@@ -193,7 +193,7 @@ class _FeatureRow extends StatelessWidget {
   }
 }
 
-/// 开发团队信息
+/// 应用说明
 class _TeamInfo extends StatelessWidget {
   const _TeamInfo();
 
@@ -202,31 +202,20 @@ class _TeamInfo extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const AppSectionHeader(title: '开发团队'),
+        const AppSectionHeader(title: '应用说明'),
         const SizedBox(height: 4),
         AppPaper(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
         Text(
-                '智愈寻真由临床医学教育专家与 AI 工程团队联合研发，'
-                '服务于高校一流内科学建设。',
+                '本应用面向医学院校及教学医院，用于内科学教学与训练场景。'
+                '应用内的病例内容均为教学模拟数据，不涉及真实患者信息。',
                 style: TextStyle(
                   fontSize: 13,
                   height: 1.7,
                   color: AppColors.text2Of(context),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: const [
-                  AppChip(label: '医学专家审核', type: ChipType.moss),
-                  AppChip(label: 'RAG 教材知识库', type: ChipType.indigo),
-                  AppChip(label: '智能体编排', type: ChipType.amber),
-                  AppChip(label: '伦理安全兜底', type: ChipType.vermilion),
-                ],
               ),
             ],
           ),
