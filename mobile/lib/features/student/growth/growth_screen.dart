@@ -31,10 +31,18 @@ class GrowthScreen extends ConsumerStatefulWidget {
 }
 
 class _GrowthScreenState extends ConsumerState<GrowthScreen> {
-  bool _statsReady = false;
+  /// 已就绪的接口计数（0~3）。三接口分步就绪分步渲染，
+  /// 避免「最慢的统计接口拖住整页」的木桶效应。
+  int _readyCount = 0;
+
+  /// 加载批次号：防止快速下拉刷新时旧批次迟到响应污染新批次计数
+  int _loadSeq = 0;
+
   GrowthStats _stats = GrowthStats.fromOverview(null);
   QuestionStats _question = QuestionStats.fromApi(null);
   List<MistakeEntry> _mistakes = const [];
+
+  bool get _statsReady => _readyCount >= 3;
 
   @override
   void initState() {
@@ -43,22 +51,43 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
   }
 
   Future<void> _load() async {
-    setState(() => _statsReady = false);
-    final results = await Future.wait([
-      StudentService().getReportOverview(),
-      StudentService().getMistakes(pageNum: 1, pageSize: 50),
-      StudentService().getQuestionStats(),
+    final seq = ++_loadSeq;
+    setState(() => _readyCount = 0);
+    await Future.wait([
+      _loadOverview(seq),
+      _loadMistakes(seq),
+      _loadStats(seq),
     ]);
-    if (!mounted) return;
+  }
+
+  /// 各接口独立就绪：谁先回来谁先渲染，骨架屏只挡最慢的那块数字
+  Future<void> _loadOverview(int seq) async {
+    final data = await StudentService().getReportOverview();
+    if (!mounted || seq != _loadSeq) return;
     setState(() {
-      _stats = GrowthStats.fromOverview(results[0]);
-      final raw = results[1];
+      _stats = GrowthStats.fromOverview(data);
+      _readyCount++;
+    });
+  }
+
+  Future<void> _loadMistakes(int seq) async {
+    final raw = await StudentService().getMistakes(pageNum: 1, pageSize: 50);
+    if (!mounted || seq != _loadSeq) return;
+    setState(() {
       _mistakes = (raw?['list'] as List<dynamic>? ?? const [])
           .whereType<Map>()
           .map((e) => MistakeEntry.fromJson(Map<String, dynamic>.from(e)))
           .toList();
-      _question = QuestionStats.fromApi(results[2]);
-      _statsReady = true;
+      _readyCount++;
+    });
+  }
+
+  Future<void> _loadStats(int seq) async {
+    final data = await StudentService().getQuestionStats();
+    if (!mounted || seq != _loadSeq) return;
+    setState(() {
+      _question = QuestionStats.fromApi(data);
+      _readyCount++;
     });
   }
 

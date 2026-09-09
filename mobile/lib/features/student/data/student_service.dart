@@ -14,6 +14,32 @@ class StudentService {
 
   bool get _isMock => ApiConfig.useMockAuth;
 
+  // ==================== 低频变动数据的页面级缓存 ====================
+  //
+  // 科室 / 知识点 / 训练统计几乎不随请求变化，但后端每次都是重查询
+  // （科室列表 = 5.6 万题全表 GROUP BY）。进程内 TTL 缓存让「返回上一页再进」
+  // 「跨页面重复请求」直接命中，不压库；提交答案后由 [_invalidateQuestionStats]
+  // 立即失效统计缓存，保证答题后成长页数字及时刷新。
+  static const Duration _metaCacheTtl = Duration(minutes: 5);
+  static const Duration _statsCacheTtl = Duration(seconds: 30);
+  static List<dynamic>? _deptCache;
+  static DateTime? _deptCacheAt;
+  static List<dynamic>? _tagCache;
+  static DateTime? _tagCacheAt;
+  static Map<String, dynamic>? _qStatsCache;
+  static DateTime? _qStatsCacheAt;
+
+  /// 提交答案 / 其他需要立即刷新统计的场景调用
+  static void invalidateQuestionStats() {
+    _qStatsCache = null;
+    _qStatsCacheAt = null;
+  }
+
+  static List<dynamic>? _hitListCache(List<dynamic>? cache, DateTime? at, Duration ttl) {
+    if (cache == null || at == null || DateTime.now().difference(at) > ttl) return null;
+    return List<dynamic>.of(cache); // 返回副本，防止调用方修改污染缓存
+  }
+
   // ==================== 每日病历（每日一例升级版） ====================
 
   /// 今日病历卡
@@ -724,40 +750,57 @@ class StudentService {
       log('submitQuestion failed: ${resp.message}', name: 'student_service');
       return null;
     }
+    // 答题入库后训练统计（已做/正确率）已变化，立即失效缓存
+    invalidateQuestionStats();
     return resp.data;
   }
 
   /// 我的训练统计
   Future<Map<String, dynamic>?> getQuestionStats() async {
     if (_isMock) return null;
+    final cached = _qStatsCache;
+    final at = _qStatsCacheAt;
+    if (cached != null && at != null && DateTime.now().difference(at) <= _statsCacheTtl) {
+      return cached;
+    }
     final resp = await _api.getQuestionStats();
     if (!resp.isSuccess) {
       log('getQuestionStats failed: ${resp.message}', name: 'student_service');
       return null;
     }
+    _qStatsCache = resp.data;
+    _qStatsCacheAt = DateTime.now();
     return resp.data;
   }
 
   /// 科室（模块）列表，用于刷题入口
   Future<List<dynamic>?> getQuestionDepartments() async {
     if (_isMock) return null;
+    final cached = _hitListCache(_deptCache, _deptCacheAt, _metaCacheTtl);
+    if (cached != null) return cached;
     final resp = await _api.getQuestionDepartments();
     if (!resp.isSuccess) {
       log('getQuestionDepartments failed: ${resp.message}', name: 'student_service');
       return null;
     }
-    return resp.data;
+    _deptCache = resp.data;
+    _deptCacheAt = DateTime.now();
+    return resp.data == null ? null : List<dynamic>.of(resp.data!);
   }
 
   /// 知识点列表，用于题库筛选
   Future<List<dynamic>?> getQuestionKnowledgeTags() async {
     if (_isMock) return null;
+    final cached = _hitListCache(_tagCache, _tagCacheAt, _metaCacheTtl);
+    if (cached != null) return cached;
     final resp = await _api.getQuestionKnowledgeTags();
     if (!resp.isSuccess) {
       log('getQuestionKnowledgeTags failed: ${resp.message}', name: 'student_service');
       return null;
     }
-    return resp.data;
+    _tagCache = resp.data;
+    _tagCacheAt = DateTime.now();
+    return resp.data == null ? null : List<dynamic>.of(resp.data!);
   }
 
   /// 按科室刷题（单页返回，逐题/翻页）

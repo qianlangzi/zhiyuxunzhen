@@ -41,7 +41,20 @@ public final class OsceStatsHelper {
             ObjectMapper objectMapper,
             List<Long> studentIds) {
         List<ChatSession> sessions = studentIds.isEmpty() ? List.of() : chatSessionMapper.selectList(
-                new LambdaQueryWrapper<ChatSession>().in(ChatSession::getStudentId, studentIds));
+                new LambdaQueryWrapper<ChatSession>()
+                        .in(ChatSession::getStudentId, studentIds)
+                        // 只取聚合需要的列：会话表含对话记录等大字段，全量实体进堆代价高
+                        .select(ChatSession::getId, ChatSession::getStudentId, ChatSession::getOsceScoreJson));
+        return aggregateOsceScores(sessions, objectMapper);
+    }
+
+    /**
+     * 对调用方自备的会话列表聚合 OSCE 各维度均分。
+     * 供「一次查询同时算多个指标」的场景复用，避免同一批会话重复查库。
+     */
+    public static Map<String, Integer> aggregateOsceScores(
+            List<ChatSession> sessions,
+            ObjectMapper objectMapper) {
         Map<String, List<Double>> dims = new LinkedHashMap<>();
         for (ChatSession s : sessions) {
             if (!StringUtils.hasText(s.getOsceScoreJson())) continue;
@@ -78,7 +91,11 @@ public final class OsceStatsHelper {
             int limit) {
         if (studentIds.isEmpty() || limit <= 0) return List.of();
         List<StudentMistakes> mistakes = mistakesMapper.selectList(
-                new LambdaQueryWrapper<StudentMistakes>().in(StudentMistakes::getStudentId, studentIds));
+                new LambdaQueryWrapper<StudentMistakes>()
+                        .in(StudentMistakes::getStudentId, studentIds)
+                        // 只取聚合需要的两列，不捞答题快照 / AI 归因 JSON 等大字段
+                        .select(StudentMistakes::getId, StudentMistakes::getKnowledgeTag,
+                                StudentMistakes::getMistakeType));
         Map<String, Long> countByTag = mistakes.stream()
                 .map(m -> m.getKnowledgeTag() != null && !m.getKnowledgeTag().isBlank()
                         ? m.getKnowledgeTag() : m.getMistakeType())

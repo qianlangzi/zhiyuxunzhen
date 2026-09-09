@@ -30,6 +30,8 @@ import com.zhiyu.service.AuditLogService;
 import com.zhiyu.service.dto.RejectDTO;
 import com.zhiyu.service.dto.SysConfigUpdateDTO;
 import com.zhiyu.service.dto.CreateAuditorDTO;
+
+import com.zhiyu.service.impl.PracticeQuestionServiceImpl;
 import com.zhiyu.vo.AdminUserStatsVO;
 import com.zhiyu.vo.AdminUserVO;
 import com.zhiyu.vo.AuditLogVO;
@@ -452,6 +454,8 @@ public class AdminServiceImpl implements AdminService {
         q.setAdminAuditStatus(2);
         q.setRejectReason(null);
         questionMapper.updateById(q);
+        // 科室/知识点列表口径（audit=2）变化，立即失效移动端题库页的进程内缓存
+        PracticeQuestionServiceImpl.evictQuestionMetaCache();
 
         String afterJson = toJson(Map.of("adminAuditStatus", 2));
         auditLogService.record("question_audit_approve", "practice_question", questionId, beforeJson, afterJson);
@@ -470,6 +474,8 @@ public class AdminServiceImpl implements AdminService {
         q.setAdminAuditStatus(3);
         q.setRejectReason(dto.getReason());
         questionMapper.updateById(q);
+        // 科室/知识点列表口径（audit=2）变化，立即失效移动端题库页的进程内缓存
+        PracticeQuestionServiceImpl.evictQuestionMetaCache();
 
         String afterJson = toJson(Map.of("adminAuditStatus", 3, "rejectReason", dto.getReason()));
         auditLogService.record("question_audit_reject", "practice_question", questionId, beforeJson, afterJson);

@@ -1,6 +1,7 @@
 package com.zhiyu.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +33,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +56,23 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
     private final TextbookMapper textbookMapper;
     private final ObjectMapper objectMapper;
     private final WeaknessAnalysisService weaknessAnalysisService;
+
+    // ==================== 低频变动数据的进程内缓存 ====================
+    //
+    // 科室 / 知识点列表几乎不随请求变化（仅题库导入、教师录题时变），但每次进题库页
+    // 都触发一次全表 GROUP BY（5.6 万行实测 126/142ms）。这里用进程内 TTL 缓存兜底；
+    // 题库写入路径调用 evictQuestionMetaCache() 立即失效，避免最长 5 分钟陈旧窗口。
+    private static final long META_CACHE_TTL_MS = 5 * 60 * 1000L;
+    private static volatile List<String> departmentsCache;
+    private static volatile long departmentsCacheAt;
+    private static volatile List<String> knowledgeTagsCache;
+    private static volatile long knowledgeTagsCacheAt;
+
+    /** 题库结构（科室 / 知识点）变更后调用，立即刷新列表缓存 */
+    public static void evictQuestionMetaCache() {
+        departmentsCache = null;
+        knowledgeTagsCache = null;
+    }
 
     @Override
     public PageResult<PracticeQuestionVO> page(Integer pageNum, Integer pageSize,
@@ -105,7 +122,11 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
 
     @Override
     public List<String> departments() {
-        return questionMapper.selectList(
+        List<String> cached = departmentsCache;
+        if (cached != null && System.currentTimeMillis() - departmentsCacheAt < META_CACHE_TTL_MS) {
+            return cached;
+        }
+        List<String> list = questionMapper.selectList(
                         new LambdaQueryWrapper<PracticeQuestion>()
                                 .eq(PracticeQuestion::getStatus, 1)
                 .eq(PracticeQuestion::getAdminAuditStatus, 2)
@@ -116,11 +137,18 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .map(PracticeQuestion::getDepartment)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toList());
+        departmentsCache = list;
+        departmentsCacheAt = System.currentTimeMillis();
+        return list;
     }
 
     @Override
     public List<String> knowledgeTags() {
-        return questionMapper.selectList(
+        List<String> cached = knowledgeTagsCache;
+        if (cached != null && System.currentTimeMillis() - knowledgeTagsCacheAt < META_CACHE_TTL_MS) {
+            return cached;
+        }
+        List<String> list = questionMapper.selectList(
                         new LambdaQueryWrapper<PracticeQuestion>()
                                 .eq(PracticeQuestion::getStatus, 1)
                 .eq(PracticeQuestion::getAdminAuditStatus, 2)
@@ -131,6 +159,9 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .map(PracticeQuestion::getKnowledgeTag)
                 .filter(StringUtils::hasText)
                 .collect(Collectors.toList());
+        knowledgeTagsCache = list;
+        knowledgeTagsCacheAt = System.currentTimeMillis();
+        return list;
     }
 
     @Override
@@ -335,59 +366,66 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 new LambdaQueryWrapper<PracticeQuestion>().eq(PracticeQuestion::getStatus, 1)
                 .eq(PracticeQuestion::getAdminAuditStatus, 2));
 
-        List<StudentPracticeRecord> records = recordMapper.selectList(
-                new LambdaQueryWrapper<StudentPracticeRecord>()
-                        .eq(StudentPracticeRecord::getStudentId, studentId));
+        // 我的作答：一条聚合 SQL 拿「每题是否曾答对」，替代旧实现的
+        // 全量作答记录 selectList + 逐题 selectById（N+1，题目越多越慢）。
+        Map<Long, Boolean> everCorrectByQuestion = new HashMap<>();
+        recordMapper.selectMaps(new QueryWrapper<StudentPracticeRecord>()
+                        .select("question_id",
+                                "MAX(CASE WHEN is_correct = 1 THEN 1 ELSE 0 END) AS ever_correct")
+                        .eq("student_id", studentId)
+                        .groupBy("question_id"))
+                .forEach(row -> {
+                    Object qid = row.get("question_id");
+                    if (qid instanceof Number n) {
+                        Object flag = row.get("ever_correct");
+                        boolean everCorrect = flag instanceof Number b && b.longValue() == 1;
+                        everCorrectByQuestion.put(n.longValue(), everCorrect);
+                    }
+                });
 
         // 按「不同题目」去重：同一题反复作答只算一次已做，答对按历次任一次答对计，
         // 避免重复刷同一题被反复计入统计（练习过的题重做不应再增加已做/答对数）。
-        Set<Long> answeredIds = new HashSet<>();
-        Set<Long> correctIds = new HashSet<>();
-        for (StudentPracticeRecord r : records) {
-            if (r.getQuestionId() == null) {
-                continue;
-            }
-            answeredIds.add(r.getQuestionId());
-            if (Boolean.TRUE.equals(r.getIsCorrect())) {
-                correctIds.add(r.getQuestionId());
-            }
-        }
-        long totalAnswered = answeredIds.size();
-        long correctCount = correctIds.size();
+        long totalAnswered = everCorrectByQuestion.size();
+        long correctCount = everCorrectByQuestion.values().stream()
+                .filter(Boolean::booleanValue).count();
 
         // 按知识点聚合
         Map<String, PracticeStatsVO.ByKnowledgeTag> byTag = new LinkedHashMap<>();
-        practiceTagCounts(byTag); // 题库各知识点总量
+        practiceTagCounts(byTag); // 题库各知识点总量（聚合 SQL，不捞实体）
         // 按科室（模块）聚合
         Map<String, PracticeStatsVO.ByDepartment> byDept = new LinkedHashMap<>();
-        practiceDeptCounts(byDept); // 题库各科室总量
+        practiceDeptCounts(byDept); // 题库各科室总量（聚合 SQL，不捞实体）
 
-        Map<Long, PracticeQuestion> qCache = new HashMap<>();
-        for (Long qid : answeredIds) {
-            PracticeQuestion q = qCache.computeIfAbsent(qid, questionMapper::selectById);
-            if (q == null) {
-                continue;
-            }
-            boolean correct = correctIds.contains(qid);
-            if (q.getKnowledgeTag() != null) {
-                PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(q.getKnowledgeTag(),
-                        k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
-                entry.setAnswered(entry.getAnswered() + 1);
-                if (correct) {
-                    entry.setCorrect(entry.getCorrect() + 1);
+        // 我的题目维度信息：批量一次查回，只取聚合需要的两列，
+        // 不捞题干 / 选项 / 解析等大字段（旧实现逐题 selectById 是 N+1）。
+        if (!everCorrectByQuestion.isEmpty()) {
+            List<PracticeQuestion> mine = questionMapper.selectList(
+                    new LambdaQueryWrapper<PracticeQuestion>()
+                            .in(PracticeQuestion::getId, everCorrectByQuestion.keySet())
+                            .select(PracticeQuestion::getId, PracticeQuestion::getKnowledgeTag,
+                                    PracticeQuestion::getDepartment));
+            for (PracticeQuestion q : mine) {
+                boolean correct = Boolean.TRUE.equals(everCorrectByQuestion.get(q.getId()));
+                if (q.getKnowledgeTag() != null) {
+                    PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(q.getKnowledgeTag(),
+                            k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
+                    entry.setAnswered(entry.getAnswered() + 1);
+                    if (correct) {
+                        entry.setCorrect(entry.getCorrect() + 1);
+                    }
+                    entry.setAccuracy(entry.getAnswered() == 0 ? 0.0
+                            : (double) entry.getCorrect() / entry.getAnswered());
                 }
-                entry.setAccuracy(entry.getAnswered() == 0 ? 0.0
-                        : (double) entry.getCorrect() / entry.getAnswered());
-            }
-            if (q.getDepartment() != null) {
-                PracticeStatsVO.ByDepartment dept = byDept.computeIfAbsent(q.getDepartment(),
-                        d -> PracticeStatsVO.ByDepartment.builder().department(d).build());
-                dept.setAnswered(dept.getAnswered() + 1);
-                if (correct) {
-                    dept.setCorrect(dept.getCorrect() + 1);
+                if (q.getDepartment() != null) {
+                    PracticeStatsVO.ByDepartment dept = byDept.computeIfAbsent(q.getDepartment(),
+                            d -> PracticeStatsVO.ByDepartment.builder().department(d).build());
+                    dept.setAnswered(dept.getAnswered() + 1);
+                    if (correct) {
+                        dept.setCorrect(dept.getCorrect() + 1);
+                    }
+                    dept.setAccuracy(dept.getAnswered() == 0 ? 0.0
+                            : (double) dept.getCorrect() / dept.getAnswered());
                 }
-                dept.setAccuracy(dept.getAnswered() == 0 ? 0.0
-                        : (double) dept.getCorrect() / dept.getAnswered());
             }
         }
 
@@ -401,30 +439,40 @@ public class PracticeQuestionServiceImpl implements PracticeQuestionService {
                 .build();
     }
 
+    /** 题库各知识点总量：聚合 SQL 在库里计数，替代把全表 5.6 万题捞进内存再分组 */
     private void practiceTagCounts(Map<String, PracticeStatsVO.ByKnowledgeTag> byTag) {
-        List<PracticeQuestion> all = questionMapper.selectList(
-                new LambdaQueryWrapper<PracticeQuestion>().eq(PracticeQuestion::getStatus, 1)
-                .eq(PracticeQuestion::getAdminAuditStatus, 2));
-        Map<String, Long> counts = all.stream().collect(Collectors.groupingBy(
-                PracticeQuestion::getKnowledgeTag, Collectors.counting()));
-        counts.forEach((tag, cnt) -> {
-            PracticeStatsVO.ByKnowledgeTag entry = byTag.computeIfAbsent(tag,
-                    k -> PracticeStatsVO.ByKnowledgeTag.builder().knowledgeTag(k).build());
-            entry.setTotal(cnt);
-        });
+        questionMapper.selectMaps(new QueryWrapper<PracticeQuestion>()
+                        .select("knowledge_tag", "COUNT(*) AS total")
+                        .eq("status", 1)
+                        .eq("admin_audit_status", 2)
+                        .groupBy("knowledge_tag"))
+                .forEach(row -> {
+                    Object tag = row.get("knowledge_tag");
+                    Object total = row.get("total");
+                    if (tag instanceof String s && StringUtils.hasText(s) && total instanceof Number n) {
+                        byTag.computeIfAbsent(s, k -> PracticeStatsVO.ByKnowledgeTag
+                                        .builder().knowledgeTag(k).build())
+                                .setTotal(n.longValue());
+                    }
+                });
     }
 
+    /** 题库各科室总量：聚合 SQL 在库里计数，替代把全表 5.6 万题捞进内存再分组 */
     private void practiceDeptCounts(Map<String, PracticeStatsVO.ByDepartment> byDept) {
-        List<PracticeQuestion> all = questionMapper.selectList(
-                new LambdaQueryWrapper<PracticeQuestion>().eq(PracticeQuestion::getStatus, 1)
-                .eq(PracticeQuestion::getAdminAuditStatus, 2));
-        Map<String, Long> counts = all.stream().filter(q -> q.getDepartment() != null)
-                .collect(Collectors.groupingBy(PracticeQuestion::getDepartment, Collectors.counting()));
-        counts.forEach((dept, cnt) -> {
-            PracticeStatsVO.ByDepartment entry = byDept.computeIfAbsent(dept,
-                    d -> PracticeStatsVO.ByDepartment.builder().department(d).build());
-            entry.setTotal(cnt);
-        });
+        questionMapper.selectMaps(new QueryWrapper<PracticeQuestion>()
+                        .select("department", "COUNT(*) AS total")
+                        .eq("status", 1)
+                        .eq("admin_audit_status", 2)
+                        .groupBy("department"))
+                .forEach(row -> {
+                    Object dept = row.get("department");
+                    Object total = row.get("total");
+                    if (dept instanceof String d && StringUtils.hasText(d) && total instanceof Number n) {
+                        byDept.computeIfAbsent(d, k -> PracticeStatsVO.ByDepartment
+                                        .builder().department(k).build())
+                                .setTotal(n.longValue());
+                    }
+                });
     }
 
     private Map<Long, String> loadTextbookTitles(List<PracticeQuestion> questions) {

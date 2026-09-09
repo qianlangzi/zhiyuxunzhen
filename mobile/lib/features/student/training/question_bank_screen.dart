@@ -36,7 +36,9 @@ class QuestionBankScreen extends ConsumerStatefulWidget {
 }
 
 class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
-  static const int _pageSize = 20;
+  /// 首屏 40 条：5.6 万行题库下首屏 20 条在大屏上不足一屏，会触发连环补拉；
+  /// 一次性多拉减少翻页请求次数（后端单页查询实测 ~100ms）。
+  static const int _pageSize = 40;
 
   bool _initialLoading = true;
   bool _loadingMore = false;
@@ -132,13 +134,6 @@ class _QuestionBankScreenState extends ConsumerState<QuestionBankScreen> {
       _initialLoading = false;
       _loadingMore = false;
       _rebuildRows();
-    });
-    // 首屏内容不足一屏高度时（无滚动条）自动补拉下一页，保证无限滚动成立
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _hasMore && _scroll.hasClients) {
-        final pos = _scroll.position;
-        if (pos.maxScrollExtent - pos.pixels < 1) _loadMore();
-      }
     });
   }
 

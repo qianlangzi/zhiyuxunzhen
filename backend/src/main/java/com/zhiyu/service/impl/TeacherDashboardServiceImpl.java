@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -39,11 +40,22 @@ import java.util.stream.Collectors;
  *
  * 从 assignment_instance / medical_record_review / chat_session / student_mistakes / student_weakness
  * 五张表聚合该教师名下作业的真实统计数据，替代原 mock。
+ *
+ * 性能设计（2026-09-09）：
+ * <ul>
+ *   <li>所有列表查询均限定聚合所需列，不把题干 / 病例档案 / 对话记录等大字段拉进堆；</li>
+ *   <li>OSCE 维度均分与过度检查率共用同一次 chat_session 查询（旧实现查两遍）；</li>
+ *   <li>结果按 teacherId+classId 做 60 秒进程内缓存 —— 看板是打开即看的高频页，
+ *       而学情数字天然允许分钟级延迟；批阅/作业状态变化后最长 60 秒收敛。</li>
+ * </ul>
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TeacherDashboardServiceImpl implements TeacherDashboardService {
+
+    /** 看板结果缓存 TTL */
+    private static final long OVERVIEW_CACHE_TTL_MS = 60 * 1000L;
 
     private final AssignmentMapper assignmentMapper;
     private final AssignmentInstanceMapper instanceMapper;
@@ -56,11 +68,34 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
     private final StudentClassMembershipMapper membershipMapper;
     private final ObjectMapper objectMapper;
 
+    /** getOverview 结果缓存：teacherId:classId -> {vo, at} */
+    private static final Map<String, CacheEntry> OVERVIEW_CACHE = new ConcurrentHashMap<>();
+
+    private record CacheEntry(TeacherDashboardVO vo, long at) {
+    }
+
     @Override
     public TeacherDashboardVO getOverview(Long teacherId, Long classId) {
-        // 1. 该教师全部作业
+        String key = teacherId + ":" + (classId == null ? 0 : classId);
+        CacheEntry entry = OVERVIEW_CACHE.get(key);
+        if (entry != null && System.currentTimeMillis() - entry.at() < OVERVIEW_CACHE_TTL_MS) {
+            return entry.vo();
+        }
+        TeacherDashboardVO vo = buildOverview(teacherId, classId);
+        OVERVIEW_CACHE.put(key, new CacheEntry(vo, System.currentTimeMillis()));
+        // 简单防膨胀：缓存键量级 = 教师数 × 班级筛选数，超阈值整体清一次
+        if (OVERVIEW_CACHE.size() > 512) {
+            OVERVIEW_CACHE.clear();
+        }
+        return vo;
+    }
+
+    private TeacherDashboardVO buildOverview(Long teacherId, Long classId) {
+        // 1. 该教师全部作业（只需 id 计数，不捞题目 / 要求等大字段）
         List<Assignment> assignments = assignmentMapper.selectList(
-                new LambdaQueryWrapper<Assignment>().eq(Assignment::getTeacherId, teacherId));
+                new LambdaQueryWrapper<Assignment>()
+                        .eq(Assignment::getTeacherId, teacherId)
+                        .select(Assignment::getId, Assignment::getTeacherId));
 
         // 指定班级时，仅统计该班学生维度的学情数据；
         // 未指定班级（classId 为 null）时统计教师名下全部作业的学生学情。
@@ -79,10 +114,13 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         long completed = instances.stream()
                 .filter(i -> i.getStatus() != null && i.getStatus() >= 4).count();
 
-        // 4. 批阅记录 → 平均分 / 批阅效率
+        // 4. 批阅记录 → 平均分 / 批阅效率（只取分数字段）
         List<Long> instanceIds = instances.stream().map(AssignmentInstance::getId).toList();
         List<MedicalRecordReview> reviews = instanceIds.isEmpty() ? List.of() : reviewMapper.selectList(
-                new LambdaQueryWrapper<MedicalRecordReview>().in(MedicalRecordReview::getInstanceId, instanceIds));
+                new LambdaQueryWrapper<MedicalRecordReview>()
+                        .in(MedicalRecordReview::getInstanceId, instanceIds)
+                        .select(MedicalRecordReview::getId, MedicalRecordReview::getInstanceId,
+                                MedicalRecordReview::getTotalScore));
         double avgScore = reviews.stream()
                 .map(MedicalRecordReview::getTotalScore)
                 .filter(Objects::nonNull)
@@ -98,14 +136,19 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                     .filter(Objects::nonNull).distinct().toList();
         }
 
-        // 6. OSCE 维度均分（chat_session.osceScoreJson）
-        Map<String, Integer> dimensionScores = OsceStatsHelper.aggregateOsceScores(chatSessionMapper, objectMapper, studentIds);
+        // 6+8. OSCE 维度均分 + 过度检查率：共用同一次 chat_session 查询
+        // （旧实现 aggregateOsceScores / computeOverExamRate 各查一遍全量会话）
+        List<ChatSession> sessions = studentIds.isEmpty() ? List.of() : chatSessionMapper.selectList(
+                new LambdaQueryWrapper<ChatSession>()
+                        .in(ChatSession::getStudentId, studentIds)
+                        .select(ChatSession::getId, ChatSession::getStudentId,
+                                ChatSession::getOsceScoreJson, ChatSession::getTotalExamCost));
+        Map<String, Integer> dimensionScores =
+                OsceStatsHelper.aggregateOsceScores(sessions, objectMapper);
+        double overExamRate = computeOverExamRate(sessions);
 
-        // 7. 共性错题（student_mistakes，按知识点计数）
+        // 7. 共性错题（student_mistakes，按知识点计数；helper 内已限定列）
         List<TeacherDashboardVO.CommonMistake> commonMistakes = aggregateCommonMistakes(studentIds);
-
-        // 8. 过度检查率（chat_session.totalExamCost 聚合）
-        double overExamRate = computeOverExamRate(studentIds);
 
         // ===== 首页工作台实时计数 =====
         // 待复核：status=4（AI已批阅，待教师人工复核），按班级筛选时仅为该班实例
@@ -133,12 +176,15 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 .build();
     }
 
-    /** 该教师全部作业 → 全部实例 */
+    /** 该教师全部作业 → 全部实例（只取统计需要的四列，实例表含作答快照等大字段） */
     private List<AssignmentInstance> allInstances(List<Assignment> assignments) {
         if (assignments == null || assignments.isEmpty()) return List.of();
         List<Long> assignmentIds = assignments.stream().map(Assignment::getId).toList();
         return instanceMapper.selectList(
-                new LambdaQueryWrapper<AssignmentInstance>().in(AssignmentInstance::getAssignmentId, assignmentIds));
+                new LambdaQueryWrapper<AssignmentInstance>()
+                        .in(AssignmentInstance::getAssignmentId, assignmentIds)
+                        .select(AssignmentInstance::getId, AssignmentInstance::getAssignmentId,
+                                AssignmentInstance::getStudentId, AssignmentInstance::getStatus));
     }
 
     /** 指定班级的学生 id 集合（以 student_class_membership 多对多表为准） */
@@ -163,12 +209,12 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
                 .collect(Collectors.toList());
     }
 
-    /** 估算过度检查率：检查费用超过总体均值的已结束会话占比 */
-    private double computeOverExamRate(List<Long> studentIds) {
-        if (studentIds.isEmpty()) return 0.0;
-        List<ChatSession> sessions = chatSessionMapper.selectList(
-                new LambdaQueryWrapper<ChatSession>()
-                        .in(ChatSession::getStudentId, studentIds));
+    /**
+     * 估算过度检查率：检查费用超过总体均值的已结束会话占比。
+     * 接收调用方已查好的会话列表（与 OSCE 聚合共用），不再重复查库。
+     */
+    private double computeOverExamRate(List<ChatSession> sessions) {
+        if (sessions == null || sessions.isEmpty()) return 0.0;
         List<BigDecimal> costs = sessions.stream()
                 .map(ChatSession::getTotalExamCost)
                 .filter(Objects::nonNull)
@@ -198,12 +244,14 @@ public class TeacherDashboardServiceImpl implements TeacherDashboardService {
         return count == null ? 0 : count.intValue();
     }
 
-    /** 本人发布到广场的病例累计引用量与平均评分 */
+    /** 本人发布到广场的病例累计引用量与平均评分（只取两列，病例表含患者档案等大字段） */
     private Map<String, Object> marketSummary(Long teacherId) {
         List<SpCaseConfig> published = caseMapper.selectList(
                 new LambdaQueryWrapper<SpCaseConfig>()
                         .eq(SpCaseConfig::getCreatorId, teacherId)
-                        .eq(SpCaseConfig::getIsPublic, true));
+                        .eq(SpCaseConfig::getIsPublic, true)
+                        .select(SpCaseConfig::getId, SpCaseConfig::getReferenceCount,
+                                SpCaseConfig::getRatingAvg));
         int refs = published.stream()
                 .map(SpCaseConfig::getReferenceCount)
                 .filter(Objects::nonNull)

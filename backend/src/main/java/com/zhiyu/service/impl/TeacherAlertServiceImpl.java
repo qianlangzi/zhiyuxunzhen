@@ -74,11 +74,10 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
         if (classIds.isEmpty()) return;
 
         Set<Long> studentIds = new LinkedHashSet<>();
-        for (Long classId : classIds) {
-            membershipMapper.selectList(new LambdaQueryWrapper<StudentClassMembership>()
-                            .eq(StudentClassMembership::getClassId, classId))
-                    .forEach(m -> studentIds.add(m.getStudentId()));
-        }
+        // 一次 in 查询拿全部班级成员，替代逐班级循环查库（N+1）
+        membershipMapper.selectList(new LambdaQueryWrapper<StudentClassMembership>()
+                        .in(StudentClassMembership::getClassId, classIds))
+                .forEach(m -> studentIds.add(m.getStudentId()));
         // 兜底并集 sys_user.class_id 遗留学生
         userMapper.selectList(new LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getRole, 0)
@@ -91,13 +90,22 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
                         .eq(SysUser::getRole, 0)
                         .eq(SysUser::getStatus, 0));
 
+        // 预载本教师全部作业的截止时间（id -> deadline），
+        // 避免规则2里对每个学生的每条实例逐个 selectById（学生数 × 实例数次查询）
+        Map<Long, LocalDateTime> deadlineByAssignment = new HashMap<>();
+        assignmentMapper.selectList(new LambdaQueryWrapper<Assignment>()
+                        .eq(Assignment::getTeacherId, teacherId)
+                        .select(Assignment::getId, Assignment::getDeadline))
+                .forEach(a -> deadlineByAssignment.put(a.getId(), a.getDeadline()));
+
         for (SysUser student : students) {
-            scanStudent(student, teacherId, classIds);
+            scanStudent(student, teacherId, classIds, deadlineByAssignment);
         }
         log.info("教师{}学情预警扫描完成，覆盖学生{}人", teacherId, students.size());
     }
 
-    private void scanStudent(SysUser student, Long teacherId, List<Long> classIds) {
+    private void scanStudent(SysUser student, Long teacherId, List<Long> classIds,
+                             Map<Long, LocalDateTime> deadlineByAssignment) {
         Long sid = student.getId();
         List<StudentAlert> fired = new ArrayList<>();
 
@@ -124,15 +132,16 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
             fired.add(buildAlert(sid, student.getClassId(), "osce_low", 3, osceDetail, teacherId));
         }
 
-        // 规则2：作业逾期（中）
+        // 规则2：作业逾期（中）—— 截止时间来自预载 Map，不做逐条 selectById
         List<AssignmentInstance> instances = instanceMapper.selectList(
                 new LambdaQueryWrapper<AssignmentInstance>()
                         .eq(AssignmentInstance::getStudentId, sid)
                         .in(AssignmentInstance::getStatus, 0, 1)); // 未开始/问诊中
+        LocalDateTime now = LocalDateTime.now();
         long overdue = instances.stream()
                 .filter(i -> {
-                    Assignment a = assignmentMapper.selectById(i.getAssignmentId());
-                    return a != null && a.getDeadline() != null && a.getDeadline().isBefore(LocalDateTime.now());
+                    LocalDateTime deadline = deadlineByAssignment.get(i.getAssignmentId());
+                    return deadline != null && deadline.isBefore(now);
                 }).count();
         if (overdue >= OVERDUE_COUNT) {
             fired.add(buildAlert(sid, student.getClassId(), "assignment_overdue", 2,
@@ -411,8 +420,14 @@ public class TeacherAlertServiceImpl implements TeacherAlertService {
                         new LambdaQueryWrapper<SysUser>()
                                 .eq(SysUser::getRole, 0).eq(SysUser::getStatus, 0)
                                 .in(SysUser::getClassId, classIds));
+                // 预载该教师作业截止时间，避免逐实例 selectById
+                Map<Long, LocalDateTime> deadlineByAssignment = new HashMap<>();
+                assignmentMapper.selectList(new LambdaQueryWrapper<Assignment>()
+                                .eq(Assignment::getTeacherId, t.getId())
+                                .select(Assignment::getId, Assignment::getDeadline))
+                        .forEach(a -> deadlineByAssignment.put(a.getId(), a.getDeadline()));
                 for (SysUser s : students) {
-                    scanStudent(s, t.getId(), classIds);
+                    scanStudent(s, t.getId(), classIds, deadlineByAssignment);
                 }
             } catch (Exception e) {
                 log.warn("定时扫描教师{}班级失败: {}", t.getId(), e.getMessage());
