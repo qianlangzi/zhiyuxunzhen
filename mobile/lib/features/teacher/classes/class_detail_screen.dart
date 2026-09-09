@@ -70,12 +70,16 @@ class _ClassDetailScreenState extends ConsumerState<ClassDetailScreen> {
                   const SizedBox(height: 14),
                   _sectionCard(
                     context,
-                    icon: Icons.menu_book_rounded,
+                    icon: Icons.folder_open_rounded,
                     color: AppColors.indigoOf(context),
                     bg: AppColors.indigoSoftOf(context),
                     title: '资料',
-                    subtitle: '教材上传 · 课堂资料',
-                    onTap: () => context.pushNamed(RouteNames.teacherTextbook),
+                    subtitle: '上传课件 · 引用教材 · 音视频',
+                    onTap: () => context.pushNamed(
+                      RouteNames.classMaterial,
+                      pathParameters: {'id': '${widget.classId}'},
+                      extra: {'className': name},
+                    ),
                   ),
                   const SizedBox(height: 14),
                   _sectionCard(

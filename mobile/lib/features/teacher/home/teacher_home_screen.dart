@@ -59,7 +59,7 @@ class _TeacherHomeScreenState extends ConsumerState<TeacherHomeScreen> {
         child: Column(
           children: [
             AppTitleAppBar(
-              tag: '内科教研 · 教师端',
+              tag: '新医科 · 教师端',
               title: '$_displayName · 工作台',
             ),
             Expanded(

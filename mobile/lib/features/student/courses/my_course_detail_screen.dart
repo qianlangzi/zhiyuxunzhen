@@ -7,14 +7,17 @@ import '../../../core/theme/app_colors.dart';
 import '../../../routes/route_names.dart';
 import '../../../shared/utils/feedback.dart';
 import '../../../shared/widgets/app_widgets.dart';
+import '../assignments/material_view_screen.dart';
 import '../data/student_service.dart';
+import '../textbook/ebook_reader_screen.dart';
 
 /// 学生端 · 课程（班级）主页
 ///
 /// 校园风简约布局：
 /// - 头部纸感课程信息卡
-/// - TabBar（学习资料 / 作业）直接切换列表
-/// 不再额外做功能入口按钮，避免与 TabBar 重复。
+/// - TabBar（学习资料 / 班级资料 / 作业）直接切换列表
+/// 「学习资料」= 备课发布的学习任务（可标记完成）；
+/// 「班级资料」= 班级资料库（教师上传课件/音视频 + 教材引用，随时可看）。
 class MyCourseDetailScreen extends ConsumerStatefulWidget {
   const MyCourseDetailScreen({
     super.key,
@@ -35,11 +38,13 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
   Map<String, dynamic>? _data;
   bool _loading = true;
   late final TabController _tabCtl;
+  List<Map<String, dynamic>> _classMaterials = [];
+  bool _classMaterialsLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabCtl = TabController(length: 2, vsync: this);
+    _tabCtl = TabController(length: 3, vsync: this);
     _load();
   }
 
@@ -56,16 +61,29 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
       _data = data;
       _loading = false;
     });
+    _loadClassMaterials();
     if (data != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final materials = data['materials'] as List<dynamic>? ?? const [];
         final assignments = data['assignments'] as List<dynamic>? ?? const [];
-        if (materials.isEmpty && assignments.isNotEmpty && _tabCtl.index == 0) {
+        if (materials.isEmpty &&
+            _classMaterials.isEmpty &&
+            assignments.isNotEmpty &&
+            _tabCtl.index == 0) {
           _tabCtl.animateTo(1);
         }
       });
     }
+  }
+
+  Future<void> _loadClassMaterials() async {
+    final list = await StudentService().getClassMaterials(widget.classId);
+    if (!mounted) return;
+    setState(() {
+      _classMaterials = list ?? [];
+      _classMaterialsLoading = false;
+    });
   }
 
   Future<void> _refresh() => _load();
@@ -136,7 +154,7 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
                     color: AppColors.primaryOf(context), width: 2.8),
               ),
               tabs: [
-                _buildTab('学习资料', materials.length),
+                _buildTab('资料', materials.length + _classMaterials.length),
                 _buildTab('作业', assignments.length),
               ],
             ),
@@ -261,7 +279,9 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
   }
 
   // ---------------- Tab 内容 ----------------
+  /// 资料 Tab：备课学习任务 + 班级资料库统一承载（学习任务在前，资料散件在后）
   Widget _buildMaterialsTab(List<dynamic> materials) {
+    final hasAny = materials.isNotEmpty || _classMaterials.isNotEmpty;
     return RefreshIndicator(
       onRefresh: _refresh,
       color: AppColors.primaryOf(context),
@@ -270,12 +290,16 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
         children: [
-          if (materials.isEmpty)
+          if (!hasAny)
             _emptyBox('老师还没有分享资料')
-          else
+          else ...[
             ...List.generate(materials.length, (i) => RiseIn(
                 delay: Duration(milliseconds: i * 40),
                 child: _materialCard(_mapOf(materials[i])))),
+            ...List.generate(_classMaterials.length, (i) => RiseIn(
+                delay: Duration(milliseconds: i * 40),
+                child: _classMaterialCard(_classMaterials[i]))),
+          ],
         ],
       ),
     );
@@ -299,6 +323,152 @@ class _MyCourseDetailScreenState extends ConsumerState<MyCourseDetailScreen>
         ],
       ),
     );
+  }
+
+  // ---------------- 班级资料卡片 ----------------
+  Widget _classMaterialCard(Map<String, dynamic> m) {
+    final title = (m['title'] ?? '未命名资料').toString();
+    final isTextbook = m['sourceType'] == 'textbook';
+    final type = (m['materialType'] ?? '').toString().toLowerCase();
+    final duration = m['durationSec'];
+    final metaParts = <String>[
+      isTextbook ? '教材引用' : _typeLabel(type),
+    ];
+    if (duration is num && duration > 0) {
+      final sec = duration.toInt();
+      metaParts.add('${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')}');
+    }
+    if (isTextbook) {
+      final dep = (m['department'] ?? '').toString();
+      if (dep.isNotEmpty) metaParts.add(dep);
+    }
+    return AppPressable(
+      onTap: () => _openClassMaterial(m),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceOf(context),
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.surfaceEdgeOf(context)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: isTextbook
+                    ? AppColors.indigoSoftOf(context)
+                    : AppColors.amberSoftOf(context),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                isTextbook
+                    ? Icons.menu_book_rounded
+                    : _typeIcon(type),
+                size: 20,
+                color: isTextbook
+                    ? AppColors.indigoOf(context)
+                    : AppColors.amberOf(context),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textOf(context))),
+                  const SizedBox(height: 6),
+                  Text(metaParts.join(' · '),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.text3Of(context))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded,
+                size: 20, color: AppColors.text4Of(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openClassMaterial(Map<String, dynamic> m) {
+    final fileUrl = (m['fileUrl'] ?? '').toString();
+    final title = (m['title'] ?? '资料').toString();
+    final type = (m['materialType'] ?? '').toString().toLowerCase();
+    if (fileUrl.isEmpty) {
+      AppFeedback.info(context, '该资料暂无在线文件');
+      return;
+    }
+    if (type == 'pdf' || type == 'image' || fileUrl.toLowerCase().endsWith('.pdf')) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => EbookReaderScreen(title: title, fileUrl: fileUrl),
+      ));
+      return;
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => MaterialViewScreen(
+        title: title,
+        fileUrl: fileUrl,
+        materialType: type,
+      ),
+    ));
+  }
+
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case 'pdf':
+        return Icons.picture_as_pdf_rounded;
+      case 'ppt':
+        return Icons.slideshow_rounded;
+      case 'doc':
+        return Icons.article_rounded;
+      case 'txt':
+        return Icons.text_snippet_rounded;
+      case 'epub':
+        return Icons.auto_stories_rounded;
+      case 'mp4':
+        return Icons.movie_rounded;
+      case 'mp3':
+        return Icons.headphones_rounded;
+      case 'image':
+        return Icons.image_rounded;
+      default:
+        return Icons.insert_drive_file_rounded;
+    }
+  }
+
+  String _typeLabel(String type) {
+    switch (type) {
+      case 'pdf':
+        return 'PDF';
+      case 'ppt':
+        return 'PPT';
+      case 'doc':
+        return '文档';
+      case 'txt':
+        return 'TXT';
+      case 'epub':
+        return 'EPUB';
+      case 'mp4':
+        return '视频';
+      case 'mp3':
+        return '音频';
+      case 'image':
+        return '图片';
+      default:
+        return '文件';
+    }
   }
 
   Widget _emptyBox(String text) {

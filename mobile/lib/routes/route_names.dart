@@ -73,6 +73,7 @@ class RouteNames {
   static const alert = 'alert';
   static const classManage = 'classManage';
   static const classDetail = 'classDetail';
+  static const classMaterial = 'classMaterial';
   static const classMembers = 'classMembers';
   static const classInvite = 'classInvite';
   static const diagnosisReports = 'diagnosisReports';

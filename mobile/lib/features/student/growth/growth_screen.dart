@@ -111,7 +111,7 @@ class _GrowthScreenState extends ConsumerState<GrowthScreen> {
   @override
   Widget build(BuildContext context) {
     return AmbientScaffold(
-      tag: '内科教研 · 学生端',
+      tag: '新医科 · 学生端',
       title: '成长',
       subtitle: _subtitle,
       loading: !_statsReady,

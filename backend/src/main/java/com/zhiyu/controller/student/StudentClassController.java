@@ -1,6 +1,7 @@
 package com.zhiyu.controller.student;
 
 import com.zhiyu.common.R;
+import com.zhiyu.service.ClassMaterialService;
 import com.zhiyu.service.TeachingClassService;
 import com.zhiyu.service.dto.TeachingClassJoinDTO;
 import com.zhiyu.vo.MyClassVO;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 学生端-班级（扫码/邀请码加入班级，查看我的课程，查看班级闭环内容）
@@ -29,6 +31,7 @@ import java.util.List;
 public class StudentClassController {
 
     private final TeachingClassService teachingClassService;
+    private final ClassMaterialService classMaterialService;
 
     @Operation(summary = "通过邀请码加入班级")
     @PostMapping("/join")
@@ -46,5 +49,11 @@ public class StudentClassController {
     @GetMapping("/{classId}")
     public R<StudentClassDetailVO> detail(@PathVariable Long classId) {
         return R.ok(teachingClassService.studentClassBase(classId));
+    }
+
+    @Operation(summary = "班级资料列表（上传 + 教材引用，仅班级成员可见）")
+    @GetMapping("/{classId}/materials")
+    public R<List<Map<String, Object>>> materials(@PathVariable Long classId) {
+        return R.ok(classMaterialService.studentList(classId));
     }
 }

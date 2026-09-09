@@ -954,6 +954,20 @@ class StudentService {
     }
     return resp.data;
   }
+
+  /// 班级资料库（教师上传课件/音视频 + 教材引用）
+  Future<List<Map<String, dynamic>>?> getClassMaterials(int classId) async {
+    if (_isMock) return null;
+    final resp = await _api.getClassMaterials(classId);
+    if (!resp.isSuccess) {
+      log('getClassMaterials failed: ${resp.message}', name: 'student_service');
+      return null;
+    }
+    return resp.data
+        ?.whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
 }
 
 final studentServiceProvider = Provider<StudentService>((ref) {

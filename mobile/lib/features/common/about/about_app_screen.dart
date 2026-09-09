@@ -94,7 +94,7 @@ class _LogoHeader extends StatelessWidget {
         ),
         const SizedBox(height: 6),
      MonoText(
-          '内科教研协同智能体平台',
+          '新医科教研协同智能体平台',
           fontSize: 12,
           color: AppColors.text3Of(context),
           letterSpacing: 0.06,
@@ -209,7 +209,7 @@ class _TeamInfo extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
         Text(
-                '本应用面向医学院校及教学医院，用于内科学教学与训练场景。'
+                '本应用面向医学院校及教学医院，用于新医科教学与训练场景。'
                 '应用内的病例内容均为教学模拟数据，不涉及真实患者信息。',
                 style: TextStyle(
                   fontSize: 13,
@@ -354,7 +354,7 @@ const   _FeedbackFooter();
         const SizedBox(height: 16),
      Center(
           child: MonoText(
-            '© 2026 智愈寻真 · 内科教研协同智能体平台',
+            '© 2026 智愈寻真 · 新医科教研协同智能体平台',
             fontSize: 10,
             color: AppColors.text4Of(context),
             letterSpacing: 0.04,

@@ -46,7 +46,7 @@ class _QuestionTrainingScreenState
   @override
   Widget build(BuildContext context) {
     return AmbientScaffold(
-      tag: '内科教研 · 学生端',
+      tag: '新医科 · 学生端',
       title: '基础题库',
       onBack: () => context.canPop()
           ? context.pop()

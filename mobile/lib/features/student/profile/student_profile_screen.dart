@@ -43,7 +43,7 @@ class _StudentProfileScreenState extends ConsumerState<StudentProfileScreen> {
         bottom: false,
         child: Column(
           children: [
-            const AppTitleAppBar(tag: '内科教研 · 学生端', title: '我的'),
+            const AppTitleAppBar(tag: '新医科 · 学生端', title: '我的'),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 100),

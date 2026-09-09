@@ -1248,6 +1248,18 @@ class StudentApi {
     }
   }
 
+  /// 班级资料库（教师上传课件/音视频 + 教材引用，仅班级成员可见）
+  Future<ApiResponse<List<dynamic>>> getClassMaterials(int classId) async {
+    try {
+      final resp = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/student/classes/$classId/materials',
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
   /// 发起批阅申诉（P2-1）
   Future<ApiResponse<int>> createAppeal({
     required int instanceId,

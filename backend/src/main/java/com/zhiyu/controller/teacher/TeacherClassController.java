@@ -1,6 +1,7 @@
 package com.zhiyu.controller.teacher;
 
 import com.zhiyu.common.R;
+import com.zhiyu.service.ClassMaterialService;
 import com.zhiyu.service.TeachingClassService;
 import com.zhiyu.service.dto.TeachingClassCreateDTO;
 import com.zhiyu.service.dto.ClassSortDTO;
@@ -17,12 +18,15 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 
 /**
- * 教师端-班级管理（自建班级 / 重命名 / 解散 / 成员 / 邀请信息）
+ * 教师端-班级管理（自建班级 / 重命名 / 解散 / 成员 / 邀请信息 / 班级资料库）
  * 注意：PermissionInterceptor 中 /api/v1/teacher/** 要求教师角色且资质已通过。
  */
 @Tag(name = "教师-班级管理")
@@ -32,6 +36,7 @@ import java.util.List;
 public class TeacherClassController {
 
     private final TeachingClassService teachingClassService;
+    private final ClassMaterialService classMaterialService;
 
     @Operation(summary = "我的班级列表（自建 + 授权，含邀请码）")
     @GetMapping
@@ -75,6 +80,42 @@ public class TeacherClassController {
     @PostMapping("/sort")
     public R<Void> sort(@RequestBody ClassSortDTO dto) {
         teachingClassService.sortOrder(dto.getClassIds());
+        return R.ok();
+    }
+
+    // ---------------- 班级资料库 ----------------
+
+    @Operation(summary = "班级资料列表（上传 + 教材引用，按时间倒序）")
+    @GetMapping("/{classId}/materials")
+    public R<List<Map<String, Object>>> materials(@PathVariable Long classId) {
+        return R.ok(classMaterialService.teacherList(classId));
+    }
+
+    @Operation(summary = "上传班级资料（pdf/ppt/pptx/doc/docx/txt/epub/mp4/mp3/图片，≤200MB）")
+    @PostMapping("/{classId}/materials")
+    public R<Long> uploadMaterial(@PathVariable Long classId,
+                                  @RequestParam(value = "title", required = false) String title,
+                                  @RequestParam(value = "durationSec", required = false) Integer durationSec,
+                                  @RequestParam("file") MultipartFile file) {
+        return R.ok(classMaterialService.upload(classId, title, durationSec, file));
+    }
+
+    @Operation(summary = "引用教材库教材到班级资料")
+    @PostMapping("/{classId}/materials/textbook")
+    public R<Long> referenceTextbook(@PathVariable Long classId,
+                                     @RequestBody Map<String, Long> body) {
+        Long textbookId = body.get("textbookId");
+        if (textbookId == null) {
+            throw new com.zhiyu.common.exception.BizException(
+                    com.zhiyu.common.constant.ResultCode.BAD_REQUEST, "textbookId 不能为空");
+        }
+        return R.ok(classMaterialService.referenceTextbook(classId, textbookId));
+    }
+
+    @Operation(summary = "移除班级资料")
+    @DeleteMapping("/{classId}/materials/{materialId}")
+    public R<Void> removeMaterial(@PathVariable Long classId, @PathVariable Long materialId) {
+        classMaterialService.remove(classId, materialId);
         return R.ok();
     }
 }

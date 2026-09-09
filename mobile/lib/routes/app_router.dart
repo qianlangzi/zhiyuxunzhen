@@ -47,6 +47,7 @@ import '../features/teacher/case_config/my_cases_screen.dart';
 import '../features/teacher/market/case_market_screen.dart';
 import '../features/teacher/classes/class_manage_screen.dart';
 import '../features/teacher/classes/class_detail_screen.dart';
+import '../features/teacher/classes/class_material_screen.dart';
 import '../features/teacher/classes/class_members_screen.dart';
 import '../features/teacher/classes/class_invite_screen.dart';
 import '../features/student/courses/my_courses_screen.dart';
@@ -472,6 +473,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: RouteNames.classMembers,
         path: '/teacher/classes/:id/members',
         builder: (context, state) => ClassMembersScreen(
+          classId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          className: state.extra is Map
+              ? (state.extra! as Map)['className'] as String?
+              : state.uri.queryParameters['name'],
+        ),
+      ),
+      GoRoute(
+        name: RouteNames.classMaterial,
+        path: '/teacher/classes/:id/materials',
+        builder: (context, state) => ClassMaterialScreen(
           classId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
           className: state.extra is Map
               ? (state.extra! as Map)['className'] as String?

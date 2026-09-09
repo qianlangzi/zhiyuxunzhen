@@ -81,7 +81,7 @@ class _StudentCaseMarketScreenState
   @override
   Widget build(BuildContext context) {
     return AmbientScaffold(
-      tag: '内科教研 · 学生端',
+      tag: '新医科 · 学生端',
       title: '训练中心',
       subtitle: '病例问诊 · 刷题 · 组卷，从这开始练',
       loading: _isLoading,

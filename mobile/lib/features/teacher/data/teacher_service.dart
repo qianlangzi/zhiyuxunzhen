@@ -1162,4 +1162,55 @@ class TeacherService {
     }
     return resp.data;
   }
+
+  // ==================== 班级资料库（班级详情「资料」板块） ====================
+
+  /// 班级资料列表（上传 + 教材引用），失败返回 null
+  Future<List<Map<String, dynamic>>?> getClassMaterials(int classId) async {
+    if (_isMock) return null;
+    final resp = await _api.getClassMaterials(classId);
+    if (!resp.isSuccess) {
+      log('getClassMaterials failed: ${resp.message}', name: 'teacher_service');
+      return null;
+    }
+    return resp.data
+        ?.whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  /// 上传班级资料，返回 null=成功，否则为后端错误信息
+  Future<String?> uploadClassMaterial(int classId, String filePath,
+      {String? title}) async {
+    if (_isMock) return '演示模式暂不支持上传';
+    final resp = await _api.uploadClassMaterial(classId, filePath, title: title);
+    if (!resp.isSuccess) {
+      log('uploadClassMaterial failed: ${resp.message}', name: 'teacher_service');
+      return resp.message;
+    }
+    return null;
+  }
+
+  /// 引用教材库教材，返回 null=成功，否则为后端错误信息
+  Future<String?> referenceClassTextbook(int classId, int textbookId) async {
+    if (_isMock) return '演示模式暂不支持引用';
+    final resp = await _api.referenceClassTextbook(classId, textbookId);
+    if (!resp.isSuccess) {
+      log('referenceClassTextbook failed: ${resp.message}',
+          name: 'teacher_service');
+      return resp.message;
+    }
+    return null;
+  }
+
+  /// 移除班级资料，返回 null=成功，否则为后端错误信息
+  Future<String?> removeClassMaterial(int classId, int materialId) async {
+    if (_isMock) return '演示模式暂不支持删除';
+    final resp = await _api.removeClassMaterial(classId, materialId);
+    if (!resp.isSuccess) {
+      log('removeClassMaterial failed: ${resp.message}', name: 'teacher_service');
+      return resp.message;
+    }
+    return null;
+  }
 }

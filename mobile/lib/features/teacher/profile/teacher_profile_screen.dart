@@ -78,7 +78,7 @@ class _TeacherProfileScreenState extends ConsumerState<TeacherProfileScreen> {
         bottom: false,
         child: Column(
           children: [
-            const AppTitleAppBar(tag: '内科教研 · 教师端', title: '我的'),
+            const AppTitleAppBar(tag: '新医科 · 教师端', title: '我的'),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.only(bottom: 100),

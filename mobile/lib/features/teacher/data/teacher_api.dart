@@ -1310,4 +1310,59 @@ class TeacherApi {
       return ApiResponse(code: -1, message: _mapError(e));
     }
   }
+
+  // ========= 班级资料库（班级详情「资料」板块） =========
+
+  /// 班级资料列表（上传 + 教材引用，按时间倒序）
+  Future<ApiResponse<List<dynamic>>> getClassMaterials(int classId) async {
+    try {
+      final resp = await _dio
+          .get<Map<String, dynamic>>('/api/v1/teacher/classes/$classId/materials');
+      return ApiResponse.fromJson(resp.data!, (d) => d as List<dynamic>? ?? const []);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 上传班级资料（pdf/ppt/doc/docx/txt/epub/mp4/mp3/图片，≤200MB）
+  Future<ApiResponse<Map<String, dynamic>>> uploadClassMaterial(
+      int classId, String filePath, {String? title}) async {
+    try {
+      final form = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+        if (title != null && title.isNotEmpty) 'title': title,
+      });
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/teacher/classes/$classId/materials',
+        data: form,
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 引用教材库教材到班级资料
+  Future<ApiResponse<Map<String, dynamic>>> referenceClassTextbook(
+      int classId, int textbookId) async {
+    try {
+      final resp = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/teacher/classes/$classId/materials/textbook',
+        data: {'textbookId': textbookId},
+      );
+      return ApiResponse.fromJson(resp.data!, (d) => d as Map<String, dynamic>);
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
+
+  /// 移除班级资料
+  Future<ApiResponse<void>> removeClassMaterial(int classId, int materialId) async {
+    try {
+      await _dio.delete('/api/v1/teacher/classes/$classId/materials/$materialId');
+      return const ApiResponse(code: 0, message: 'ok');
+    } on DioException catch (e) {
+      return ApiResponse(code: -1, message: _mapError(e));
+    }
+  }
 }
