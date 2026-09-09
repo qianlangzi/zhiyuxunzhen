@@ -119,8 +119,8 @@ services:
     container_name: zhiyu-nginx
     restart: always
     depends_on:
-      front:
-        condition: service_started
+      # 不依赖 front：front 属于 web profile，未激活时 nginx 若硬依赖会直接
+      # 报 "depends on undefined service" 导致整个 compose 项目无效（2026-09-09 修复）
       backend:
         condition: service_started
       ai:

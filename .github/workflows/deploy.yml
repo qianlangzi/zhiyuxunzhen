@@ -17,7 +17,19 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
           script: |
+            set -e
             cd /opt/zhiyu-new
-            git pull origin main
+            # 服务器仓库不持有本地提交：强制对齐 origin/main。
+            # 旧版用 git pull，遇到历史分叉（远端重写）会 fatal 且无 set -e 时被吞掉，
+            # 导致「CI 显示成功、服务器代码停在旧版本、容器永不重启」的假成功（2026-09-09 修复）。
+            # untracked 文件（.env、备份、诊断脚本等）不受 reset 影响。
+            git fetch origin main
+            git reset --hard origin/main
+            echo "--- 服务器当前版本 ---"
+            git log --oneline -1
             docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile web up -d --build
-            docker image prune -f
+            # build cache 曾堆积 11.6GB（磁盘 79%），每次部署清理悬挂缓存
+            docker builder prune -f
+            echo "===== 部署后自检 ====="
+            docker inspect zhiyu-backend --format 'backend StartedAt: {{.State.StartedAt}}'
+            docker logs zhiyu-backend --since 3m 2>&1 | grep -iE "Migrating|Started ZhiyuApplication" | tail -5 || true
