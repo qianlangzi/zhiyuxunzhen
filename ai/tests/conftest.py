@@ -173,7 +173,8 @@ def mock_llm_client(monkeypatch):
     from app.services.llm_client import llm_client
 
     async def fake_chat(
-        messages, *, model=None, temperature=None, max_tokens=None, trace_id="-"
+        messages, *, model=None, temperature=None, max_tokens=None,
+        disable_thinking=False, trace_id="-",
     ):
         return json.dumps({"totalScore": 85.0}, ensure_ascii=False)
 
@@ -183,7 +184,12 @@ def mock_llm_client(monkeypatch):
         for word in ["你好", "，", "我是", "模拟", "病人", "。"]:
             yield word
 
-    async def fake_chat_json(messages, *, model=None, trace_id="-"):
+    # 签名必须与 ModelGateway/LlmClient 的转发参数保持一致，否则调用方透传
+    # temperature/max_tokens/disable_thinking 时会 TypeError 并被误判成服务不可用。
+    async def fake_chat_json(
+        messages, *, model=None, temperature=None, max_tokens=None,
+        disable_thinking=True, trace_id="-",
+    ):
         # Universal dict — each endpoint reads only the keys it needs.
         return {
             # reviewer_agent

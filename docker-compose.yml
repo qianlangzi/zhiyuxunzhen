@@ -179,7 +179,9 @@ services:
       # LLM（OpenAI 兼容协议，留空则降级）
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-generalv3.5}
+      # 兜底默认值（2026-09-10 更名）：官方新模型名 deepseek-flash = DeepSeek-V4.1-Flash。
+      # 运行时优先取 ai_model 表激活行，此值仅在该能力无 DB 配置时生效。
+      LLM_MODEL: ${LLM_MODEL:-deepseek-flash}
       LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-30}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-2048}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}

@@ -52,7 +52,9 @@ class ModelGateway:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        disable_thinking: bool = False,
+        # 与 LlmClient.chat_json 保持一致：结构化输出默认关闭思维链。
+        # 网关层必须与下层默认值同步，否则网关的 False 会覆盖下层的 True。
+        disable_thinking: bool = True,
         trace_id: str = "-",
     ) -> dict[str, Any]:
         return await self._client.chat_json(

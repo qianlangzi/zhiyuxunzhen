@@ -109,10 +109,12 @@ class LlmClient:
                 "max_tokens": max_tokens,
             }
             if disable_thinking:
-                # 推理型模型（deepseek-v4-flash 等）的思维链与正文共享同一份
-                # max_tokens 预算：预算被思考吃光时 finish_reason=length 且
-                # content 为空字符串，结构化 JSON 必然解析失败。
+                # 推理型模型（deepseek-flash / 原 deepseek-v4-flash）的思维链与
+                # 正文共享同一份 max_tokens 预算：预算被思考吃光时
+                # finish_reason=length 且 content 为空字符串，结构化 JSON 必然失败。
                 # 结构化/短答案场景不需要思维链，显式关闭以获得确定性输出。
+                # 附带收益：官方规定思考模式忽略 temperature（传了静默无效），
+                # 关掉思维链后管理端温度热配才真正生效。
                 create_kwargs["extra_body"] = _DISABLE_THINKING_BODY
             resp = await self._client.chat.completions.create(**create_kwargs)
             text = (resp.choices[0].message.content or "").strip()
@@ -121,11 +123,14 @@ class LlmClient:
             # 下游结构化解析会失败——必须留痕，否则只剩 no_json 疑案。
             # 同时记录正文长度：length + content_len=0 说明预算被思维链吃光。
             finish_reason = getattr(resp.choices[0], "finish_reason", None)
+            # thinking 标记用于排障：思考模式下 temperature 会被服务端静默忽略，
+            # 因此「温度改了没反应」时应先确认这里的 thinking 是否为 true。
+            thinking_on = not disable_thinking
             if finish_reason == "length":
                 log_event(
                     logger, _WARNING, "llm_chat_truncated",
                     trace_id=trace_id, model=model, max_tokens=max_tokens,
-                    content_len=len(text),
+                    content_len=len(text), thinking=thinking_on,
                     tokens=getattr(resp.usage, "total_tokens", 0),
                 )
             log_event(
@@ -135,6 +140,7 @@ class LlmClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 content_len=len(text),
+                thinking=thinking_on,
                 tokens=getattr(resp.usage, "total_tokens", 0),
                 latency_ms=latency_ms,
             )
@@ -306,7 +312,7 @@ class LlmClient:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
-        disable_thinking: bool = False,
+        disable_thinking: bool = True,
         trace_id: str = "-",
     ) -> dict[str, Any]:
         """对话并解析为 JSON；解析失败时抛出 OutputSchemaInvalidError
@@ -314,8 +320,13 @@ class LlmClient:
         max_tokens 可按调用覆盖：结构化输出（如学习路径）内容长，
         全局默认 2048 常不够用，会被截断成非法 JSON（历史 bug）。
 
-        disable_thinking 可按调用开启：推理型模型的思维链会抢走正文预算，
-        输出长 JSON 的 Agent（如导师思维树）必须关掉，否则正文为空。
+        disable_thinking **默认关闭思维链**：深度思考模型（deepseek-flash 等）
+        的思维链与正文共享同一份 max_tokens 预算，预算被思考吃光时正文为空、
+        JSON 必然解析失败。结构化提取要的是确定性输出而非推理过程，因此这里
+        统一默认关闭，一处收敛覆盖全部调用点；个别确实需要推理后出 JSON 的
+        场景可显式传 ``disable_thinking=False`` 并配足 max_tokens。
+
+        附带收益：官方规定思考模式忽略 temperature，关掉思维链后温度才真正生效。
         """
         text = await self.chat(
             messages, model=model, temperature=temperature,
@@ -359,23 +370,28 @@ class LlmClient:
                 msg = resp.choices[0].message
                 if not getattr(msg, "tool_calls", None):
                     break
-                work_messages.append(
-                    {
-                        "role": "assistant",
-                        "content": msg.content or "",
-                        "tool_calls": [
-                            {
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                },
-                            }
-                            for tc in msg.tool_calls
-                        ],
-                    }
-                )
+                assistant_msg: dict[str, Any] = {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                }
+                # 推理型模型（deepseek-flash 等）在携带 tools 的请求里要求完整回传
+                # reasoning_content，否则模型无法接续上一轮推理，会重复发起同一个
+                # 工具调用而不收敛（官方文档：未正确回传将返回 400）。
+                reasoning = getattr(msg, "reasoning_content", None)
+                if reasoning:
+                    assistant_msg["reasoning_content"] = reasoning
+                work_messages.append(assistant_msg)
                 for tc in msg.tool_calls:
                     tool = tool_map.get(tc.function.name)
                     if tool is None:
