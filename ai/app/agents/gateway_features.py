@@ -104,8 +104,11 @@ FEATURES: dict[str, dict[str, Feature]] = {
 GROUPS: dict[str, AgentSpec] = {
     "consultation": AgentSpec(code="consultation", name="问诊咨询", strategy=STRATEGY_CODE,
                               temperature=0.7, max_tokens=1024),
+    # mentor 的 max_tokens 2026-09-10 由 1024 上调到 3072：思维树 JSON（十余个
+    # 节点 + 每条 evidence）在推理型模型下 1024 会被思维链吃光导致正文为空，
+    # 移动端「提示」恒返回空。此处与 mentor_agent 内的显式预算保持一致。
     "mentor": AgentSpec(code="mentor", name="导师", strategy=STRATEGY_CODE,
-                        temperature=0.6, max_tokens=1024),
+                        temperature=0.6, max_tokens=3072),
     "evaluator": AgentSpec(code="evaluator", name="评测批阅", strategy=STRATEGY_CODE,
                            temperature=0.2, max_tokens=2048),
     "coach": AgentSpec(code="coach", name="学习教练", strategy=STRATEGY_CODE,

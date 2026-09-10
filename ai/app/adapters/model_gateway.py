@@ -50,9 +50,19 @@ class ModelGateway:
         messages: list[dict[str, str]],
         *,
         model: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        disable_thinking: bool = False,
         trace_id: str = "-",
     ) -> dict[str, Any]:
-        return await self._client.chat_json(messages, model=model, trace_id=trace_id)
+        return await self._client.chat_json(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            disable_thinking=disable_thinking,
+            trace_id=trace_id,
+        )
 
     async def resolve_tools(
         self,

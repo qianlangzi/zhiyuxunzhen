@@ -5,12 +5,33 @@
 """
 from typing import Any
 
+from app.core.errors import OutputSchemaInvalidError
 from app.core.logging import get_logger, log_event
 from logging import INFO, WARNING
 from app.prompts.templates import mentor_agent_prompt
 from app.adapters.model_gateway import model_gateway
 
 logger = get_logger(__name__)
+
+# 导师思维树输出长（十几到二十个节点，每节点带 evidence 原文），而线上主模型
+# 是推理型（deepseek-v4-flash）：思维链与正文共享同一份 max_tokens 预算。
+# 实测 max_tokens=1024 时思维链独占全部预算 → finish_reason=length 且正文为空
+# → 结构化解析必然失败 → 移动端「提示」恒为空（2026-09-10 定位）。
+# 因此本 Agent 显式给足预算，并关闭思维链（结构化作答不需要思维链）。
+_MENTOR_MAX_TOKENS = 3072
+# 兜底重试预算：若网关不支持关闭思维链（或换模型后思维链再度膨胀），
+# 首次解析失败时加倍预算重试一次，把硬失败降级为"慢一点但成功"。
+_MENTOR_RETRY_MAX_TOKENS = 6144
+
+
+async def _invoke(messages: list[dict[str, str]], max_tokens: int, trace_id: str) -> dict[str, Any]:
+    """按导师预算调用结构化输出（关闭思维链）。"""
+    return await model_gateway.chat_json(
+        messages,
+        max_tokens=max_tokens,
+        disable_thinking=True,
+        trace_id=trace_id,
+    )
 
 
 async def update_tree(
@@ -39,7 +60,12 @@ async def update_tree(
         {"role": "user", "content": user_msg},
     ]
     try:
-        result = await model_gateway.chat_json(messages, trace_id=trace_id)
+        try:
+            result = await _invoke(messages, _MENTOR_MAX_TOKENS, trace_id)
+        except OutputSchemaInvalidError:
+            log_event(logger, WARNING, "mentor_tree_retry", trace_id=trace_id,
+                      reason="schema_invalid", max_tokens=_MENTOR_RETRY_MAX_TOKENS)
+            result = await _invoke(messages, _MENTOR_RETRY_MAX_TOKENS, trace_id)
     except Exception as exc:  # noqa: BLE001
         log_event(logger, WARNING, "mentor_tree_failed", trace_id=trace_id,
                   error=type(exc).__name__)
