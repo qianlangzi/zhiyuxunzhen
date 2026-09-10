@@ -272,3 +272,71 @@ A（本地 env + compose）、B、D、E、F、G —— 全部完成并本地验�
 - **模型回退**：管理端把旧配置行「设激活」，30s 生效，无需重新部署
 - **注意**：`chat_json` 默认关闭思维链属行为变更，若发现某些批阅/评分场景质量下降，
   在该调用点显式传 `disable_thinking=False` 并配足 `max_tokens` 即可局部恢复。
+
+---
+
+## 附录：多模态链路全量核查与修复（2026-09-10 晚）
+
+### 一、四条多模态链路实测结论
+
+用容器内探针（`ai/tests/vision_probe.py`，12 项断言）真实调模型核验：
+
+| # | 链路 | 走的模型槽位 | 结论 |
+|---|---|---|---|
+| ① 问诊 图片分析 | `ai/app/api/vision.py` | **VISION** = `qwen3-omni-flash`（阿里云 MaaS） | 模型侧正常，**来源校验门有缺陷**（见下） |
+| ② AI 学伴 发图 | `ai/app/workflows/companion_workflow.py` | **LLM** = `deepseek-flash` | 正常读图（探针实测返回完整描述） |
+| ③ 备课素材图转写 | `ai/app/api/lesson.py` | **VISION** | 正常（仅校验 scheme，公网 URL 可用） |
+| ④ 图像索引摘要 | `ai/app/services/image_index_service.py` | **VISION**，base64 内联 | 正常（不经来源校验） |
+
+**"学伴能发图、问诊不能"的原因**：学伴走主 LLM 且**没有来源白名单校验**；
+问诊走 VISION 槽位且**被白名单 + HTTPS 强制两道门拦下**。两者模型不同、校验不同，
+不是"多模态能力缺失"。
+
+**"VISION 要不要切 DeepSeek"**：不需要。VISION 是独立能力槽位，当前 `qwen3-omni-flash`
+实测读图正常；DeepSeek 的视觉能力只作用于主 LLM 链路（即学伴）。切过去不会带来收益，
+反而会让 VISION 与 LLM 抢同一份配额。
+
+### 二、问诊图片发不出去的根因（两道门同时误伤）
+
+`_validate_image_url()` 在生产环境执行：
+
+1. **白名单比较口径不一致** → 恒 403
+   `.env` 写 `VISION_ALLOWED_HOSTS=["http://8.160.161.158"]`，代码却用
+   `urlparse(url).hostname`（裸主机名 `8.160.161.158`）做集合比较 → 永不相等。
+2. **生产强制 HTTPS** → 422
+   自建对象存储只有 `http://8.160.161.158` 的 IP+HTTP 入口，没有证书。
+
+### 三、修复方案（最小改动，不加新环境变量）
+
+让**白名单条目自带协议**，语义取自运维的显式声明：
+
+- 裸主机名 `storage.example.com` → 仅允许 **https**（安全默认，不放松）
+- 完整 URL `http://8.160.161.158` → 允许 **http**（合法 HTTP 图床场景）
+
+改动文件：
+
+| 文件 | 改动 |
+|---|---|
+| `ai/app/core/config.py` | 新增 `vision_allowed_origins` 属性：归一化为 `{主机名: 允许协议集合}`；生产校验改用它 |
+| `ai/app/api/vision.py` | 按主机名取允许协议集合；协议不在集合内才 422 |
+| `.env.example` | 补充两种白名单写法说明 |
+| `ai/tests/security/test_vision_url_guard.py` | 新增 9 项安全回归用例 |
+| `ai/tests/integration/test_vision_e2e.py` | 新增 2 项端到端用例（默认跳过） |
+| `ai/tests/vision_probe.py` | 新增 12 项链路探针（诊断工具） |
+
+**服务器 `.env` 无需任何改动** —— 现有 `["http://8.160.161.158"]` 修复后即可命中。
+
+### 四、验证证据
+
+- 探针：**12/12 通过**（4 条链路读图 + 白名单/协议/内网边界矩阵）
+- 单测/契约/安全：**96 passed, 4 skipped**；加集成用例共 **96 passed, 10 skipped**
+- 端到端（真实 HTTP 路由 + 真实模型，prod 配置）：
+  - 白名单命中 → `200`，`source=VISION_LLM`、`degraded=False`，返回真实读图结论
+  - 白名单未命中 → `403 图片来源不在允许范围内`（安全边界保留）
+
+### 五、顺带发现的观察项（未改动，待你拍板）
+
+主 LLM 的**流式**路径（`llm_client.stream`）不传 `disable_thinking`，即思考模式恒开启，
+且预算 = `LLM_MAX_TOKENS`（2048，各 Agent 均未热配覆盖）。实测读一张图约耗 1314 token
+（其中思考 449），**余量不宽**。若将来把图片分辨率调高或给 Agent 配更小的
+`max_tokens`，可能出现「学伴回复空白」——届时需给流式路径补 `disable_thinking` 开关。

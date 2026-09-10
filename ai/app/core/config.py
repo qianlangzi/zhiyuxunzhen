@@ -7,6 +7,7 @@
 """
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -191,7 +192,7 @@ class Settings(BaseSettings):
         if not self.cors_allowed_origins or "*" in self.cors_allowed_origins:
             raise ValueError("生产环境必须配置明确的 AI_CORS_ALLOWED_ORIGINS，不允许通配符")
 
-        if self.vision_configured and not self.vision_allowed_hosts:
+        if self.vision_configured and not self.vision_allowed_origins:
             raise ValueError("生产环境必须配置 VISION_ALLOWED_HOSTS")
 
         # Current fallbacks return synthetic content and must never be accepted as
@@ -209,6 +210,35 @@ class Settings(BaseSettings):
     @property
     def vision_configured(self) -> bool:
         return bool(self.vision_base_url and self.vision_api_key.get_secret_value())
+
+    @property
+    def vision_allowed_origins(self) -> dict[str, set[str]]:
+        """把 VISION_ALLOWED_HOSTS 归一化为 ``{主机名: 允许的协议集合}``。
+
+        条目支持两种写法，语义都取自运维的显式声明：
+          - 裸主机名 ``storage.example.com``  → 仅允许 https（安全默认）
+          - 完整 URL ``http://8.160.161.158`` → 允许 http（自建对象存储只有
+            IP + HTTP 入口、无证书时的合法场景）
+
+        这样既修掉了「白名单写成完整 URL 却永远匹配不上」的 403，也不必在校验侧
+        硬编码『生产必须 HTTPS』，避免把合法的 HTTP 图床一并拦死。
+        未写协议一律按 https 处理，安全边界不放松。
+        """
+        origins: dict[str, set[str]] = {}
+        for entry in self.vision_allowed_hosts:
+            raw = (entry or "").strip()
+            if not raw:
+                continue
+            if "//" in raw:
+                parsed = urlparse(raw)
+                schemes = {parsed.scheme} if parsed.scheme in {"http", "https"} else {"https"}
+            else:
+                parsed = urlparse(f"//{raw}")
+                schemes = {"https"}
+            host = (parsed.hostname or "").lower().rstrip(".")
+            if host:
+                origins.setdefault(host, set()).update(schemes)
+        return origins
 
     @property
     def embedding_configured(self) -> bool:

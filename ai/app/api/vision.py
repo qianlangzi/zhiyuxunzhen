@@ -42,13 +42,16 @@ def _validate_image_url(image_url: str) -> str:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail="图片地址不允许访问内网地址")
     if settings.env == "prod":
-        allowed = {host.lower().rstrip(".") for host in settings.vision_allowed_hosts}
-        if hostname not in allowed:
+        # 白名单条目自带协议：写成 http://host 即表示该来源允许 HTTP。
+        # 这样既能修复「白名单写成完整 URL 导致永远 403」，也避免把只有
+        # HTTP 入口的自建对象存储拦死；未写协议则默认只允许 https。
+        allowed_schemes = settings.vision_allowed_origins.get(hostname)
+        if not allowed_schemes:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
                                 detail="图片来源不在允许范围内")
-        if parsed.scheme != "https":
+        if parsed.scheme not in allowed_schemes:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="生产环境图片必须使用 HTTPS")
+                                detail="图片来源协议不被允许")
     return image_url
 
 
