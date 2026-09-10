@@ -1,0 +1,35 @@
+# =====================================================
+# 智愈寻真 - 生产【预构建镜像】覆盖层（方案 A）
+#
+# 配合三条链路使用（生产只用这条）:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.image.yml --profile web up -d --pull always
+#
+# 作用:
+#   CI（GitHub Actions）负责在【7G 内存的 runner】上完成 Maven/前端/Python 构建，
+#   并把镜像推到 ghcr.io/qianlangzi/*。本文件把这些服务的 `build` 替换为 `image`
+#   引用，使生产服务器**只做 pull + 重启，不再本地 build**，
+#   从而根治 4G 服务器上 swap 抖动/构建卡死问题（见运维大全 §0）。
+#
+# 与 docker-compose.prod.yml 的区别:
+#   prod = 生产运行时配置（内存限制、健康检查、环境注入）
+#   image = 用 ghcr 预构建镜像替换本地 build（仅涉及构建来源，不碰运行时配置）
+# =====================================================
+
+services:
+
+  backend:
+    build: !reset null
+    image: ghcr.io/qianlangzi/zhiyu-backend:${ZHIYU_IMAGE_TAG:-latest}
+
+  ai:
+    build: !reset null
+    image: ghcr.io/qianlangzi/zhiyu-ai:${ZHIYU_IMAGE_TAG:-latest}
+
+  ai-worker:
+    build: !reset null
+    image: ghcr.io/qianlangzi/zhiyu-ai-worker:${ZHIYU_IMAGE_TAG:-latest}
+
+  front:
+    build: !reset null
+    image: ghcr.io/qianlangzi/zhiyu-front:${ZHIYU_IMAGE_TAG:-latest}

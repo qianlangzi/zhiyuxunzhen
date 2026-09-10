@@ -1,4 +1,4 @@
-name: 自动部署 zhiyu-new 到服务器
+name: 自动构建推镜像并部署 zhiyu-new
 
 on:
   push:
@@ -6,33 +6,98 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  build:
+    name: 在 CI 构建镜像并推送到 ghcr.io
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write     # 允许往 ghcr.io 推送镜像
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_NS: qianlangzi
+      ZHIYU_IMAGE_TAG: latest
     steps:
-      - name: 通过 SSH 远程部署
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 登录 ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      # ---- backend (Maven 多阶段构建) ----
+      - name: 构建 & 推送 backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-backend:${{ env.ZHIYU_IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-backend:latest
+          cache-to: type=inline
+
+      # ---- ai (Python 多阶段构建) ----
+      - name: 构建 & 推送 ai
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai
+          file: ./ai/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-ai:${{ env.ZHIYU_IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-ai:latest
+          cache-to: type=inline
+
+      # ---- ai-worker (与 ai 同一代码库,单独镜像名) ----
+      - name: 构建 & 推送 ai-worker
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai
+          file: ./ai/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-ai-worker:${{ env.ZHIYU_IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-ai-worker:latest
+          cache-to: type=inline
+
+      # ---- front (npm 多阶段构建) ----
+      - name: 构建 & 推送 front
+        uses: docker/build-push-action@v6
+        with:
+          context: ./front
+          file: ./front/Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-front:${{ env.ZHIYU_IMAGE_TAG }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NS }}/zhiyu-front:latest
+          cache-to: type=inline
+
+  deploy:
+    name: 服务器 pull 预构建镜像并重启
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: 通过 SSH 远程部署（仅 pull，不再本地 build）
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: 22
-          # 2C4G 服务器冷构建 ai 镜像（pip 解析+下载）可达 10 分钟以上，
-          # 默认 command_timeout=10m 会把 build 中途杀掉造成「CI 失败+容器未更新」
-          command_timeout: 60m
+          command_timeout: 30m
           script: |
             set -e
             cd /opt/zhiyu-new
-            # 服务器仓库不持有本地提交：强制对齐 origin/main。
-            # 旧版用 git pull，遇到历史分叉（远端重写）会 fatal 且无 set -e 时被吞掉，
-            # 导致「CI 显示成功、服务器代码停在旧版本、容器永不重启」的假成功（2026-09-09 修复）。
-            # untracked 文件（.env、备份、诊断脚本等）不受 reset 影响。
+            # 服务器仓库只用于取代码里的 compose 配置，不参与构建。
             git fetch origin main
             git reset --hard origin/main
-            echo "--- 服务器当前版本 ---"
+            echo "--- 服务器版本 ---"
             git log --oneline -1
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile web up -d --build
-            # build cache 曾堆积 11.6GB（磁盘 79%），每次部署清理悬挂缓存
-            docker builder prune -f --filter "until=168h"
+            # 登录 ghcr 以便拉取私有镜像
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u qianlangzi --password-stdin
+            # 用镜像覆盖层部署: pull 最新预构建镜像 + 重启容器
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              -f docker-compose.image.yml --profile web up -d --pull always --force-recreate
             echo "===== 部署后自检 ====="
             docker inspect zhiyu-backend --format 'backend StartedAt: {{.State.StartedAt}}'
-            docker logs zhiyu-backend --since 3m 2>&1 | grep -iE "Migrating|Started ZhiyuApplication" | tail -5 || true
+            docker inspect zhiyu-ai --format 'ai StartedAt: {{.State.StartedAt}}'
+            timeout 60 curl -s -o /dev/null -w 'health HTTP %{http_code}\n' http://localhost/api/v1/health || true
