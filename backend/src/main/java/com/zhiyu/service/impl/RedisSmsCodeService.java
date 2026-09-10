@@ -1,14 +1,13 @@
 package com.zhiyu.service.impl;
 
-import com.zhiyu.client.JuheSmsClient;
 import com.zhiyu.common.constant.ResultCode;
 import com.zhiyu.common.exception.BizException;
 import com.zhiyu.service.CaptchaService;
 import com.zhiyu.service.SmsCodeService;
+import com.zhiyu.service.SmsProviderManager;
 import com.zhiyu.vo.SmsCodeResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -34,11 +33,9 @@ public class RedisSmsCodeService implements SmsCodeService {
     private final PasswordEncoder passwordEncoder;
     private final Environment environment;
     private final SecureRandom secureRandom = new SecureRandom();
-    private final JuheSmsClient juheSmsClient;
     private final CaptchaService captchaService;
-
-    @Value("${zhiyu.sms.provider:}")
-    private String provider;
+    /** 服务商运行时解析：sys_config（管理端可热切换）> 环境变量兜底 */
+    private final SmsProviderManager smsProviderManager;
 
     @Override
     public SmsCodeResponse sendCode(String phone, String captchaId, String captchaAnswer, String clientIp) {
@@ -80,20 +77,24 @@ public class RedisSmsCodeService implements SmsCodeService {
 
         String code = String.format("%06d", secureRandom.nextInt(1_000_000));
 
-        // 只要配置了 juhe 短信服务商就真实发送（开发环境也发送，便于全链路真机联调）。
-        // 生产环境未配置短信服务商时 fail-closed 报错；开发环境未配置则降级为仅打印日志。
-        if ("juhe".equalsIgnoreCase(provider)) {
-            JuheSmsClient.SendResult result = juheSmsClient.send(phone, code);
-            if (!result.success()) {
+        // 服务商由 SmsProviderManager 运行时解析：管理端配置（sys_config）优先，
+        // 环境变量 SMS_PROVIDER 兜底 → 管理端切换后 30 秒内（立即 evict）生效，无需重启。
+        String provider = smsProviderManager.current();
+
+        if (SmsProviderManager.OFF.equals(provider)) {
+            // 演示/联调模式：不真实发送，验证码写入服务端日志
+            log.info("短信服务商为 off phone={} code={}", maskPhone(phone), code);
+        } else if (!provider.isEmpty()) {
+            SmsProviderManager.SendOutcome outcome = smsProviderManager.send(phone, code);
+            if (!outcome.success()) {
                 throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED,
-                        "短信发送失败：" + result.errorMessage());
+                        "短信发送失败：" + outcome.message());
             }
-            log.info("短信已发送 phone={} tplId={}", maskPhone(phone),
-                    "juhe-" + provider);
+            log.info("短信已发送 phone={} provider={}", maskPhone(phone), outcome.provider());
         } else if (!development) {
             throw new BizException(ResultCode.SMS_SERVICE_NOT_CONFIGURED,
                     "短信厂商发送器尚未配置: provider=" + provider
-                            + "，支持的值: juhe（聚合数据）");
+                            + "，支持的值: aliyun_auth（阿里云短信认证）、juhe（聚合数据）、off（关闭发送）");
         } else {
             // 开发环境且未配置短信厂商：仅打印日志，方便联调
             log.info("开发环境短信验证码 phone={} code={}（未配置短信厂商，仅提示）",

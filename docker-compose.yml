@@ -140,6 +140,11 @@ services:
       SMS_PROVIDER: ${SMS_PROVIDER:-}
       SMS_JUHE_KEY: ${SMS_JUHE_KEY:-}
       SMS_JUHE_TPL_ID: ${SMS_JUHE_TPL_ID:-}
+      # 阿里云短信认证（provider=aliyun_auth）：个人认证可用，免资质/签名/模板
+      ALIYUN_ACCESS_KEY_ID: ${ALIYUN_ACCESS_KEY_ID:-}
+      ALIYUN_ACCESS_KEY_SECRET: ${ALIYUN_ACCESS_KEY_SECRET:-}
+      ALIYUN_SMS_SIGN_NAME: ${ALIYUN_SMS_SIGN_NAME:-}
+      ALIYUN_SMS_TEMPLATE_CODE: ${ALIYUN_SMS_TEMPLATE_CODE:-}
       # AI 模型密钥：DataInitializer 种子从环境变量读取（值在 .env，勿硬编码进代码）
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DASHSCOPE_HOST: ${DASHSCOPE_HOST:-}

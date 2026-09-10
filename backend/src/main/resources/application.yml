@@ -57,6 +57,16 @@ zhiyu:
       key: ${SMS_JUHE_KEY:}
       # 模板 ID（数字，聚合数据后台审核通过的短信模板）必须通过环境变量注入，禁止用占位符回退
       tpl-id: ${SMS_JUHE_TPL_ID:}
+    # 阿里云「短信认证」（号码认证服务 PNVS）：个人认证可用，免资质/免签名/免模板，
+    # 使用平台赠送的签名与模板（控制台 → 短信认证参数配置）。
+    # provider=aliyun_auth 时生效；验证码仍由本系统生成并校验。
+    aliyun:
+      access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
+      access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+      sign-name: ${ALIYUN_SMS_SIGN_NAME:}
+      template-code: ${ALIYUN_SMS_TEMPLATE_CODE:}
+      valid-seconds: ${ALIYUN_SMS_VALID_SECONDS:300}
+      scheme-name: ${ALIYUN_SMS_SCHEME_NAME:}
   upload:
     max-file-size: 5MB
     allowed-types: jpg,jpeg,png,pdf
