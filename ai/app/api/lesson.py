@@ -205,7 +205,7 @@ async def lesson_design(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -321,7 +321,7 @@ async def lesson_guide(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             # 模型不可用时降级为确定性默认提问，不阻断引导流程
             result.question = f"请问这条备课的{labels[current]}是什么？"
@@ -382,7 +382,7 @@ async def lesson_merge(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -439,7 +439,7 @@ async def lesson_ppt(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 

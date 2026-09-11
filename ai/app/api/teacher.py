@@ -122,7 +122,7 @@ async def generate_case_draft(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -185,7 +185,7 @@ async def class_insight(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -239,7 +239,7 @@ async def review_assist(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -291,7 +291,7 @@ async def recommend_cases(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -345,7 +345,7 @@ async def quality_check(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -395,7 +395,7 @@ async def practice_questions(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
@@ -438,7 +438,7 @@ async def material_advice(
             )},
             {"role": "user", "content": "请按 schema 输出素材建议 JSON。"},
         ]
-        raw = await llm_client.chat(messages, trace_id=trace_id)
+        raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         result: MaterialAdviceResult = await structured_output.parse_and_validate(
             raw, MaterialAdviceResult, trace_id=trace_id,
         )

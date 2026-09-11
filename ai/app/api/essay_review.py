@@ -59,7 +59,7 @@ async def review_essay(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, trace_id=trace_id)
+            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
 
