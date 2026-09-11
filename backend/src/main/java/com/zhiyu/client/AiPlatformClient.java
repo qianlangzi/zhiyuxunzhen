@@ -285,16 +285,26 @@ public class AiPlatformClient {
         return aiHttpClient.post("/embed/textbook", body);
     }
 
-    /** 影像 AI 读图分析（移动端学生 JWT 鉴权）。 */
+    /**
+     * 影像 AI 读图分析（内部端点，X-Internal-Token 鉴权）。
+     *
+     * 会话归属由调用方（{@link com.zhiyu.service.impl.StudentSessionServiceImpl#analyzeImage}）
+     * 先用移动端 JWT 校验，AI 侧再用 session_context 二次校验 —— 与 /internal/chat/stream、
+     * /internal/companion/stream 同一设计。
+     *
+     * 2026-09-11 变更：此前直接调用公网 /v1/ai/vision/analyze 并把移动端 JWT 透传给 AI，
+     * 是全链路唯一依赖「跨系统 JWT」的能力；一旦 token/密钥/请求头任一环节漂移，症状统一
+     * 退化为「读图服务暂不可用」，极难排查（生产实测 AI 返回 401）。现改走内部端点。
+     */
     public Map<String, Object> analyzeVision(Long sessionId, Long studentId, String imageUrl,
-                                             List<Double> imageBbox, String studentNote,
-                                             String mobileToken) {
+                                             List<Double> imageBbox, String studentNote) {
         Map<String, Object> body = new HashMap<>();
         body.put("session_id", sessionId);
+        body.put("student_id", studentId);
         body.put("image_url", imageUrl);
         if (imageBbox != null && !imageBbox.isEmpty()) body.put("image_bbox", imageBbox);
         if (studentNote != null && !studentNote.isBlank()) body.put("student_note", studentNote);
-        return aiHttpClient.postDataWithBearer("/v1/ai/vision/analyze", body, mobileToken);
+        return aiHttpClient.postDataInternal("/internal/vision/analyze", body);
     }
 
     /** 教材知识库向量检索（分科过滤），失败返回空列表（优雅降级）。 */

@@ -34,6 +34,9 @@ class VisionAnalyzeRequest(BaseModel):
     image_url: str = Field(description="图片可访问 URL")
     image_bbox: list[float] | None = None
     student_note: str | None = Field(default=None, description="学生圈画时的备注")
+    # 仅 /internal/vision/analyze 使用：由业务中台在完成移动端鉴权后填入；
+    # 公网 /v1/ai/vision/analyze 一律忽略该字段，学生身份只取自 JWT。
+    student_id: int | None = Field(default=None, description="学生 userId（内部调用专用）")
 
 
 class VisionAnalysisResult(BaseModel):

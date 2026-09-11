@@ -41,9 +41,12 @@ public interface StudentSessionService {
     /**
      * 影像 AI 读图分析（多模态，PRD 9.2）：校验会话归属 → 转发 AI Vision。
      * AI 未配置或调用失败时返回降级反馈，不抛异常。
+     *
+     * 2026-09-11 起 AI 侧调用改走内部端点（X-Internal-Token），不再透传移动端 JWT，
+     * 因此不再需要 mobileToken 参数。
      */
     Map<String, Object> analyzeImage(Long sessionId, String imageUrl,
-                                     List<Double> imageBbox, String studentNote, String mobileToken);
+                                     List<Double> imageBbox, String studentNote);
 
     /**
      * 导师按需小结（2026-09-03）：学生主动请求时生成当前会话的思维树 + 苏格拉底提示。

@@ -24,12 +24,10 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -227,8 +225,7 @@ public class StudentSessionController {
     @Operation(summary = "影像 AI 读图分析（多模态；未配置模型时返回降级提示）")
     @PostMapping("/{sessionId}/image/analyze")
     public R<Map<String, Object>> analyzeImage(@PathVariable Long sessionId,
-                                               @RequestBody Map<String, Object> req,
-                                               HttpServletRequest request) {
+                                               @RequestBody Map<String, Object> req) {
         String imageUrl = req.get("imageUrl") == null ? null : String.valueOf(req.get("imageUrl"));
         if (imageUrl == null || imageUrl.isBlank()) {
             throw new BizException(ResultCode.VALIDATION_FAILED, "imageUrl 不能为空");
@@ -241,7 +238,8 @@ public class StudentSessionController {
             }
         }
         String studentNote = req.get("studentNote") == null ? null : String.valueOf(req.get("studentNote"));
-        String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
-        return R.ok(studentSessionService.analyzeImage(sessionId, imageUrl, imageBbox, studentNote, auth));
+        // 2026-09-11：不再把移动端 JWT 透传给 AI 中台（改由 AI 内部端点 + X-Internal-Token 鉴权）。
+        // 学生身份取自 UserContext（JWT 过滤器已注入），归属校验仍在 service 内完成。
+        return R.ok(studentSessionService.analyzeImage(sessionId, imageUrl, imageBbox, studentNote));
     }
 }

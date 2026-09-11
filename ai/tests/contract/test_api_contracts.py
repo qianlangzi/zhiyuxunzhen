@@ -430,6 +430,45 @@ class TestVisionAnalyze:
         resp = await client.post("/v1/ai/vision/analyze", json=body)
         assert resp.status_code == 401
 
+    # ---- /internal/vision/analyze（Spring Boot 调用，X-Internal-Token）----
+    # 2026-09-11：后端读图改走内部端点，不再透传移动端 JWT（此前 prod 实测 401）。
+
+    async def test_internal_vision_rejects_missing_internal_token(self, client):
+        body = {"session_id": 1, "student_id": 1,
+                "image_url": "http://example.com/image.jpg"}
+        resp = await client.post("/internal/vision/analyze", json=body)
+        assert resp.status_code == 401
+
+    async def test_internal_vision_requires_student_id(self, client, internal_token_header):
+        body = {"session_id": 1, "image_url": "http://example.com/image.jpg"}
+        resp = await client.post(
+            "/internal/vision/analyze", json=body, headers=internal_token_header,
+        )
+        assert resp.status_code == 422
+
+    async def test_internal_vision_returns_result_structure(self, client, internal_token_header):
+        body = {"session_id": 1, "student_id": 1,
+                "image_url": "http://example.com/image.jpg"}
+        resp = await client.post(
+            "/internal/vision/analyze", json=body, headers=internal_token_header,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "finding" in data
+        assert "citations" in data
+        assert "safety_blocked" in data
+
+    async def test_public_vision_ignores_body_student_id(self, client, student_jwt_token):
+        """公网端点只认 JWT：请求体里塞别人的 student_id 不应生效（防止越权读图）。"""
+        body = {"session_id": 1, "student_id": 999999,
+                "image_url": "http://example.com/image.jpg"}
+        resp = await client.post(
+            "/v1/ai/vision/analyze", json=body,
+            headers={"Authorization": student_jwt_token},
+        )
+        # 身份仍取自 JWT（student_id=1），故不该出现 403「不属于当前学生」
+        assert resp.status_code == 200
+
 
 # ---------------------------------------------------------------------------
 # POST /internal/agent/{code}  (统一 Agent 网关, X-Internal-Token)

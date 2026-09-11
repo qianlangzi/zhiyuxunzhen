@@ -382,8 +382,7 @@ public class StudentSessionServiceImpl implements StudentSessionService {
 
     @Override
     public Map<String, Object> analyzeImage(Long sessionId, String imageUrl,
-                                            List<Double> imageBbox, String studentNote,
-                                            String mobileToken) {
+                                            List<Double> imageBbox, String studentNote) {
         Long studentId = UserContext.requireUserId();
         ChatSession session = sessionMapper.selectById(sessionId);
         if (session == null) {
@@ -393,7 +392,7 @@ public class StudentSessionServiceImpl implements StudentSessionService {
             throw new BizException(ResultCode.FORBIDDEN, "问诊会话不属于当前学生");
         }
         Map<String, Object> result = aiPlatformClient.analyzeVision(
-                sessionId, studentId, imageUrl, imageBbox, studentNote, mobileToken);
+                sessionId, studentId, imageUrl, imageBbox, studentNote);
         if (result == null) {
             // AI 未配置或调用失败：返回本地降级反馈，保证多模态闭环可用
             result = new java.util.HashMap<>();

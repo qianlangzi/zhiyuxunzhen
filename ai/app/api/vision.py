@@ -1,20 +1,28 @@
 """多模态影像/检验分析（PRD 9.2）
 
-POST /api/v1/ai/vision/analyze
-"""
-import uuid
+两个入口，走同一套业务逻辑：
 
+- ``POST /v1/ai/vision/analyze``    公网/移动端直连，学生身份取自移动端 JWT
+- ``POST /internal/vision/analyze`` 业务中台调用，``X-Internal-Token`` 鉴权，
+  学生身份取自请求体 ``student_id``（Spring Boot 已用移动端 JWT 鉴权并注入 UserContext）
+
+设计说明（2026-09-11）：此前读图是后端**唯一**直接把「移动端 JWT」转发给 AI 做鉴权的
+端点（其余 chat / companion 都走 ``/internal/*`` + ``X-Internal-Token``）。这条跨系统
+凭证耦合一旦任一环节漂移（token 过期 / 密钥不一致 / 头丢失），症状统一退化成
+「读图服务暂不可用」，排查成本极高。现在后端改走内部端点，凭证不再跨系统传递；
+归属校验仍由 ``backend_client.session_context()`` 二次完成，安全边界不变。
+"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from openai import AsyncOpenAI, APIError
 
 from app.core.config import settings
 from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
+from app.core.security import require_internal_token, require_mobile_student
 from app.core.vision_guard import validate_image_url
 from app.models.chat import VisionAnalyzeRequest, VisionAnalysisResult
 from app.prompts.templates import vision_agent_prompt
 from app.services.backend_client import backend_client
-from app.core.security import require_mobile_student
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -29,6 +37,26 @@ async def vision_analyze(
     req: VisionAnalyzeRequest,
     student_id: int = Depends(require_mobile_student),
 ):
+    """移动端直连读图：学生身份只认 JWT，忽略请求体里的 student_id。"""
+    return await _run_vision_analyze(req, student_id)
+
+
+@router.post("/internal/vision/analyze", response_model=VisionAnalysisResult)
+async def vision_analyze_internal(
+    req: VisionAnalyzeRequest,
+    _t: None = Depends(require_internal_token),
+):
+    """内部读图（Spring Boot 调用，X-Internal-Token 鉴权）。"""
+    if req.student_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="内部读图必须提供 student_id",
+        )
+    return await _run_vision_analyze(req, req.student_id)
+
+
+async def _run_vision_analyze(req: VisionAnalyzeRequest, student_id: int) -> VisionAnalysisResult:
+    """读图核心逻辑：会话归属校验 → 来源白名单校验 → 调 VLM → 结构化结果。"""
     trace_id = ensure_trace_id()
     set_context(trace_id=trace_id, session_id=str(req.session_id))
     try:
