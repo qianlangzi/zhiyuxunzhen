@@ -192,6 +192,10 @@ public class StudentSessionController {
     @PostMapping("/{sessionId}/image")
     public R<Map<String, String>> uploadImage(@PathVariable Long sessionId,
                                               @RequestParam("file") MultipartFile file) {
+        // 会话归属校验：此前只校验文件本身，sessionId 完全不过问 —— 任意登录学生
+        // 都能拿别人的 sessionId 上传文件（污染存储、绕过问诊边界）。与
+        // analyzeImage 保持同一道门（2026-09-11 修复）。
+        studentSessionService.requireSessionForStudent(sessionId, UserContext.requireUserId());
         if (file == null || file.isEmpty()) {
             throw new BizException(ResultCode.VALIDATION_FAILED, "文件不能为空");
         }

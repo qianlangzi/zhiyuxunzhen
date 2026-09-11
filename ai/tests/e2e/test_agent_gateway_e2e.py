@@ -110,7 +110,8 @@ async def test_e2e_stream_propagates_agent_sampling(client, internal_token_heade
 
     captured: dict = {}
 
-    async def fake_stream(messages, *, model=None, temperature=None, max_tokens=None, trace_id="-"):
+    async def fake_stream(messages, *, model=None, temperature=None, max_tokens=None,
+                          disable_thinking=False, trace_id="-"):
         captured["ctx"] = get_agent_sampling()
         captured["temp"] = temperature
         for word in ["啊", "，", "你好"]:
@@ -155,7 +156,8 @@ async def test_e2e_trace_id_propagates_to_llm(client, internal_token_header, mon
     """
     captured: dict = {}
 
-    async def fake_stream(messages, *, model=None, temperature=None, max_tokens=None, trace_id="-"):
+    async def fake_stream(messages, *, model=None, temperature=None, max_tokens=None,
+                          disable_thinking=False, trace_id="-"):
         captured["trace_id"] = trace_id
         for word in ["你好", "，", "我是", "模拟", "学伴", "。"]:
             yield word

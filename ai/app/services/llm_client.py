@@ -168,12 +168,16 @@ class LlmClient:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        disable_thinking: bool = False,
         trace_id: str = "-",
         scene: str = "unknown",
     ) -> AsyncIterator[str]:
         """流式对话，按 token 增量返回文本
 
         scene: 调用场景标识，用于管理端 Token 用量按场景归类
+        disable_thinking: 关闭推理型模型思维链。**思维链与正文共享同一份
+            max_tokens**，多模态轮次（如学伴读图）实测思考可吃掉 1296/2048
+            token，导致正文被截断甚至为空；此类轮次应显式传 True。
         """
         if not self.available:
             async for piece in self._fallback_stream(messages, trace_id):
@@ -183,7 +187,9 @@ class LlmClient:
         start = time.time()
         usage: Any = None
         try:
-            stream = await self._create_stream(model, messages, temperature, max_tokens)
+            stream = await self._create_stream(
+                model, messages, temperature, max_tokens, disable_thinking
+            )
             first_token = True
             recovered_reported = False
             async for chunk in stream:
@@ -229,6 +235,7 @@ class LlmClient:
         messages: list[dict[str, str]],
         temperature: float | None,
         max_tokens: int | None,
+        disable_thinking: bool = False,
     ) -> Any:
         """创建流式响应，并尽量请求携带 usage。
 
@@ -243,6 +250,10 @@ class LlmClient:
             "max_tokens": max_tokens or settings.llm_max_tokens,
             "stream": True,
         }
+        if disable_thinking:
+            # 与 chat_json 同款片段：思考链与正文共享 max_tokens，预算紧张的场景
+            # （多模态轮次）必须关掉思考，否则正文被截断/空白。
+            kwargs["extra_body"] = _DISABLE_THINKING_BODY
         # 经网关下发时带 Agent 采样上下文（热配温度/长度/模型）
         if not model and not temperature and not max_tokens:
             a_temp, a_max, a_model = get_agent_sampling()

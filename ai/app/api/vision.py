@@ -2,9 +2,7 @@
 
 POST /api/v1/ai/vision/analyze
 """
-import ipaddress
 import uuid
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from openai import AsyncOpenAI, APIError
@@ -12,6 +10,7 @@ from openai import AsyncOpenAI, APIError
 from app.core.config import settings
 from app.core.logging import ensure_trace_id, get_logger, log_event, set_context, reset_context
 from logging import INFO, WARNING
+from app.core.vision_guard import validate_image_url
 from app.models.chat import VisionAnalyzeRequest, VisionAnalysisResult
 from app.prompts.templates import vision_agent_prompt
 from app.services.backend_client import backend_client
@@ -20,39 +19,9 @@ from app.core.security import require_mobile_student
 logger = get_logger(__name__)
 router = APIRouter()
 
-
-def _validate_image_url(image_url: str) -> str:
-    """Validate provider-facing image URLs before a third party fetches them."""
-    parsed = urlparse(image_url)
-    hostname = (parsed.hostname or "").lower().rstrip(".")
-    if parsed.scheme not in {"http", "https"} or not hostname:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="图片地址必须是 HTTP(S) URL")
-    if parsed.username or parsed.password or parsed.fragment:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="图片地址格式不安全")
-    if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith(".local"):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="图片地址不允许访问本地网络")
-    try:
-        address = ipaddress.ip_address(hostname)
-    except ValueError:
-        address = None
-    if address is not None and (address.is_private or address.is_loopback or address.is_link_local or address.is_reserved):
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                            detail="图片地址不允许访问内网地址")
-    if settings.env == "prod":
-        # 白名单条目自带协议：写成 http://host 即表示该来源允许 HTTP。
-        # 这样既能修复「白名单写成完整 URL 导致永远 403」，也避免把只有
-        # HTTP 入口的自建对象存储拦死；未写协议则默认只允许 https。
-        allowed_schemes = settings.vision_allowed_origins.get(hostname)
-        if not allowed_schemes:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,
-                                detail="图片来源不在允许范围内")
-        if parsed.scheme not in allowed_schemes:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                                detail="图片来源协议不被允许")
-    return image_url
+# 校验逻辑已抽到 app.core.vision_guard（备课素材描述链路共用同一套来源白名单）；
+# 这里保留原名转发，兼容既有回归测试与诊断探针的导入路径。
+_validate_image_url = validate_image_url
 
 
 @router.post("/v1/ai/vision/analyze", response_model=VisionAnalysisResult)

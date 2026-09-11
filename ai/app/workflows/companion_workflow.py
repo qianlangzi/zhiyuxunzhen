@@ -368,8 +368,16 @@ async def companion_workflow(req: CompanionChatRequest) -> AsyncIterator[dict[st
                 pass
         # 用看门狗包裹 LLM 流：LLM 卡住/首个 token 迟迟不产出时按时抛出，
         # 避免整条链路 0 超时挂死、移动端无限转圈（SseEmitter 0 = 不超时）。
+        # 多模态轮次关闭思维链：推理型模型的思考与正文**共享同一份 max_tokens**
+        # （LLM_MAX_TOKENS=2048）。2026-09-11 实测：学伴带图提问时思考吃掉 1296
+        # token，正文 1241 字即被硬截断（finish_reason=length）；把预算压到 320
+        # 时正文直接为 0 字（学伴「开小差」）。关掉思考后 585 token 出完整 963 字。
+        # 纯文本轮次保留思考，不牺牲推理质量。
         stream = model_gateway.stream(
-            messages, agent_code="companion", trace_id=trace_id
+            messages,
+            agent_code="companion",
+            disable_thinking=bool(req.image_url),
+            trace_id=trace_id,
         )
         async for delta in _iter_guarded(
             stream,

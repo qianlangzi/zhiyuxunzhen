@@ -8,18 +8,20 @@ POST /lesson/design
 POST /lesson/guide
 - 向导式对话引导：输入已确认要素 + 用户最新回答，输出下一个问题/快捷选项/是否完成/需求单
 """
+import base64
 import json
+import os
 import uuid
 from logging import INFO, WARNING
-from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.core.errors import ApiError, ModelUnavailableError, OutputSchemaInvalidError, RetrievalUnavailableError
 from app.core.logging import ensure_trace_id, get_logger, log_event, reset_context, set_context
 from app.core.security import require_internal_token
+from app.core.vision_guard import validate_image_url
 from app.domain.policies.safety_policy import safety_policy
 from app.models.common import R
 from app.models.lesson import LessonDesignRef, LessonDesignRequest, LessonDesignResult, LessonGuideRequest, LessonGuideResult, LessonMergeRequest, LessonPptRequest, LessonPptResult
@@ -31,17 +33,74 @@ from app.services.structured_output import structured_output
 logger = get_logger(__name__)
 router = APIRouter()
 
+# 后端上传接口对外暴露的相对路径前缀（UPLOAD_BASE_URL=/uploads），
+# 物理落盘位置 = 与 AI 共享的对象存储根目录（UPLOAD_DIR=/app/data/objects）。
+_UPLOAD_URL_PREFIX = "/uploads/"
+# 单张素材内联上限：base64 后体积膨胀 4/3，过大素材直接放弃识别，不拖垮教案生成
+_MAX_MATERIAL_IMAGE_BYTES = 8 * 1024 * 1024
+_MATERIAL_MIME = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "bmp": "image/bmp",
+    "webp": "image/webp",
+}
+
+
+def _material_image_ref(file_url: str) -> str:
+    """把备课素材图片转成可交给第三方 VLM 的引用（data URL 或白名单内公网 URL）。
+
+    背景（2026-09-11 修复）：lesson_material.file_url 存的是**相对路径**
+    （如 ``/uploads/materials/xxx.png``，见 docker-compose 的 UPLOAD_BASE_URL=/uploads）。
+    旧实现直接把相对路径丢给 VLM，``urlparse`` 取不到 scheme/hostname → 直接
+    ``return ""`` → **备课图片永远不会被识别**，教案里只留标题锚点，还误报
+    「VLM 未配置或不可用」。因为后端上传目录与 AI 的对象存储根目录是同一份
+    host 目录（``./data/objects`` 只读挂载），这里改为**本地读取 + base64 内联**：
+    不依赖公网可达、不经过第三方抓取，dev/prod 行为一致。
+
+    外链（http/https）仍交给第三方抓取，因此必须过来源白名单——与问诊读图同一套
+    边界，避免把任意 URL 变成 SSRF 跳板。
+    """
+    if not file_url:
+        return ""
+    if file_url.startswith(_UPLOAD_URL_PREFIX):
+        rel = file_url[len(_UPLOAD_URL_PREFIX):].lstrip("/")
+        # 防目录穿越：相对片段里不允许出现 .. 或空段
+        if not rel or any(seg in {"", ".", ".."} for seg in rel.split("/")):
+            return ""
+        mime = _MATERIAL_MIME.get(os.path.splitext(rel)[1].lower().lstrip("."))
+        if not mime:
+            return ""
+        path = os.path.join(settings.object_storage_root, rel)
+        try:
+            with open(path, "rb") as f:
+                data = f.read()
+        except OSError:
+            return ""
+        if not data or len(data) > _MAX_MATERIAL_IMAGE_BYTES:
+            return ""
+        return f"data:{mime};base64,{base64.b64encode(data).decode()}"
+    try:
+        return validate_image_url(file_url)
+    except HTTPException:
+        # 来源不合规视为「不可读」，按降级处理，不让教案生成整体失败
+        return ""
+
 
 async def _describe_material_image(file_url: str, trace_id: str) -> str:
     """用 VLM 识别备课包上传的图片素材，返回一段结构化文字描述。
 
-    仅在已配置多模态模型、且图片为公网 HTTP(S) URL 时执行；任何失败都优雅降级
-    为该图片仅以标题作锚点，避免阻断教案生成。
+    素材为后端本地上传（相对路径，转为 base64 内联）或白名单内公网 URL；未配置
+    多模态模型、素材不可读、来源不合规时一律返回空串，降级为该图片仅以标题作
+    锚点，避免阻断教案生成。
     """
     if not settings.vision_configured or not file_url:
         return ""
-    parsed = urlparse(file_url)
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+    image_ref = _material_image_ref(file_url)
+    if not image_ref:
+        log_event(logger, WARNING, "lesson_material_vision_skip",
+                  trace_id=trace_id, file_url=file_url[:200])
         return ""
     try:
         client = AsyncOpenAI(
@@ -64,7 +123,7 @@ async def _describe_material_image(file_url: str, trace_id: str) -> str:
                     "role": "user",
                     "content": [
                         {"type": "text", "text": "请转写这张医学教学图片。"},
-                        {"type": "image_url", "image_url": {"url": file_url}},
+                        {"type": "image_url", "image_url": {"url": image_ref}},
                     ],
                 },
             ],
@@ -115,7 +174,7 @@ async def lesson_design(
                     if desc:
                         material_lines.append(f"- 图片《{title}》：{desc}")
                     else:
-                        material_lines.append(f"- 图片《{title}》（VLM 未配置或不可用，仅以标题锚点，教学内容须标注待补充）")
+                        material_lines.append(f"- 图片《{title}》（素材未能识别，仅以标题锚点，教学内容须标注待补充）")
                 else:
                     material_lines.append(f"- 课件《{title}》（{mtype}，作为教学参考锚点）")
             if material_lines:

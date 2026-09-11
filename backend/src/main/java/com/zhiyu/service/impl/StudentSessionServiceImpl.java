@@ -402,7 +402,17 @@ public class StudentSessionServiceImpl implements StudentSessionService {
             result.put("status", "DEGRADED");
             result.put("source", "NONE");
             result.put("degraded", true);
+            return result;
         }
-        return result;
+        // 键名归一：AI 侧契约是 snake_case（safety_blocked / citations），移动端读
+        // camelCase（safetyBlocked）。此前仅降级分支写了 safetyBlocked，正常读图结果
+        // 原样透传 → 移动端 `res['safetyBlocked'] == true` 永远不成立，「影像触发
+        // 安全策略」的提示从不显示（2026-09-11 修复）。
+        Map<String, Object> normalized = new java.util.LinkedHashMap<>(result);
+        if (normalized.get("safetyBlocked") == null && normalized.get("safety_blocked") != null) {
+            normalized.put("safetyBlocked", normalized.get("safety_blocked"));
+        }
+        normalized.putIfAbsent("safetyBlocked", false);
+        return normalized;
     }
 }

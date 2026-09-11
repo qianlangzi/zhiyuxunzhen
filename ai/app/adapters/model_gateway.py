@@ -31,6 +31,7 @@ class ModelGateway:
         temperature: float | None = None,
         max_tokens: int | None = None,
         agent_code: str | None = None,
+        disable_thinking: bool = False,
         trace_id: str = "-",
     ) -> AsyncIterator[str]:
         temperature, max_tokens = self._apply_agent_sampling(
@@ -41,6 +42,7 @@ class ModelGateway:
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            disable_thinking=disable_thinking,
             trace_id=trace_id,
         ):
             yield delta

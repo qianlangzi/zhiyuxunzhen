@@ -333,7 +333,12 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
 
   /// 选图 → 上传到后端（返回服务端 URL），期间本地文件即时预览。
   Future<void> _pickAndUploadImage() async {
-    if (_streaming || _imageUploading || _sessionId == null) return;
+    if (_streaming || _imageUploading) return;
+    // 会话未就绪时静默 return 会让「点了选图没反应」无从解释，这里显式提示一次。
+    if (_sessionId == null) {
+      AppFeedback.info(context, '问诊会话准备中，请稍候再发送影像');
+      return;
+    }
     try {
       final file = await ImagePicker().pickImage(
         source: ImageSource.gallery,
@@ -1850,12 +1855,16 @@ class _ChatRoomScreenState extends ConsumerState<ChatRoomScreen>
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(vertical: 10),
                         ),
-                        onSubmitted: (_) => _sendMessage(),
+                        onSubmitted: (_) => _onSend(),
                       ),
                     ),
                   ),
                   GestureDetector(
-                    onTap: _streaming ? null : _sendMessage,
+                    // 必须走 _onSend 分发：存在待发送影像时要转 _sendImage 读取图链路。
+                    // 此前直接绑 _sendMessage，而 _sendMessage 在 text 为空时直接 return，
+                    // 于是「只选图不打字 → 点发送毫无反应」「带字发图 → 只发文字、图片永远
+                    // 卡在待发送区」，即用户反馈的『多模态图片发不出去』（2026-09-11 修复）。
+                    onTap: _streaming ? null : _onSend,
                     behavior: HitTestBehavior.opaque,
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 120),

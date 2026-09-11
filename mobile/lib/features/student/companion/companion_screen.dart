@@ -30,6 +30,14 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   final TextEditingController _ctl = TextEditingController();
   final ScrollController _scroll = ScrollController();
 
+  /// 会话历史抽屉的 Scaffold key。
+  ///
+  /// 不能用 `Scaffold.of(context)`：这里的 context 属于本 State 自身，而要打开的
+  /// Scaffold 正是本 State.build() 的产物 —— 向上查找找不到祖先 Scaffold，会抛
+  /// 「Scaffold.of() called with a context that does not contain a Scaffold」，
+  /// 历史抽屉永远打不开（2026-09-11 定位并修复）。
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
+
   final List<_CompanionMsg> _messages = [];
   bool _loading = false;
 
@@ -334,6 +342,7 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.bgOf(context),
       endDrawer: _sideHistoryDrawer(),
       body: SafeArea(
@@ -421,8 +430,14 @@ class _CompanionScreenState extends ConsumerState<CompanionScreen> {
   }
 
   /// 打开会话历史（从右侧侧边划出）
+  ///
+  /// 走 ScaffoldState key 而非 `Scaffold.of(context)`：后者用的本 State 自身 context
+  /// 位于 Scaffold 之上，会抛异常导致抽屉打不开（详见 _scaffoldKey 注释）。
   void _openHistory() {
-    Scaffold.of(context).openEndDrawer();
+    final state = _scaffoldKey.currentState;
+    if (state != null && !state.isEndDrawerOpen) {
+      state.openEndDrawer();
+    }
   }
 
   /// 组装侧边会话栏入口：宽度约占屏宽 82%，圆润边角

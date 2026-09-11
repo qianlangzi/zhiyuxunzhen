@@ -179,7 +179,8 @@ def mock_llm_client(monkeypatch):
         return json.dumps({"totalScore": 85.0}, ensure_ascii=False)
 
     async def fake_stream(
-        messages, *, model=None, temperature=None, max_tokens=None, trace_id="-"
+        messages, *, model=None, temperature=None, max_tokens=None,
+        disable_thinking=False, trace_id="-",
     ):
         for word in ["你好", "，", "我是", "模拟", "病人", "。"]:
             yield word

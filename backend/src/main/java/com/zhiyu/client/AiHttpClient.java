@@ -194,6 +194,15 @@ public class AiHttpClient {
 
     /**
      * 携带移动端 JWT 的 POST 并解析 data；失败返回 null（优雅降级）。
+     *
+     * 兼容两种 AI 响应形态：
+     * 1) R 信封 `{"code":0,"data":{...}}` —— 优先取 data；
+     * 2) 裸业务对象 —— 如 `/v1/ai/vision/analyze` 按契约（ai/tests/contract/
+     *    test_api_contracts.py::TestVisionAnalyze）直接返回 VisionAnalysisResult，
+     *    没有 data 字段。旧实现遇到无 data 一律 return null，后端于是丢弃「读图成功」
+     *    的结果、统一降级成「读图服务暂不可用」，表现为问诊发图永远读不出内容
+     *    （2026-09-11 定位并修复）。
+     * 错误信封（含 code 但无 data）仍返回 null 走降级。
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> postDataWithBearer(String path, Map<String, Object> body, String bearer) {
@@ -204,6 +213,13 @@ public class AiHttpClient {
             JsonNode data = root.get("data");
             if (data != null && data.isObject()) {
                 return objectMapper.convertValue(data, Map.class);
+            }
+            if (root.isObject() && !root.has("code")) {
+                Map<String, Object> bare = objectMapper.convertValue(root, Map.class);
+                if (!bare.isEmpty()) {
+                    log.debug("AI中台(Bearer)返回裸业务对象，按原样透传: {} keys={}", path, bare.keySet());
+                    return bare;
+                }
             }
             log.warn("AI中台(Bearer)响应中无data字段: {} resp={}", path, json);
             return null;
