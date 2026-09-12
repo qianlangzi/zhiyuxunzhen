@@ -86,16 +86,28 @@ def extract_json(text: str) -> str | None:
     return None
 
 
-def _repair_truncated_json(fragment: str) -> str | None:
-    """补齐被截断 JSON 缺失的闭合符；无法修复时返回 None
+# 对象/数组闭合符前残留的逗号（模型与截断修复的高频产物）
+_TRAILING_COMMA_RE = re.compile(r",\s*(?=[}\]])")
 
-    策略：逐字符扫描，跟踪字符串边界与括号栈，扫描到安全位置后
-    按栈逆序补齐闭合符。字符串中间截断时先补一个引号再闭合。
+# 尾部回退尝试的最大切割点数量（避免超长输出下的无谓扫描）
+_MAX_CUT_POINTS = 40
+
+
+def _strip_trailing_commas(text: str) -> str:
+    """删除闭合符前的多余逗号：{"a":1,} → {"a":1}"""
+    return _TRAILING_COMMA_RE.sub("", text)
+
+
+def _scan_structure(prefix: str) -> tuple[list[str], bool] | None:
+    """扫描前缀的括号/字符串状态
+
+    Returns:
+        (未闭合的括号栈, 是否停在字符串中间)；结构已错（多余的 } / ]）返回 None
     """
     stack: list[str] = []
     in_string = False
     escape = False
-    for ch in fragment:
+    for ch in prefix:
         if in_string:
             if escape:
                 escape = False
@@ -110,17 +122,89 @@ def _repair_truncated_json(fragment: str) -> str | None:
             stack.append(ch)
         elif ch in "}]":
             if not stack:
-                return None  # 结构已错，无法修复
+                return None
             stack.pop()
-    # 截在字符串中间 → 补引号；再按栈逆序闭合
-    if in_string:
-        fragment += '"'
-    fragment += "".join("}" if c == "{" else "]" for c in reversed(stack))
-    try:
-        json.loads(fragment)
-        return fragment
-    except json.JSONDecodeError:
+    return stack, in_string
+
+
+def _close_prefix(prefix: str) -> str | None:
+    """把 JSON 前缀补成完整文档：字符串截断补引号 → 按栈逆序补闭合符 → 去尾随逗号"""
+    scanned = _scan_structure(prefix)
+    if scanned is None:
         return None
+    stack, in_string = scanned
+    closed = prefix + ('"' if in_string else "")
+    closed += "".join("}" if c == "{" else "]" for c in reversed(stack))
+    return _strip_trailing_commas(closed)
+
+
+def _safe_cut_points(fragment: str) -> list[int]:
+    """收集"可安全截断"的位置：元素之间的逗号处（从后往前，最多 _MAX_CUT_POINTS 个）
+
+    截断修复的价值在于：模型被 max_tokens 截断时，尾部常停在下个字段的名字或冒号上
+    （如 `..."presetExams`、`..."key":`），直接补括号得到的是非法 JSON。退到上一个
+    完整元素再闭合，就能救回"内容基本完整、仅尾部被截"的输出——缺失字段由其默认值
+    兜底，比整条链路 422 失败对教师友好得多。
+    """
+    points: list[int] = []
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    for idx, ch in enumerate(fragment):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack:
+                return points
+            stack.pop()
+        elif ch == "," and stack:
+            points.append(idx)
+    return points[-_MAX_CUT_POINTS:]
+
+
+def _repair_truncated_json(fragment: str) -> str | None:
+    """修复被截断的 JSON；无法修复时返回 None
+
+    策略（按优先级）：① 原样补齐闭合符；② 逐级回退到最近的安全截断点再补齐。
+    每条候选都必须真正通过 json.loads 才返回，绝不把"看起来像 JSON"的字符串
+    交给下游——下游按非法 JSON 处理会报出误导性的"未找到有效的 JSON"。
+    """
+    candidates: list[str] = []
+    direct = _close_prefix(fragment)
+    if direct is not None:
+        candidates.append(direct)
+    for cut in reversed(_safe_cut_points(fragment)):
+        candidate = _close_prefix(fragment[:cut])
+        if candidate is not None:
+            candidates.append(candidate)
+    for candidate in candidates:
+        try:
+            json.loads(candidate)
+            return candidate
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _no_json_message(raw_text: str) -> str:
+    """区分"空输出"与"截断输出"，给出可诊断的提示
+
+    旧文案统一为"模型输出中未找到有效的 JSON"，把"被 max_tokens 截断"误导成
+    "模型没给 JSON"，排障时只能靠猜（2026-09-12 线上教师端即为此类误报）。
+    """
+    if not raw_text or not raw_text.strip():
+        return "模型返回内容为空，请重试"
+    return "模型输出不完整（疑似被长度上限截断），请重试"
 
 
 class StructuredOutputService:
@@ -161,8 +245,10 @@ class StructuredOutputService:
                       trace_id=trace_id, raw_length=len(raw_text),
                       raw_preview=raw_text[:200])
             raise OutputSchemaInvalidError(
-                "模型输出中未找到有效的 JSON",
+                _no_json_message(raw_text),
                 trace_id=trace_id,
+                details={"retryable": True, "reason": "no_json",
+                         "raw_length": len(raw_text.strip())},
             )
 
         try:
@@ -174,6 +260,7 @@ class StructuredOutputService:
             raise OutputSchemaInvalidError(
                 f"JSON 解析失败: {e.msg}",
                 trace_id=trace_id,
+                details={"retryable": True, "reason": "json_decode"},
             ) from e
 
         try:
@@ -182,10 +269,13 @@ class StructuredOutputService:
             errors = e.errors()[:3]
             log_event(logger, WARNING, "structured_output_validation_error",
                       trace_id=trace_id, errors=errors)
-            first_msg = errors[0]["msg"] if errors else "未知错误"
+            # 首条错误的字段路径放进文案：教师端 toast 直接展示 message，
+            # 只给"不符合要求"无从下手，带上字段名至少能定位（原始英文错误进 details）
+            loc = ".".join(str(p) for p in errors[0].get("loc", ())) if errors else ""
             raise OutputSchemaInvalidError(
-                f"输出校验失败: {first_msg}",
+                f"AI 输出字段不符合要求{'（' + loc + '）' if loc else ''}，请重试",
                 trace_id=trace_id,
+                details={"retryable": False, "reason": "validation", "errors": errors},
             ) from e
 
     async def parse_to_dict(
@@ -216,8 +306,10 @@ class StructuredOutputService:
             log_event(logger, WARNING, "structured_output_no_json",
                       trace_id=trace_id, raw_preview=raw_text[:200])
             raise OutputSchemaInvalidError(
-                "模型输出中未找到有效的 JSON",
+                _no_json_message(raw_text),
                 trace_id=trace_id,
+                details={"retryable": True, "reason": "no_json",
+                         "raw_length": len(raw_text.strip())},
             )
 
         try:
@@ -228,6 +320,7 @@ class StructuredOutputService:
             raise OutputSchemaInvalidError(
                 f"JSON 解析失败: {e.msg}",
                 trace_id=trace_id,
+                details={"retryable": True, "reason": "json_decode"},
             ) from e
 
         if not isinstance(data, dict):

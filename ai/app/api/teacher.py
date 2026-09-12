@@ -18,7 +18,9 @@ Spring Boot 调用，需 X-Internal-Token 鉴权。
 import json
 import uuid
 from logging import INFO, WARNING
+from typing import TypeVar
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends
 
 from app.core.errors import (
@@ -62,6 +64,51 @@ from app.services.structured_output import structured_output
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+T = TypeVar("T", bound=BaseModel)
+
+# 结构化生成的长度预算。
+# SP 病例草稿字段多（患者画像 / 隐藏疾病含鉴别诊断 / 检查项 / 评分要点 / 教材溯源），
+# 全局默认 2048 在长病例上会被 max_tokens 截断，尾部停在字段名或冒号上时连
+# JSON 修复都救不回来，教师端表现为"模型输出中未找到有效的 JSON"（2026-09-12 线上）。
+DRAFT_MAX_TOKENS = 4096
+DEFAULT_MAX_TOKENS = 2048
+
+
+async def _validated_chat(
+    messages: list[dict[str, str]],
+    model_class: type[T],
+    *,
+    trace_id: str,
+    scene: str,
+    max_tokens: int = DEFAULT_MAX_TOKENS,
+) -> T:
+    """调用模型并把输出校验为目标模型；截断/无 JSON 类失败时加大预算重试一次
+
+    失败的两个真实来源是 ①输出被 max_tokens 截断、②这一轮没吐出 JSON 结构，
+    两者都属于"换一轮大概率成功"的随机失败——直接抛给教师体验很差。
+    类型校验类失败（字段类型不对）重试无意义且白烧额度，因此只重试前者
+    （structured_output 通过 details.retryable 标注）。
+    """
+    attempts = (max_tokens, max_tokens * 2)
+    for idx, budget in enumerate(attempts, start=1):
+        raw = await llm_client.chat(
+            messages, disable_thinking=True, max_tokens=budget,
+            trace_id=trace_id, scene=scene,
+        )
+        try:
+            return await structured_output.parse_and_validate(
+                raw, model_class, trace_id=trace_id,
+            )
+        except OutputSchemaInvalidError as e:
+            retryable = bool((e.details or {}).get("retryable"))
+            log_event(logger, WARNING, "teacher_ai_schema_invalid",
+                      trace_id=trace_id, scene=scene, attempt=idx,
+                      max_tokens=budget, retryable=retryable,
+                      raw_length=len(raw), msg=e.message)
+            if not retryable or idx == len(attempts):
+                raise
+    raise AssertionError("unreachable")  # pragma: no cover
 
 
 def _build_rag_context(citations) -> str:
@@ -122,14 +169,14 @@ async def generate_case_draft(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: CaseDraftResult = await _validated_chat(
+                messages, CaseDraftResult, trace_id=trace_id,
+                scene="case_draft", max_tokens=DRAFT_MAX_TOKENS,
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        # 结构化校验（extra 字段拒收）
-        result: CaseDraftResult = await structured_output.parse_and_validate(
-            raw, CaseDraftResult, trace_id=trace_id,
-        )
         # 若 RAG 可用，把实际命中的教材溯源合并进 citations（保证可追溯）
         if citations:
             existing = {f"{c.book_name}:{c.page_number}" for c in result.citations}
@@ -185,13 +232,13 @@ async def class_insight(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: ClassInsightResult = await _validated_chat(
+                messages, ClassInsightResult, trace_id=trace_id, scene="class_insight",
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        result: ClassInsightResult = await structured_output.parse_and_validate(
-            raw, ClassInsightResult, trace_id=trace_id,
-        )
         log_event(logger, INFO, "class_insight_done", trace_id=trace_id,
                   suggestions=len(result.teachingSuggestions))
         return R(data=result.model_dump())
@@ -239,13 +286,13 @@ async def review_assist(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: ReviewAssistResult = await _validated_chat(
+                messages, ReviewAssistResult, trace_id=trace_id, scene="review_assist",
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        result: ReviewAssistResult = await structured_output.parse_and_validate(
-            raw, ReviewAssistResult, trace_id=trace_id,
-        )
         log_event(logger, INFO, "review_assist_done", trace_id=trace_id,
                   instance_id=req.instanceId, suggestions=len(result.suggestions))
         return R(data=result.model_dump())
@@ -291,13 +338,13 @@ async def recommend_cases(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: RecommendCasesResult = await _validated_chat(
+                messages, RecommendCasesResult, trace_id=trace_id, scene="recommend_cases",
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        result: RecommendCasesResult = await structured_output.parse_and_validate(
-            raw, RecommendCasesResult, trace_id=trace_id,
-        )
         # 防幻觉兜底：剔除推荐了不存在 caseId 的结果
         valid_ids = {c.caseId for c in req.candidateCases}
         result.recommendations = [r for r in result.recommendations if r.caseId in valid_ids]
@@ -345,13 +392,13 @@ async def quality_check(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: QualityResult = await _validated_chat(
+                messages, QualityResult, trace_id=trace_id, scene="quality_check",
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        result: QualityResult = await structured_output.parse_and_validate(
-            raw, QualityResult, trace_id=trace_id,
-        )
         log_event(logger, INFO, "quality_check_done", trace_id=trace_id,
                   case_id=req.caseId, overall=result.overallPass)
         return R(data=result.model_dump())
@@ -395,13 +442,14 @@ async def practice_questions(
             {"role": "user", "content": user_msg},
         ]
         try:
-            raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
+            result: PracticeQuestionsResult = await _validated_chat(
+                messages, PracticeQuestionsResult, trace_id=trace_id,
+                scene="practice_questions",
+            )
+        except ApiError:
+            raise
         except Exception as exc:  # noqa: BLE001
             raise ModelUnavailableError(trace_id=trace_id) from exc
-
-        result: PracticeQuestionsResult = await structured_output.parse_and_validate(
-            raw, PracticeQuestionsResult, trace_id=trace_id,
-        )
         log_event(logger, INFO, "practice_questions_done", trace_id=trace_id,
                   case_id=req.caseId, questions=len(result.questions))
         return R(data=result.model_dump())
@@ -438,9 +486,8 @@ async def material_advice(
             )},
             {"role": "user", "content": "请按 schema 输出素材建议 JSON。"},
         ]
-        raw = await llm_client.chat(messages, disable_thinking=True, trace_id=trace_id)
-        result: MaterialAdviceResult = await structured_output.parse_and_validate(
-            raw, MaterialAdviceResult, trace_id=trace_id,
+        result: MaterialAdviceResult = await _validated_chat(
+            messages, MaterialAdviceResult, trace_id=trace_id, scene="material_advice",
         )
         log_event(logger, INFO, "material_advice_done", trace_id=trace_id,
                   case_id=req.caseId, suggestions=len(result.suggestions))
