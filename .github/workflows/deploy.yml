@@ -94,9 +94,16 @@ jobs:
             git log --oneline -1
             # 登录 ghcr 以便拉取私有镜像
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u qianlangzi --password-stdin
-            # 用镜像覆盖层部署: pull 最新预构建镜像 + 重启容器
+            # 只强拉【本项目自有镜像】。第三方基础镜像（minio/mysql/redis/etcd/milvus/nginx）
+            # 在服务器上已有固定版本，此前用 `up -d --pull always` 会把它们一并拉取，
+            # 而服务器的 registry mirror（阿里云加速器）对 minio 返回 403 Forbidden，
+            # 单个 pull 失败即中断整条 compose 命令 —— 镜像其实已拉到本地，容器却
+            # 一个都没重建（2026-09-12 部署失败根因，见运维大全）。
             docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-              -f docker-compose.image.yml --profile web up -d --pull always --force-recreate
+              -f docker-compose.image.yml --profile web pull backend ai ai-worker front
+            # 再重建容器：此处不带 --pull always，避免第三方镜像再次触发 mirror 403
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              -f docker-compose.image.yml --profile web up -d --force-recreate
             echo "===== 部署后自检 ====="
             docker inspect zhiyu-backend --format 'backend StartedAt: {{.State.StartedAt}}'
             docker inspect zhiyu-ai --format 'ai StartedAt: {{.State.StartedAt}}'

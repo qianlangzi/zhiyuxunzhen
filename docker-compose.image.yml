@@ -3,7 +3,15 @@
 #
 # 配合三条链路使用（生产只用这条）:
 #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
-#                  -f docker-compose.image.yml --profile web up -d --pull always
+#                  -f docker-compose.image.yml --profile web pull backend ai ai-worker front
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  -f docker-compose.image.yml --profile web up -d --force-recreate
+#
+# 为什么分两步、且不再用 `up -d --pull always`：
+#   第三方基础镜像（minio/mysql/redis/etcd/milvus/nginx）服务器上已有固定版本，
+#   `--pull always` 会把它们一并拉取；服务器的 registry mirror 对 minio 返回
+#   403 Forbidden，单个 pull 失败即中断整条 compose 命令——镜像已拉到本地，
+#   容器却一个都没重建（2026-09-12 部署失败根因）。
 #
 # 作用:
 #   CI（GitHub Actions）负责在【7G 内存的 runner】上完成 Maven/前端/Python 构建，
